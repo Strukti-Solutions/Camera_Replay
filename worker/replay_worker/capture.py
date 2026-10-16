@@ -31,13 +31,15 @@ class CameraCapture:
             return "offline"
         return "online" if self._clock() - self._last_video <= self.offline_after else "offline"
 
-    def run_once(self) -> None:
+    def run_once(self, stop: threading.Event | None = None) -> None:
         """Uma sessão: conecta, alimenta o anel até a fonte terminar ou falhar."""
         self.session_frames = 0
         source = self._make_source()
         try:
             source.open()
             for chunk in source.chunks():
+                if stop is not None and stop.is_set():
+                    break
                 now = self._clock()
                 for au in split_access_units(chunk):
                     self.ring.append(now, au)
@@ -51,7 +53,7 @@ class CameraCapture:
         failures = 0
         while not stop.is_set():
             try:
-                self.run_once()
+                self.run_once(stop)
             except Exception as exc:
                 self.last_error = repr(exc)
             failures = 0 if self.session_frames else failures + 1

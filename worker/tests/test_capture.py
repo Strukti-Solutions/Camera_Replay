@@ -87,3 +87,32 @@ def test_backoff_para_no_teto_de_60s():
     cap = CameraCapture("cam1", lambda: next(fontes), Ring(), clock=Relogio())
     cap.run_forever(stop, wait=wait)
     assert esperas == [1, 2, 4, 8, 16, 32, 60, 60, 60, 60, 60, 60]
+
+
+def test_stop_interrompe_sessao_ativa_e_fecha_a_fonte():
+    stop = threading.Event()
+
+    class Infinita(FakeSource):
+        def chunks(self):
+            n = 0
+            while True:
+                yield KEY
+                n += 1
+                if n == 3:
+                    stop.set()
+
+    ring = Ring()
+    src = Infinita()
+    cap = CameraCapture("cam1", lambda: src, ring, clock=Relogio())
+    cap.run_once(stop)
+    assert src.closed
+    assert len(ring) <= 3
+
+
+def test_run_forever_com_stop_ja_setado_nao_cria_fonte():
+    stop = threading.Event()
+    stop.set()
+    chamadas = []
+    cap = CameraCapture("cam1", lambda: chamadas.append(1), Ring(), clock=Relogio())
+    cap.run_forever(stop, wait=lambda d: True)
+    assert chamadas == []
