@@ -46,7 +46,8 @@ def _safe_mark_failed(queue: JobQueue, clip_id: str, reason: str) -> None:
 
 def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader, fps: float,
                 seconds: float = 30.0, retries: int = 3, max_age: float = 120.0,
-                clock=time.time, mux=h264_to_mp4, min_duration: float = 1.0) -> bool:
+                clock=time.time, mux=h264_to_mp4, min_duration: float = 1.0,
+                max_stale: float = 30.0) -> bool:
     """Corta, converte e envia. Devolve True se o clipe ficou pronto.
 
     Nunca lança: qualquer exceção vira `mark_failed`; se a fila também falhar,
@@ -54,14 +55,14 @@ def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader, f
     """
     try:
         return _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
-                        clock, mux, min_duration)
+                        clock, mux, min_duration, max_stale)
     except Exception as exc:
         _safe_mark_failed(queue, job.clip_id, "erro interno (%s)" % type(exc).__name__)
         return False
 
 
 def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
-             clock, mux, min_duration) -> bool:
+             clock, mux, min_duration, max_stale) -> bool:
     if clock() - job.pressed_at > max_age:
         _safe_mark_failed(queue, job.clip_id, "pedido antigo demais")
         return False
@@ -69,6 +70,10 @@ def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
     cut = ring.cut(job.pressed_at, seconds)
     if cut is None:
         _safe_mark_failed(queue, job.clip_id, "sem vídeo no buffer no momento do aperto")
+        return False
+
+    if job.pressed_at - cut.end_t > max_stale:
+        _safe_mark_failed(queue, job.clip_id, "câmera offline no momento do aperto")
         return False
 
     if cut.duration < min_duration:
@@ -83,14 +88,15 @@ def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
 
     key = None
     erro = None
-    for _ in range(retries):
+    attempts = max(1, retries)
+    for _ in range(attempts):
         try:
             key = uploader.upload(job.clip_id, mp4)
             break
         except Exception as exc:
             erro = exc
     if key is None:
-        _safe_mark_failed(queue, job.clip_id, "falha no envio após %d tentativas (%s)" % (retries, type(erro).__name__))
+        _safe_mark_failed(queue, job.clip_id, "falha no envio após %d tentativas (%s)" % (attempts, type(erro).__name__))
         return False
 
     queue.mark_ready(job.clip_id, key, len(mp4), cut.duration, cut.partial or cut.has_gap)

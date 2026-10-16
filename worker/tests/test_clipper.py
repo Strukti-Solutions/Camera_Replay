@@ -160,3 +160,11 @@ def test_clipe_de_um_quadro_falha_por_curto():
     up = FakeUploader()
     assert not run(ring, q, up)
     assert "curto" in q.failed[0][1] and up.chamadas == 0
+
+
+def test_camera_offline_no_aperto_falha_sem_enviar():
+    up = FakeUploader()
+    q = FakeQueue()
+    assert not run(anel_cheio(), q, up, j=job(200.0), clock=lambda: 201.0)
+    assert "offline" in q.failed[0][1]
+    assert up.chamadas == 0 and q.ready == []
