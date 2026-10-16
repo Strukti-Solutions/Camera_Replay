@@ -3,9 +3,13 @@ clipper.py — transforma um pedido de clipe em um MP4 enviado.
 
 A fila (Postgres) e o armazenamento (R2) entram por Protocol; as implementações
 reais vêm no plano do Backend. Aqui só vale o contrato:
-  - nunca lança: toda falha vira `mark_failed` com um motivo legível;
+  - `process_job` nunca lança: toda falha vira `mark_failed` com um motivo legível;
+    se a própria fila falhar (ex.: conexão com o Postgres caiu), a falha é engolida
+    e registrada no log só com o tipo da exceção. Quem retoma um clipe preso em
+    "processando" é o loop do worker / reaper do Backend (fora deste módulo);
   - clipe curto ou com buraco vira `partial=True` (status `parcial`), não falha.
 """
+import logging
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -32,23 +36,49 @@ class Uploader(Protocol):
     def upload(self, clip_id: str, mp4: bytes) -> str: ...
 
 
+def _safe_mark_failed(queue: JobQueue, clip_id: str, reason: str) -> None:
+    try:
+        queue.mark_failed(clip_id, reason)
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "falha ao marcar clipe %s como falhou: %s", clip_id, type(exc).__name__)
+
+
 def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader, fps: float,
                 seconds: float = 30.0, retries: int = 3, max_age: float = 120.0,
-                clock=time.time, mux=h264_to_mp4) -> bool:
-    """Corta, converte e envia. Devolve True se o clipe ficou pronto."""
+                clock=time.time, mux=h264_to_mp4, min_duration: float = 1.0) -> bool:
+    """Corta, converte e envia. Devolve True se o clipe ficou pronto.
+
+    Nunca lança: qualquer exceção vira `mark_failed`; se a fila também falhar,
+    isso é engolido e registrado no log só com o tipo.
+    """
+    try:
+        return _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
+                        clock, mux, min_duration)
+    except Exception as exc:
+        _safe_mark_failed(queue, job.clip_id, "erro interno (%s)" % type(exc).__name__)
+        return False
+
+
+def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
+             clock, mux, min_duration) -> bool:
     if clock() - job.pressed_at > max_age:
-        queue.mark_failed(job.clip_id, "pedido antigo demais")
+        _safe_mark_failed(queue, job.clip_id, "pedido antigo demais")
         return False
 
     cut = ring.cut(job.pressed_at, seconds)
     if cut is None:
-        queue.mark_failed(job.clip_id, "sem vídeo no buffer no momento do aperto")
+        _safe_mark_failed(queue, job.clip_id, "sem vídeo no buffer no momento do aperto")
+        return False
+
+    if cut.duration < min_duration:
+        _safe_mark_failed(queue, job.clip_id, "trecho curto demais")
         return False
 
     try:
         mp4 = mux(cut.data, fps)
     except MuxError as exc:
-        queue.mark_failed(job.clip_id, "falha no ffmpeg: %s" % exc)
+        _safe_mark_failed(queue, job.clip_id, "falha no ffmpeg: %s" % str(exc)[:200])
         return False
 
     key = None
@@ -60,7 +90,7 @@ def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader, f
         except Exception as exc:
             erro = exc
     if key is None:
-        queue.mark_failed(job.clip_id, "falha no envio: %r" % (erro,))
+        _safe_mark_failed(queue, job.clip_id, "falha no envio após %d tentativas (%s)" % (retries, type(erro).__name__))
         return False
 
     queue.mark_ready(job.clip_id, key, len(mp4), cut.duration, cut.partial or cut.has_gap)
