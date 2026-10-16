@@ -8,6 +8,13 @@ de-wrapa até o ÚLTIMO marcador XM (o resto espera o próximo ciclo).
 from collections.abc import Iterator
 
 MSG_VIDEO = 1412   # dados de vídeo neste firmware
+MAX_RAW = 8 * 1024 * 1024   # teto do bruto acumulado sem marcador XM
+
+
+class StreamDesyncError(RuntimeError):
+    """O fluxo de vídeo não traz marcadores XM: fora de sincronia."""
+
+
 MAX_PAYLOAD = 4 * 1024 * 1024   # teto do payload NetIP; acima disso o cabeçalho é lixo
 
 
@@ -135,6 +142,8 @@ def video_chunks(reader) -> Iterator[bytes]:
             continue
         raw += payload
         last = find_last_marker(raw)
+        if last <= 0 and len(raw) > MAX_RAW:
+            raise StreamDesyncError("fluxo de vídeo fora de sincronia")
         if last > 0:
             h = dewrap(bytes(raw[:last]))
             del raw[:last]

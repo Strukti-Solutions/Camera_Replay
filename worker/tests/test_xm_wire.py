@@ -73,3 +73,12 @@ def test_netip_lixo_com_ff_antes_de_pacote_valido():
     bom = netip('{"a":1}', msgid=1412)
     r = NetIPReader(FakeSock([b"\x00\xff\x05lixo\xff" + bom]))
     assert r.read() == (1412, b'{"a":1}\x00')
+
+
+def test_video_chunks_sem_marcador_nao_acumula_sem_teto(monkeypatch):
+    import pytest
+    from replay_worker.xm import wire
+    monkeypatch.setattr(wire, "MAX_RAW", 1000)
+    reader = FakeReader([(1412, b"\x11" * 400)] * 10)
+    with pytest.raises(wire.StreamDesyncError):
+        list(video_chunks(reader))
