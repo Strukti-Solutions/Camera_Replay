@@ -1,0 +1,13 @@
+[project]
+name = "replay-worker"
+version = "0.1.0"
+description = "Worker de captura do replay: anel de 30 s por câmera e corte do clipe"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

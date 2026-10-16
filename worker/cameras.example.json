@@ -1,0 +1,11 @@
+{
+  "cameras": [
+    {
+      "sn": "SERIAL_DA_CAMERA",
+      "name": "Quadra 1",
+      "authcode": "aaaaaaaa-1a0eXXXXX",
+      "local_user": "xxxx",
+      "local_pwd": "xxxxxx"
+    }
+  ]
+}

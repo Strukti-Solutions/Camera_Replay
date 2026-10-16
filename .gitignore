@@ -1,0 +1,9 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+.env
+worker/cameras.json
+worker/out/
+*.h264
+*.mp4
