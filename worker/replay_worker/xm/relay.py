@@ -38,18 +38,24 @@ def _rnd(n, alfa):
     return "".join(random.choice(alfa) for _ in range(n))
 
 
+_HOST_RE = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+secu100\.net", re.IGNORECASE)
+
+
 def _check_remote(host: str, port: int) -> None:
     """Recusa destinos devolvidos pela nuvem que não sejam do fabricante/públicos."""
-    if not 1 <= port <= 65535:
+    if (not isinstance(host, str) or not isinstance(port, int)
+            or isinstance(port, bool) or not 1 <= port <= 65535):
         raise RelayError("endereço remoto inválido")
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
-        if not host.endswith(".secu100.net"):
+        if not _HOST_RE.fullmatch(host):
             raise RelayError("endereço remoto inválido") from None
-    else:
-        if not ip.is_global:
-            raise RelayError("endereço remoto inválido")
+        return
+    if getattr(ip, "ipv4_mapped", None) is not None:
+        ip = ip.ipv4_mapped
+    if not ip.is_global:
+        raise RelayError("endereço remoto inválido")
 
 
 def connect_live(cam: CameraCreds, read_timeout: float = 15.0):

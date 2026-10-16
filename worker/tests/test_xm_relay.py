@@ -22,3 +22,19 @@ def test_check_remote_aceita(host, port):
 def test_check_remote_recusa(host, port):
     with pytest.raises(RelayError):
         _check_remote(host, port)
+
+
+@pytest.mark.parametrize("host,port", [
+    ("evil.com/.secu100.net", 6510), ("evil.com?.secu100.net", 6510),
+    ("evil.com#.secu100.net", 6510), ("a@evil.com#.secu100.net", 6510),
+    ("secu100.net.evil.com", 6510), ("evilsecu100.net", 6510),
+    ("::ffff:127.0.0.1", 6510), (None, 6510), ("8.8.8.8", "6510"),
+])
+def test_check_remote_recusa_hostnames_e_tipos_invalidos(host, port):
+    with pytest.raises(RelayError):
+        _check_remote(host, port)
+
+
+@pytest.mark.parametrize("host", ["x.secu100.net", "pub-status.secu100.net", "8.8.8.8"])
+def test_check_remote_continua_aceitando(host):
+    _check_remote(host, 6510)
