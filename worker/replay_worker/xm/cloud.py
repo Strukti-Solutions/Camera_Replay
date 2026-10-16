@@ -14,7 +14,7 @@ from . import crypto
 UA = "funsdk-v1.8.2-Android"
 _CTX = ssl.create_default_context()
 _CTX.check_hostname = False
-_CTX.verify_mode = ssl.CERT_NONE   # o servidor do fabricante não precisa ser verificado
+_CTX.verify_mode = ssl.CERT_NONE   # DÍVIDA (bloqueia produção): TLS sem verificação; ver docs/divida-worker.md
 
 
 def _b64fix(s):
