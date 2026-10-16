@@ -43,3 +43,14 @@ def test_estrutura_invalida_da_erro(tmp_path, conteudo):
 
 def test_lista_vazia_e_permitida(tmp_path):
     assert load_cameras(_escreve(tmp_path, {"cameras": []})) == {}
+
+
+def test_campo_obrigatorio_que_nao_e_string_levanta_valueerror(tmp_path):
+    import json
+    import pytest
+    from replay_worker.config import load_cameras
+    p = tmp_path / "cameras.json"
+    p.write_text(json.dumps({"cameras": [{"sn": "A", "authcode": 5,
+                                          "local_user": "u", "local_pwd": "p"}]}))
+    with pytest.raises(ValueError, match="authcode"):
+        load_cameras(str(p))
