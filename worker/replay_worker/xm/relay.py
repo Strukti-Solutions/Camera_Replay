@@ -6,11 +6,12 @@ Portado de camera/src/webcam.py (connect_live), sem config.py. Passos: STATUS
 do relay -> login DVRIP local (MD5) -> Claim + Start do OPMonitor.
 """
 import base64
+import ipaddress
 import random
 import re
 import socket
 import string
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from . import cloud
 from .crypto import sofia_hash
@@ -23,9 +24,9 @@ _PARAMS = ('{"Channel":0,"CombinMode":"CONNECT_ALL","StreamType":"Main","TransMo
 @dataclass(frozen=True)
 class CameraCreds:
     sn: str
-    authcode: str
+    authcode: str = field(repr=False)
     local_user: str
-    local_pwd: str
+    local_pwd: str = field(repr=False)
     name: str = ""
 
 
@@ -35,6 +36,20 @@ class RelayError(RuntimeError):
 
 def _rnd(n, alfa):
     return "".join(random.choice(alfa) for _ in range(n))
+
+
+def _check_remote(host: str, port: int) -> None:
+    """Recusa destinos devolvidos pela nuvem que não sejam do fabricante/públicos."""
+    if not 1 <= port <= 65535:
+        raise RelayError("endereço remoto inválido")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        if not host.endswith(".secu100.net"):
+            raise RelayError("endereço remoto inválido") from None
+    else:
+        if not ip.is_global:
+            raise RelayError("endereço remoto inválido")
 
 
 def connect_live(cam: CameraCreds, read_timeout: float = 15.0):
@@ -56,10 +71,12 @@ def connect_live(cam: CameraCreds, read_timeout: float = 15.0):
             "Encrypt": "1", "ProtocolMode": "tcp", "SerialNumber": sn, "ServiceType": "RpsCmd",
             "SessionId": sid, "Step": "0"},
             "Header": {"MessageType": "MSG_CLI_NEED_CON_REQ", "Version": "1.0"}}}
+    _check_remote(serverip, 6510)
     rr = cloud.jftech_post("https://%s:6510/" % serverip, need, timeout=9)
     b = rr["AgentProtocol"]["Body"]
     agent, aport = b["AgentServerIp"], int(b["AgentServerPort"])
 
+    _check_remote(agent, aport)
     s = socket.socket()
     try:
         s.settimeout(12)

@@ -58,3 +58,18 @@ def test_video_chunks_segura_o_ultimo_quadro_ate_o_proximo_marcador():
         (1412, f3),
     ])
     assert list(video_chunks(reader)) == [nal(7) + nal(5), nal(1)]
+
+
+def test_netip_cabecalho_com_comprimento_absurdo_ressincroniza():
+    ruim = bytearray(netip('{"x":1}', msgid=1412))
+    ruim[16:20] = (0x7FFFFFFF).to_bytes(4, "little")
+    bom = netip('{"a":1}', msgid=1412)
+    r = NetIPReader(FakeSock([bytes(ruim), bom]))
+    assert r.read() == (1412, b'{"a":1}\x00')
+    assert len(r.buf) < 1024
+
+
+def test_netip_lixo_com_ff_antes_de_pacote_valido():
+    bom = netip('{"a":1}', msgid=1412)
+    r = NetIPReader(FakeSock([b"\x00\xff\x05lixo\xff" + bom]))
+    assert r.read() == (1412, b'{"a":1}\x00')

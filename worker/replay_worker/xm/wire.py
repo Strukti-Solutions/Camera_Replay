@@ -8,6 +8,7 @@ de-wrapa até o ÚLTIMO marcador XM (o resto espera o próximo ciclo).
 from collections.abc import Iterator
 
 MSG_VIDEO = 1412   # dados de vídeo neste firmware
+MAX_PAYLOAD = 4 * 1024 * 1024   # teto do payload NetIP; acima disso o cabeçalho é lixo
 
 
 def netip(js, sid=0, msgid=0, seq=0, chn=0) -> bytes:
@@ -50,8 +51,11 @@ class NetIPReader:
             while len(self.buf) < 20:
                 if not self._fill():
                     return None
-            mid = int.from_bytes(self.buf[14:16], "little")
             ln = int.from_bytes(self.buf[16:20], "little")
+            if self.buf[1] != 0x01 or ln > MAX_PAYLOAD:
+                del self.buf[:1]   # cabeçalho inválido: ressincroniza
+                continue
+            mid = int.from_bytes(self.buf[14:16], "little")
             while len(self.buf) < 20 + ln:
                 if not self._fill():
                     return None
