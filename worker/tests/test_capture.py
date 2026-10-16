@@ -95,7 +95,7 @@ def test_stop_interrompe_sessao_ativa_e_fecha_a_fonte():
     class Infinita(FakeSource):
         def chunks(self):
             n = 0
-            while True:
+            for _ in range(10):
                 yield KEY
                 n += 1
                 if n == 3:
@@ -106,7 +106,7 @@ def test_stop_interrompe_sessao_ativa_e_fecha_a_fonte():
     cap = CameraCapture("cam1", lambda: src, ring, clock=Relogio())
     cap.run_once(stop)
     assert src.closed
-    assert len(ring) <= 3
+    assert len(ring) == 3
 
 
 def test_run_forever_com_stop_ja_setado_nao_cria_fonte():
