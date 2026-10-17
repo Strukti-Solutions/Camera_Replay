@@ -57,15 +57,19 @@ O aperto grava o **instante do servidor** (`recebido_em`), não o do ESP32.
 
 | Tabela | Campos principais |
 |---|---|
-| `arenas` | id, nome, plano, status da assinatura |
+| `arenas` | id, nome, plano, status da assinatura, `dias_retencao` (int, padrão 7) |
 | `usuarios` | id, arena_id, e-mail, hash da senha, papel |
 | `quadras` | id, arena_id, nome, `slug` público aleatório |
 | `cameras` | id, quadra_id, nome, SN, credenciais cifradas, status, última vez visto |
-| `botoes` | id, quadra_id, camera_id, hash do token, última vez visto |
+| `botoes` | id, quadra_id, camera_id, hash do token, última vez visto, `revogado_em` |
 | `apertos` | id, botao_id, `recebido_em`, status |
-| `clipes` | id, aperto_id, chave no R2, duração, tamanho, `expira_em`, status (`pendente`, `pronto`, `parcial`, `falhou`) |
+| `clipes` | id, `arena_id`, aperto_id, `camera_id`, chave no R2, duração, tamanho, `expira_em`, `motivo`, `iniciado_em`, status (`pendente`, `processando`, `pronto`, `parcial`, `falhou`) |
 
 Toda tabela filha carrega `arena_id` e toda consulta filtra por ele (isolamento entre arenas).
+
+`cameras.credenciais` é um texto no formato `v1:<iv>:<tag>:<cifra>`, com cada parte em base64. A cifra é AES-256-GCM sobre o JSON `{"authcode","local_user","local_pwd"}`.
+
+`clipes.motivo` guarda a causa quando o status é `falhou`. `clipes.iniciado_em` guarda o instante em que o worker pegou o clipe (status `processando`).
 
 ## Fluxo do aperto ao vídeo
 
@@ -75,6 +79,18 @@ Toda tabela filha carrega `arena_id` e toda consulta filtra por ele (isolamento 
 4. Envia o MP4 ao R2 e marca o clipe como `pronto`, com tamanho e duração.
 5. O jogador abre `/q/<slug>` e vê os lances `prontos` e não expirados. O player usa URL assinada curta.
 6. Um job de limpeza apaga, no R2 e no banco, os clipes expirados.
+
+### Contrato da fila
+
+O app e o worker usam estas funções SQL. Não há outro caminho entre os dois.
+
+- `registrar_aperto(token_hash text) → (clipe_id uuid, duplicado bool)`. Não retorna linha se o token é inválido ou foi revogado. Aperto duplo (< 5 s no mesmo botão) retorna o clipe existente com `duplicado = true`.
+- `pegar_clipes(camera_id uuid, limite int) → setof (clipe_id uuid, camera_id uuid, recebido_em timestamptz)`. Passa os clipes `pendente` para `processando`, com `FOR UPDATE SKIP LOCKED`.
+- `marcar_pronto(clipe_id, chave text, tamanho bigint, duracao real, parcial bool) → bool`. Só age sobre `processando`. Grava `pronto`, ou `parcial` se `parcial = true`.
+- `marcar_falhou(clipe_id, motivo text) → bool`. Só age sobre `processando`.
+- `expirar_presos() → int`. Marca como `falhou` os clipes presos em `pendente` ou `processando` além do limite e retorna quantos foram.
+
+Chave no R2: `clipes/<arena_id>/<clipe_id>.mp4`.
 
 ## Interface do buffer
 
@@ -92,7 +108,9 @@ Toda tabela filha carrega `arena_id` e toda consulta filtra por ele (isolamento 
 ## Segurança e LGPD
 
 - Credenciais das câmeras cifradas no banco. A chave fica só no ambiente do app e do worker. O `config.py` com segredos continua fora do git.
-- Token do botão por dispositivo, revogável, guardado como hash.
+- Token do botão por dispositivo, revogável (`botoes.revogado_em`), guardado como hash. Token revogado não registra aperto.
+- Credenciais no formato `v1:<iv>:<tag>:<cifra>` (AES-256-GCM). O prefixo `v1` permite trocar o formato depois.
+- Retenção por arena em `arenas.dias_retencao` (padrão 7 dias). A chave do clipe no R2 inclui o `arena_id`.
 - Login do dono com hash forte de senha e limite de tentativas.
 - Bucket privado, URLs assinadas e curtas.
 - Não há dados de jogador. O vídeo mostra pessoas: a quadra precisa de aviso de gravação, que entra como requisito de implantação e nos termos de uso.
