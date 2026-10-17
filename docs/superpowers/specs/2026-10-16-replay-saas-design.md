@@ -91,6 +91,10 @@ O app e o worker usam estas funções SQL. Não há outro caminho entre os dois.
 - `marcar_pronto(clipe_id, chave text, tamanho bigint, duracao real, parcial bool) → bool`. Só age sobre `processando`. Grava `pronto`, ou `parcial` se `parcial = true`. A chave tem de ser exatamente `clipes/<arena_id do clipe>/<clipe_id>.mp4`. Outra chave lança erro (SQLSTATE `22023`, `invalid_parameter_value`) em vez de devolver `false`, porque é bug do worker e não pode ser confundida com "o reaper chegou antes".
 - `marcar_falhou(clipe_id, motivo text) → bool`. Só age sobre `processando`.
 - `expirar_presos() → int`. Marca como `falhou` os clipes presos em `pendente` ou `processando` há mais de 2 minutos desde `recebido_em` e retorna quantos foram.
+- `listar_cameras() → setof (camera_id uuid, arena_id uuid, sn text, credenciais text)`. Só câmeras com pelo menos um botão ativo (`botoes.revogado_em is null`). No fluxo manual de troca de câmera o botão é religado à nova, então a antiga sai da lista e o mesmo `sn` não abre duas conexões. As credenciais voltam cifradas (`v1:...`); o worker decifra com a chave do ambiente.
+- `marcar_camera(camera_id uuid, status text) → bool`. Grava `status` (`online` ou `offline`); com `online` grava também `visto_em = now()`. Devolve `false` se a câmera não existe. Outro status é recusado pelo check da tabela.
+
+O worker usa `clock_timestamp()` do banco como relógio de referência.
 
 Chave no R2: `clipes/<arena_id>/<clipe_id>.mp4`.
 
