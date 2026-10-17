@@ -1,6 +1,6 @@
 # Validação na câmera real
 
-Data: ____  Câmera: Inova KV-20158  Comando: `py -m replay_worker.smoke --sn <SN> --wait 45`
+Data: 17/10/2026  Câmera: Inova KV-20158  Comando: `py -m replay_worker.smoke --sn <SN> --wait 45`
 
 | Item | Medido | Esperado / ação se diferente |
 |---|---|---|
