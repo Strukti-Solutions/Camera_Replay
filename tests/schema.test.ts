@@ -11,7 +11,7 @@ test("migrar aplica tudo uma vez e é idempotente", async () => {
   const db = await novoBanco();
   expect(await migrar(db)).toEqual([]);
   const r = await db.query("select nome from schema_migrations");
-  expect(r.rows).toEqual([{ nome: "0001_schema.sql" }]);
+  expect(r.rows).toEqual([{ nome: "0001_schema.sql" }, { nome: "0002_fila.sql" }]);
 });
 
 test("botão não pode apontar para quadra de outra arena", async () => {
