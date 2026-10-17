@@ -9,7 +9,16 @@ import { useRef, useState } from "react";
 // liberada quando o vídeo carrega de fato (não quando a URL muda, porque toda
 // atualização gera assinatura nova e reabriria o laço). Assim cada expiração
 // seguinte do mesmo lance também é recuperada.
-export function VideoClipe({ url, rotulo }: { url: string; rotulo: string }) {
+// autoPlay: usado no diálogo do carrossel, aberto por um toque do jogador.
+export function VideoClipe({
+  url,
+  rotulo,
+  autoPlay = false,
+}: {
+  url: string;
+  rotulo: string;
+  autoPlay?: boolean;
+}) {
   const router = useRouter();
   const jaAtualizou = useRef(false);
   const [falhou, setFalhou] = useState(false);
@@ -19,7 +28,8 @@ export function VideoClipe({ url, rotulo }: { url: string; rotulo: string }) {
       <video
         controls
         playsInline
-        preload="none"
+        autoPlay={autoPlay}
+        preload={autoPlay ? "auto" : "none"}
         src={url}
         aria-label={rotulo}
         onLoadedData={() => {

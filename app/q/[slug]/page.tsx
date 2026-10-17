@@ -5,7 +5,7 @@ import { clipesDaQuadra, type LeitorR2 } from "@/app/lib/clipes";
 import { formatarDuracao, formatarHorario } from "@/app/lib/formato";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
-import { VideoClipe } from "./video-clipe";
+import { CarrosselLances, type LanceDoCarrossel } from "./carrossel-lances";
 
 // Lista muda a cada aperto do botão e as URLs assinadas valem 15 min:
 // nada de cache estático.
@@ -38,7 +38,18 @@ export default async function PaginaDaQuadra({ params }: Props) {
   const dados = await carregar(slug);
   if (!dados) notFound();
 
+  // Horário e duração já formatados aqui: servidor e celular podem discordar
+  // do relógio e do fuso ("hoje"/"ontem"), e a hidratação quebraria.
   const agora = new Date();
+  const lances: LanceDoCarrossel[] = dados.clipes.map((clipe) => ({
+    id: clipe.id,
+    horario: formatarHorario(clipe.recebidoEm, agora),
+    duracao: formatarDuracao(clipe.duracao),
+    parcial: clipe.parcial,
+    url: clipe.url,
+    capa: clipe.capa,
+    download: clipe.download,
+  }));
 
   return (
     <>
@@ -52,33 +63,48 @@ export default async function PaginaDaQuadra({ params }: Props) {
         </div>
       </header>
 
-      <main className="miolo">
+      <main>
         {!dados.videosDisponiveis ? (
-          <div className="aviso" role="status">
-            <p>Vídeos indisponíveis no momento.</p>
+          <div className="miolo">
+            <div className="aviso" role="status">
+              <p>Vídeos indisponíveis no momento.</p>
+            </div>
           </div>
-        ) : dados.clipes.length === 0 ? (
-          <div className="aviso">
-            <p>Nenhum lance nos últimos dias. Aperte o botão da quadra e volte em 1 minuto.</p>
+        ) : lances.length === 0 ? (
+          <div className="miolo">
+            <div className="aviso">
+              <p>Nenhum lance nos últimos dias. Aperte o botão da quadra e volte em 1 minuto.</p>
+            </div>
           </div>
         ) : (
-          <ol className="lances">
-            {dados.clipes.map((clipe) => {
-              const horario = formatarHorario(clipe.recebidoEm, agora);
-              return (
-                <li key={clipe.id} className="lance">
-                  <div className="lance-cabeca">
-                    <h2>{horario}</h2>
-                    <p className="lance-meta">
-                      <span>{formatarDuracao(clipe.duracao)}</span>
-                      {clipe.parcial && <span className="selo">Parcial</span>}
-                    </p>
-                  </div>
-                  <VideoClipe url={clipe.url} rotulo={`Lance de ${horario}`} />
-                </li>
-              );
-            })}
-          </ol>
+          <>
+            <CarrosselLances lances={lances} />
+            {/* Sem JavaScript: a lista simples, com os vídeos direto na página. */}
+            <noscript>
+              <div className="miolo">
+                <ol className="lances">
+                  {lances.map((lance) => (
+                    <li key={lance.id} className="lance">
+                      <div className="lance-cabeca">
+                        <h2>{lance.horario}</h2>
+                        <p className="lance-meta">
+                          <span>{lance.duracao}</span>
+                          {lance.parcial && <span className="selo">Parcial</span>}
+                        </p>
+                      </div>
+                      <video
+                        controls
+                        playsInline
+                        preload="none"
+                        src={lance.url}
+                        aria-label={`Lance de ${lance.horario}`}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </noscript>
+          </>
         )}
       </main>
     </>
