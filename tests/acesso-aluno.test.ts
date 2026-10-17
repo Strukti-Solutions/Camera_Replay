@@ -5,7 +5,7 @@ import { criarReserva, definirAlunosDaReserva } from "../app/lib/reservas";
 import { atribuirClipe } from "../app/lib/painel";
 import { entrar, validarSessao } from "../app/lib/sessao";
 import {
-  arenaDoSlug, cadastrarAluno, entrarAluno, lancesAvulsosDoAluno, lancesDaReserva, quadraDoSlugPublica, reservasDoAluno, sairAluno, slugDaArena, slugDaArenaDaQuadra, validarSessaoAluno,
+  arenaDoSlug, entrarAluno, lancesAvulsosDoAluno, lancesDaReserva, reservasDoAluno, sairAluno, slugDaArena, slugDaArenaDaQuadra, validarSessaoAluno,
 } from "../app/lib/acesso-aluno";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -238,14 +238,6 @@ test("reservasDoAluno: mais nova primeiro, janela de retenção da arena e slug 
   expect(await reservasDoAluno(db, "../x", s.ana.id)).toBeNull();
 });
 
-test("quadraDoSlugPublica devolve só nome da quadra e arena; null para slug inválido ou desconhecido", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  expect(await quadraDoSlugPublica(db, s.qa.slug)).toEqual({ quadra: "Quadra 1", arenaId: s.a.id });
-  expect(await quadraDoSlugPublica(db, "A".repeat(22))).toBeNull();
-  expect(await quadraDoSlugPublica(db, "../x")).toBeNull();
-});
-
 test("arenaDoSlug devolve id e nome; slug malformado não consulta o banco", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
@@ -264,94 +256,6 @@ test("slugDaArenaDaQuadra leva o slug da quadra ao da sua arena; desconhecido e 
   expect(await slugDaArenaDaQuadra(db, s.qb.slug)).toBe(s.b.slug);
   expect(await slugDaArenaDaQuadra(db, "A".repeat(22))).toBeNull();
   expect(await slugDaArenaDaQuadra(db, "../x")).toBeNull();
-});
-
-test("cadastro novo abre sessão da arena e a lista de reservas vem vazia", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  const r = await cadastrarAluno(db, s.a.slug, { nome: "Caio Mota", email: " CAIO@x.com ", senha: SENHA }, "9.9.9.9");
-  expect(r.ok).toBe(true);
-  if (!r.ok) return;
-  const sessao = await validarSessaoAluno(db, r.token);
-  expect(sessao).toMatchObject({ arenaId: s.a.id, nome: "Caio Mota" });
-  expect((await reservasDoAluno(db, s.a.slug, sessao!.alunoId))!.reservas).toEqual([]);
-  expect(await lancesAvulsosDoAluno(db, r2Falso(), s.a.slug, sessao!.alunoId)).toEqual([]);
-  // e-mail normalizado e senha digitada valem no login
-  expect((await entrarAluno(db, s.a.slug, "caio@x.com", SENHA, "9.9.9.9")).ok).toBe(true);
-});
-
-test("cadastro: e-mail repetido na arena (também com maiúsculas) dá existe; em outra arena é permitido", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "Outra Ana", email: "ana@x.com", senha: SENHA }, "9.9.9.9"))
-    .toEqual({ ok: false, motivo: "existe" });
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "Outra Ana", email: "ANA@X.COM", senha: SENHA }, "9.9.9.9"))
-    .toEqual({ ok: false, motivo: "existe" });
-  expect((await cadastrarAluno(db, s.b.slug, { nome: "Beto B", email: "beto@x.com", senha: SENHA }, "9.9.9.9")).ok).toBe(true);
-});
-
-test("cadastro: dados inválidos e slug desconhecido dão invalido, sem criar conta", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  const antes = (await db.query("select id from alunos")).rows.length;
-  const ruim = { ok: false, motivo: "invalido" };
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "", email: "c@x.com", senha: SENHA }, "9.9.9.9")).toEqual(ruim);
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "Caio", email: "nao-e-email", senha: SENHA }, "9.9.9.9")).toEqual(ruim);
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "Caio", email: "c@x.com", senha: "curta" }, "9.9.9.9")).toEqual(ruim);
-  expect(await cadastrarAluno(db, "A".repeat(22), { nome: "Caio", email: "c@x.com", senha: SENHA }, "9.9.9.9")).toEqual(ruim);
-  expect(await cadastrarAluno(db, "../x", { nome: "Caio", email: "c@x.com", senha: SENHA }, "9.9.9.9")).toEqual(ruim);
-  expect((await db.query("select id from alunos")).rows.length).toBe(antes);
-});
-
-test("cadastro: o 6º do mesmo IP na hora é recusado; outro IP passa; passada a hora volta", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  for (let i = 1; i <= 5; i++) {
-    const r = await cadastrarAluno(db, s.a.slug, { nome: `Aluno ${i}`, email: `a${i}@x.com`, senha: SENHA }, "7.7.7.7");
-    expect(r.ok).toBe(true);
-  }
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "Aluno 6", email: "a6@x.com", senha: SENHA }, "7.7.7.7"))
-    .toEqual({ ok: false, motivo: "limite" });
-  expect((await db.query("select id from alunos where email = 'a6@x.com'")).rows).toEqual([]);
-  expect((await cadastrarAluno(db, s.a.slug, { nome: "Aluno 6", email: "a6@x.com", senha: SENHA }, "8.8.8.8")).ok).toBe(true);
-  await db.query("update tentativas_login set em = now() - interval '61 minutes' where email = 'cadastro:7.7.7.7'");
-  expect((await cadastrarAluno(db, s.a.slug, { nome: "Aluno 7", email: "a7@x.com", senha: SENHA }, "7.7.7.7")).ok).toBe(true);
-});
-
-test("5 cadastros do IP não travam o login do dono nem o do aluno vindos desse IP", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  await db.query(
-    "insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'dono@x.com', $2, 'dono')",
-    [s.a.id, await hashSenha(SENHA)]);
-  // 18 tentativas de login falhas do IP (perto do teto de 20) + 5 cadastros passariam de 20 se somassem
-  for (let i = 0; i < 18; i++) await db.query("insert into tentativas_login (email, ip) values ($1, '5.5.5.5')", [`x${i}@x.com`]);
-  for (let i = 1; i <= 5; i++) {
-    expect((await cadastrarAluno(db, s.a.slug, { nome: `Aluno ${i}`, email: `n${i}@x.com`, senha: SENHA }, "5.5.5.5")).ok).toBe(true);
-  }
-  expect((await entrar(db, "dono@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
-  expect((await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
-});
-
-test("o limite de cadastro conta tentativas com e-mail repetido: 5 'existe' e a 6ª dá limite", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  for (let i = 0; i < 5; i++) {
-    expect(await cadastrarAluno(db, s.a.slug, { nome: "Ana", email: "ana@x.com", senha: SENHA }, "6.6.6.6"))
-      .toEqual({ ok: false, motivo: "existe" });
-  }
-  expect(await cadastrarAluno(db, s.a.slug, { nome: "Nova", email: "nova@x.com", senha: SENHA }, "6.6.6.6"))
-    .toEqual({ ok: false, motivo: "limite" });
-});
-
-test("conta feita pelo cadastro vem marcada criadoPeloAluno; a do dono não", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  const r = await cadastrarAluno(db, s.a.slug, { nome: "Caio Mota", email: "caio@x.com", senha: SENHA }, "9.9.9.9");
-  expect(r.ok).toBe(true);
-  const lista = await listarAlunos(db, s.a.id);
-  const por = Object.fromEntries(lista.map((x) => [x.email, x.criadoPeloAluno]));
-  expect(por).toEqual({ "ana@x.com": false, "beto@x.com": false, "caio@x.com": true });
 });
 
 test("slugDaArena devolve o slug da arena do painel; id inválido não consulta o banco", async () => {

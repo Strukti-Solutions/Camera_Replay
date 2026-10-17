@@ -12,7 +12,3 @@ alter table arenas alter column slug set default replace(gen_random_uuid()::text
 alter table arenas alter column slug set not null;
 alter table arenas add constraint arenas_slug_key unique (slug);
 alter table arenas add constraint arenas_slug_check check (slug ~ '^[A-Za-z0-9_-]{20,64}$');
-
--- Conta criada pelo próprio aluno no QR (sem verificação de e-mail): o dono vê a marca
--- e confere a pessoa antes de pô-la numa reserva (mitiga conta criada com e-mail alheio).
-alter table alunos add column criado_pelo_aluno boolean not null default false;

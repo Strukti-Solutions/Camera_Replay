@@ -1,12 +1,10 @@
 import type { Db } from "./db";
-import { criarAluno } from "./alunos";
-import { ErroPainel } from "./painel";
 import { conferirSenha } from "./senha";
 import { hashToken, novoToken } from "./segredos";
 import { DURACAO_SESSAO_S, obterHashFalso, registrarTentativa, type ResultadoEntrar } from "./sessao";
 import { SLUG_VALIDO, paraClipePublico, type ClipePublico, type LeitorR2, type LinhaClipe } from "./clipes";
 
-// Acesso do aluno: login e cadastro presos à arena do QR (slug da arena) e as
+// Acesso do aluno: login preso à arena do QR (slug da arena) e as
 // regras que decidem quais lances ele vê em todas as quadras dela (por reserva ou
 // por atribuição explícita do dono). A sessão do aluno vive em tabela própria e
 // nunca vale como sessão de dono.
@@ -63,51 +61,6 @@ async function abrirSessaoAluno(db: Db, arenaId: string, alunoId: string) {
   return { token, expiraEm: new Date(r.rows[0].expira_em) };
 }
 
-export type ResultadoCadastro =
-  | { ok: true; token: string; expiraEm: Date }
-  | { ok: false; motivo: "existe" | "limite" | "invalido" };
-
-// Cadastro do aluno pelo QR da arena: cria a conta e já abre a sessão. A conta
-// nasce sem reserva nem lance: o dono é quem a coloca numa reserva. Limite de 5
-// tentativas por IP por hora na chave `cadastro:<ip>`: contam inclusive e-mail repetido
-// e dados inválidos; só a tentativa barrada pelo próprio limite não conta. A conta
-// sai marcada `criado_pelo_aluno` (o dono confere a pessoa antes de pô-la numa reserva).
-export async function cadastrarAluno(
-  db: Db,
-  slugArena: string,
-  dados: { nome: string; email: string; senha: string },
-  ip: string,
-): Promise<ResultadoCadastro> {
-  const arena = await arenaPorSlug(db, slugArena);
-  if (!arena) return { ok: false, motivo: "invalido" };
-
-  // Registro pessimista, como o login: grava antes de contar, para requisições
-  // concorrentes se enxergarem. Barrada pelo limite, a própria tentativa sai da contagem.
-  const chave = `cadastro:${ip}`;
-  const ins = await db.query<{ id: string }>(
-    "insert into tentativas_login (email, ip) values ($1, $2) returning id",
-    [chave, ip],
-  );
-  const n = await db.query<{ n: number }>(
-    `select count(*)::int as n from tentativas_login
-      where email = $1 and em > now() - make_interval(mins => $2)`,
-    [chave, JANELA_CADASTRO_MIN],
-  );
-  if (Number(n.rows[0].n) > LIMITE_CADASTRO) {
-    await db.query("delete from tentativas_login where id = $1", [ins.rows[0].id]);
-    return { ok: false, motivo: "limite" };
-  }
-
-  let alunoId: string;
-  try {
-    alunoId = (await criarAluno(db, arena.id, dados, { criadoPeloAluno: true })).id;
-  } catch (e) {
-    if (!(e instanceof ErroPainel)) throw e;
-    return { ok: false, motivo: e.message === "e-mail já cadastrado" ? "existe" : "invalido" };
-  }
-  return { ok: true, ...(await abrirSessaoAluno(db, arena.id, alunoId)) };
-}
-
 export async function entrarAluno(
   db: Db,
   slugArena: string,
@@ -157,19 +110,6 @@ export async function validarSessaoAluno(db: Db, token: string): Promise<SessaoA
 export async function sairAluno(db: Db, token: string): Promise<void> {
   if (typeof token !== "string" || !FORMATO_TOKEN.test(token)) return;
   await db.query("delete from sessoes_aluno where token_hash = $1", [hashToken(token)]);
-}
-
-// Nome da quadra e arena do slug da quadra, para as rotas antigas (/q). Não lista reserva nem aluno.
-export async function quadraDoSlugPublica(
-  db: Db,
-  slug: string,
-): Promise<{ quadra: string; arenaId: string } | null> {
-  if (typeof slug !== "string" || !SLUG_VALIDO.test(slug)) return null;
-  const q = await db.query<{ nome: string; arena_id: string }>(
-    "select nome, arena_id from quadras where slug = $1",
-    [slug],
-  );
-  return q.rows[0] ? { quadra: q.rows[0].nome, arenaId: q.rows[0].arena_id } : null;
 }
 
 // Reservas do aluno em todas as quadras da arena do slug, ainda na retenção e com

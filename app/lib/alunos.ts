@@ -20,14 +20,13 @@ const esquemaEmail = z.string().trim().toLowerCase().max(200).email();
 const esquemaSenha = z.string().min(SENHA_MIN).max(SENHA_MAX);
 
 export type AlunoLista = {
-  id: string; nome: string; email: string; reservas: number; criadoEm: Date; criadoPeloAluno: boolean;
+  id: string; nome: string; email: string; reservas: number; criadoEm: Date;
 };
 
 export async function criarAluno(
   db: Db,
   arenaId: string,
   dados: { nome: string; email: string; senha: string },
-  opcoes: { criadoPeloAluno?: boolean } = {},
 ): Promise<{ id: string }> {
   if (!ehUuid(arenaId)) throw new ErroPainel("arena inválida");
   // Mensagens fixas: nada do que foi digitado volta no erro.
@@ -41,8 +40,8 @@ export async function criarAluno(
   const hash = await hashSenha(senha.data);
   try {
     const r = await db.query<{ id: string }>(
-      "insert into alunos (arena_id, nome, email, senha_hash, criado_pelo_aluno) values ($1, $2, $3, $4, $5) returning id",
-      [arenaId, nome.data, email.data, hash, opcoes.criadoPeloAluno === true],
+      "insert into alunos (arena_id, nome, email, senha_hash) values ($1, $2, $3, $4) returning id",
+      [arenaId, nome.data, email.data, hash],
     );
     return { id: r.rows[0].id };
   } catch (e) {
@@ -53,8 +52,8 @@ export async function criarAluno(
 
 export async function listarAlunos(db: Db, arenaId: string): Promise<AlunoLista[]> {
   if (!ehUuid(arenaId)) return [];
-  const { rows } = await db.query<{ id: string; nome: string; email: string; reservas: number; criado_em: Date; criado_pelo_aluno: boolean }>(
-    `select a.id, a.nome, a.email, a.criado_em, a.criado_pelo_aluno,
+  const { rows } = await db.query<{ id: string; nome: string; email: string; reservas: number; criado_em: Date }>(
+    `select a.id, a.nome, a.email, a.criado_em,
             (select count(*) from reserva_alunos ra
               where ra.aluno_id = a.id and ra.arena_id = a.arena_id)::int as reservas
        from alunos a
@@ -68,7 +67,6 @@ export async function listarAlunos(db: Db, arenaId: string): Promise<AlunoLista[
     email: r.email,
     reservas: Number(r.reservas),
     criadoEm: r.criado_em,
-    criadoPeloAluno: r.criado_pelo_aluno,
   }));
 }
 

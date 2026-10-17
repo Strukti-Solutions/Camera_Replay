@@ -51,13 +51,6 @@ export default async function PaginaQuadra({ params }: Props) {
         <Link href="/painel">← Quadras</Link>
       </p>
       <h1>{quadra.nome}</h1>
-      <p className="atalhos">
-        {/* Link comum: a página do jogador não faz parte do painel. */}
-        <a className="botao" href={`/q/${encodeURIComponent(quadra.slug)}`}>
-          Página pública
-        </a>
-      </p>
-
       <section className="secao" aria-labelledby="titulo-camera">
         <h2 id="titulo-camera">Câmera</h2>
         {camera ? (
