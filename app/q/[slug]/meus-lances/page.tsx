@@ -22,7 +22,7 @@ export default async function MeusLances({ params }: Props) {
   if (!dados.aluno) redirect(`/q/${slug}`);
 
   const { r2, videosDisponiveis } = leitorR2();
-  const clipes = await lancesAvulsosDoAluno(poolCompartilhado(), r2, slug, dados.aluno.alunoId);
+  const clipes = await lancesAvulsosDoAluno(poolCompartilhado(), r2, dados.slugArena, dados.aluno.alunoId);
 
   return (
     <>

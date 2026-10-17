@@ -24,7 +24,7 @@ export default async function PaginaDaReserva({ params }: Props) {
   if (!dados.aluno) redirect(`/q/${slug}/entrar?r=${reserva}`);
 
   const { r2, videosDisponiveis } = leitorR2();
-  const lances = await lancesDaReserva(poolCompartilhado(), r2, slug, reserva, dados.aluno.alunoId);
+  const lances = await lancesDaReserva(poolCompartilhado(), r2, dados.slugArena, reserva, dados.aluno.alunoId);
 
   return (
     <>

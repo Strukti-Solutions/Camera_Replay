@@ -35,9 +35,9 @@ export default async function PaginaDaQuadra({ params }: Props) {
 
   const pool = poolCompartilhado();
   const [doAluno, avulsosLista] = await Promise.all([
-    reservasDoAluno(pool, slug, aluno.alunoId),
+    reservasDoAluno(pool, dados.slugArena, aluno.alunoId),
     // Só a contagem: o leitor que não assina evita gerar URL que ninguém vai usar.
-    lancesAvulsosDoAluno(pool, semR2, slug, aluno.alunoId),
+    lancesAvulsosDoAluno(pool, semR2, dados.slugArena, aluno.alunoId),
   ]);
   const reservas = doAluno?.reservas ?? [];
   const avulsos = avulsosLista.length;

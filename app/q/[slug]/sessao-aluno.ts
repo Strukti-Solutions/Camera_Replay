@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
-import { quadraDoSlugPublica, validarSessaoAluno, type SessaoAluno } from "@/app/lib/acesso-aluno";
+import { quadraDoSlugPublica, slugDaArenaDaQuadra, validarSessaoAluno, type SessaoAluno } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { sessaoDaArena } from "./apresentacao";
 
@@ -22,5 +22,8 @@ export const quadraEAluno = cache(async (slug: string) => {
   const sessao = await sessaoDoCookie();
   const quadra = await quadraDoSlugPublica(poolCompartilhado(), slug);
   if (!quadra) return null;
-  return { quadra: quadra.quadra, arenaId: quadra.arenaId, aluno: sessaoDaArena(sessao, quadra.arenaId) };
+  // Transitório: as consultas do aluno já são por slug da arena (a Tarefa 2 move as páginas para /a).
+  const slugArena = await slugDaArenaDaQuadra(poolCompartilhado(), slug);
+  if (!slugArena) return null;
+  return { quadra: quadra.quadra, arenaId: quadra.arenaId, slugArena, aluno: sessaoDaArena(sessao, quadra.arenaId) };
 });

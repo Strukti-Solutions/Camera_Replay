@@ -2,7 +2,7 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { entrarAluno, sairAluno } from "@/app/lib/acesso-aluno";
+import { entrarAluno, sairAluno, slugDaArenaDaQuadra } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { DURACAO_SESSAO_S } from "@/app/lib/sessao";
 import { ipDoCliente } from "@/app/entrar/ip";
@@ -20,7 +20,9 @@ export async function entrarAlunoAction(_estado: EstadoEntrarAluno, form: FormDa
   const ip = ipDoCliente(await headers());
 
   // A arena vem do slug: com slug desconhecido a resposta é a mesma de senha errada.
-  const r = await entrarAluno(poolCompartilhado(), slug, email, senha, ip);
+  // Transitório: o slug do formulário ainda é o da quadra; entrarAluno quer o da arena.
+  const pool = poolCompartilhado();
+  const r = await entrarAluno(pool, (await slugDaArenaDaQuadra(pool, slug)) ?? slug, email, senha, ip);
   const destino = destinoAposEntrar(slug, reserva);
   if (!r.ok || !destino) {
     return {

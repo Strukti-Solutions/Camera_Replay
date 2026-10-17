@@ -37,3 +37,14 @@ test("e-mail repetido (com maiúsculas) é recusado e não deixa arena órfã", 
   );
   expect(await contarArenas(db)).toBe(1);
 });
+
+test("a arena nova já nasce com slug aleatório de 22 caracteres, diferente a cada arena", async () => {
+  const db = await novoBanco();
+  const a = await criarArenaComDono(db, { arena: "A", email: "a@x.com", senha: SENHA });
+  const b = await criarArenaComDono(db, { arena: "B", email: "b@x.com", senha: SENHA });
+  const r = await db.query<{ id: string; slug: string }>("select id, slug from arenas");
+  const por = Object.fromEntries(r.rows.map((x) => [x.id, x.slug]));
+  expect(por[a.arenaId]).toMatch(/^[A-Za-z0-9_-]{22}$/);
+  expect(por[b.arenaId]).toMatch(/^[A-Za-z0-9_-]{22}$/);
+  expect(por[a.arenaId]).not.toBe(por[b.arenaId]);
+});

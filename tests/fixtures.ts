@@ -3,9 +3,17 @@ import { hashToken, novoSlug, novoToken } from "../app/lib/segredos";
 
 type Id = { id: string };
 
-export async function criarArena(db: Db, nome = "Arena Teste"): Promise<Id> {
-  const r = await db.query<Id>("insert into arenas (nome) values ($1) returning id", [nome]);
-  return r.rows[0];
+// Em bancos parados numa migração anterior à 0008 a coluna slug ainda não existe.
+export async function criarArena(db: Db, nome = "Arena Teste"): Promise<Id & { slug: string }> {
+  const slug = novoSlug();
+  const tem = await db.query(
+    "select 1 from information_schema.columns where table_name = 'arenas' and column_name = 'slug'");
+  if (tem.rows.length === 0) {
+    const r = await db.query<Id>("insert into arenas (nome) values ($1) returning id", [nome]);
+    return { id: r.rows[0].id, slug: "" };
+  }
+  const r = await db.query<Id>("insert into arenas (nome, slug) values ($1, $2) returning id", [nome, slug]);
+  return { id: r.rows[0].id, slug };
 }
 
 export async function criarQuadra(db: Db, arenaId: string): Promise<Id & { slug: string }> {

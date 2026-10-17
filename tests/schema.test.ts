@@ -283,7 +283,7 @@ test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem
       [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
     const sete = await inserir(7), um = await inserir(1);
 
-    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql"]);
+    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql"]);
 
     const ar = await db.query("select id, dias_retencao from arenas");
     expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
@@ -292,6 +292,33 @@ test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem
     const por = Object.fromEntries(cl.rows.map((x) => [x.id, x]));
     expect(por[sete].tres).toBe(true);
     expect(por[um].um).toBe(true); // prazo menor que 3 dias fica como estava
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+});
+
+test("migração 0008 dá slug próprio às arenas existentes; slug é único, obrigatório e com 20+ caracteres", async () => {
+  // Banco parado na 0007, com duas arenas já cadastradas (sem slug).
+  const pasta = mkdtempSync(join(tmpdir(), "mig-"));
+  try {
+    const todas = join(__dirname, "..", "db", "migrations");
+    for (const f of readdirSync(todas).filter((x) => x < "0008")) cpSync(join(todas, f), join(pasta, f));
+    const db = await novoBanco(pasta);
+    await db.query("insert into arenas (nome) values ('A'), ('B')");
+
+    expect(await migrar(db)).toEqual(["0008_arena_slug.sql"]);
+
+    const r = await db.query<{ slug: string }>("select slug from arenas order by nome");
+    expect(r.rows).toHaveLength(2);
+    for (const { slug } of r.rows) expect(slug).toMatch(/^[A-Za-z0-9_-]{20,64}$/);
+    expect(r.rows[0].slug).not.toBe(r.rows[1].slug);
+
+    await expect(db.query("insert into arenas (nome, slug) values ('C', $1)", [r.rows[0].slug])).rejects.toThrow(/unique|duplicate/i);
+    await expect(db.query("insert into arenas (nome, slug) values ('C', 'curto')")).rejects.toThrow(/check/i);
+    await expect(db.query("insert into arenas (nome, slug) values ('C', null)")).rejects.toThrow(/null/i);
+    // insert sem slug (fixtures antigas, scripts) ganha um valor válido
+    const sem = await db.query<{ slug: string }>("insert into arenas (nome) values ('D') returning slug");
+    expect(sem.rows[0].slug).toMatch(/^[A-Za-z0-9_-]{20,64}$/);
   } finally {
     rmSync(pasta, { recursive: true, force: true });
   }

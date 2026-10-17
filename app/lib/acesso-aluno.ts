@@ -1,12 +1,15 @@
 import type { Db } from "./db";
+import { criarAluno } from "./alunos";
+import { ErroPainel } from "./painel";
 import { conferirSenha } from "./senha";
 import { hashToken, novoToken } from "./segredos";
 import { DURACAO_SESSAO_S, obterHashFalso, registrarTentativa, type ResultadoEntrar } from "./sessao";
 import { SLUG_VALIDO, paraClipePublico, type ClipePublico, type LeitorR2, type LinhaClipe } from "./clipes";
 
-// Acesso do aluno: login preso à arena da quadra do QR e as regras que decidem
-// quais lances ele vê (por reserva ou por atribuição explícita do dono). A sessão
-// do aluno vive em tabela própria e nunca vale como sessão de dono.
+// Acesso do aluno: login e cadastro presos à arena do QR (slug da arena) e as
+// regras que decidem quais lances ele vê em todas as quadras dela (por reserva ou
+// por atribuição explícita do dono). A sessão do aluno vive em tabela própria e
+// nunca vale como sessão de dono.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ehUuid = (id: unknown): id is string => typeof id === "string" && UUID.test(id);
@@ -14,18 +17,90 @@ const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/; // 32 bytes em base64url (novoToken
 
 export type SessaoAluno = { alunoId: string; arenaId: string; nome: string };
 
-type Quadra = { id: string; arena_id: string; nome: string };
+type Arena = { id: string; nome: string };
 
 // Slug malformado nunca toca o banco; desconhecido devolve null.
-async function quadraDoSlug(db: Db, slug: string): Promise<Quadra | null> {
+async function arenaPorSlug(db: Db, slug: string): Promise<Arena | null> {
   if (typeof slug !== "string" || !SLUG_VALIDO.test(slug)) return null;
-  const q = await db.query<Quadra>("select id, arena_id, nome from quadras where slug = $1", [slug]);
+  const q = await db.query<Arena>("select id, nome from arenas where slug = $1", [slug]);
   return q.rows[0] ?? null;
+}
+
+export async function arenaDoSlug(db: Db, slug: string): Promise<{ arenaId: string; nome: string } | null> {
+  const a = await arenaPorSlug(db, slug);
+  return a ? { arenaId: a.id, nome: a.nome } : null;
+}
+
+// Slug da arena a que a quadra pertence, para as rotas antigas /q/<slug-da-quadra>
+// redirecionarem. Slug malformado não toca o banco.
+export async function slugDaArenaDaQuadra(db: Db, slugQuadra: string): Promise<string | null> {
+  if (typeof slugQuadra !== "string" || !SLUG_VALIDO.test(slugQuadra)) return null;
+  const q = await db.query<{ slug: string }>(
+    "select a.slug from quadras q join arenas a on a.id = q.arena_id where q.slug = $1",
+    [slugQuadra],
+  );
+  return q.rows[0]?.slug ?? null;
+}
+
+const LIMITE_CADASTRO = 5; // contas novas por IP na janela
+const JANELA_CADASTRO_MIN = 60;
+
+async function abrirSessaoAluno(db: Db, arenaId: string, alunoId: string) {
+  const token = novoToken();
+  const r = await db.query<{ expira_em: Date }>(
+    `insert into sessoes_aluno (arena_id, aluno_id, token_hash, expira_em)
+     values ($1, $2, $3, now() + make_interval(secs => $4)) returning expira_em`,
+    [arenaId, alunoId, hashToken(token), DURACAO_SESSAO_S],
+  );
+  return { token, expiraEm: new Date(r.rows[0].expira_em) };
+}
+
+export type ResultadoCadastro =
+  | { ok: true; token: string; expiraEm: Date }
+  | { ok: false; motivo: "existe" | "limite" | "invalido" };
+
+// Cadastro do aluno pelo QR da arena: cria a conta e já abre a sessão. A conta
+// nasce sem reserva nem lance: o dono é quem a coloca numa reserva. Limite de 5
+// contas por IP por hora na chave `cadastro:<ip>` (tentativa recusada não conta).
+export async function cadastrarAluno(
+  db: Db,
+  slugArena: string,
+  dados: { nome: string; email: string; senha: string },
+  ip: string,
+): Promise<ResultadoCadastro> {
+  const arena = await arenaPorSlug(db, slugArena);
+  if (!arena) return { ok: false, motivo: "invalido" };
+
+  // Registro pessimista, como o login: grava antes de contar, para requisições
+  // concorrentes se enxergarem. Recusada, a própria tentativa sai da contagem.
+  const chave = `cadastro:${ip}`;
+  const ins = await db.query<{ id: string }>(
+    "insert into tentativas_login (email, ip) values ($1, $2) returning id",
+    [chave, ip],
+  );
+  const n = await db.query<{ n: number }>(
+    `select count(*)::int as n from tentativas_login
+      where email = $1 and em > now() - make_interval(mins => $2)`,
+    [chave, JANELA_CADASTRO_MIN],
+  );
+  if (Number(n.rows[0].n) > LIMITE_CADASTRO) {
+    await db.query("delete from tentativas_login where id = $1", [ins.rows[0].id]);
+    return { ok: false, motivo: "limite" };
+  }
+
+  let alunoId: string;
+  try {
+    alunoId = (await criarAluno(db, arena.id, dados)).id;
+  } catch (e) {
+    if (!(e instanceof ErroPainel)) throw e;
+    return { ok: false, motivo: e.message === "e-mail já cadastrado" ? "existe" : "invalido" };
+  }
+  return { ok: true, ...(await abrirSessaoAluno(db, arena.id, alunoId)) };
 }
 
 export async function entrarAluno(
   db: Db,
-  slug: string,
+  slugArena: string,
   email: string,
   senha: string,
   ip: string,
@@ -36,15 +111,15 @@ export async function entrarAluno(
   await db.query("delete from sessoes_aluno where expira_em < now()");
   await db.query("delete from tentativas_login where em < now() - interval '1 day'");
 
-  // A arena vem da quadra do slug; o aluno é procurado só nela. A chave do limite
-  // é por conta (arena + e-mail); slug desconhecido usa "?" no lugar da arena.
-  const quadra = await quadraDoSlug(db, slug);
-  const chave = `aluno:${quadra?.arena_id ?? "?"}:${emailNorm}`;
+  // A arena vem do slug; o aluno é procurado só nela. A chave do limite é por
+  // conta (arena + e-mail); slug desconhecido usa "?" no lugar da arena.
+  const arena = await arenaPorSlug(db, slugArena);
+  const chave = `aluno:${arena?.id ?? "?"}:${emailNorm}`;
   if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
-  const a = quadra
+  const a = arena
     ? await db.query<{ id: string; arena_id: string; senha_hash: string }>(
         "select id, arena_id, senha_hash from alunos where arena_id = $1 and email = $2",
-        [quadra.arena_id, emailNorm],
+        [arena.id, emailNorm],
       )
     : { rows: [] as { id: string; arena_id: string; senha_hash: string }[] };
   const aluno = a.rows[0];
@@ -53,13 +128,7 @@ export async function entrarAluno(
   if (!aluno || !certa) return { ok: false, motivo: "credenciais" };
 
   await db.query("delete from tentativas_login where email = $1", [chave]);
-  const token = novoToken();
-  const r = await db.query<{ expira_em: Date }>(
-    `insert into sessoes_aluno (arena_id, aluno_id, token_hash, expira_em)
-     values ($1, $2, $3, now() + make_interval(secs => $4)) returning expira_em`,
-    [aluno.arena_id, aluno.id, hashToken(token), DURACAO_SESSAO_S],
-  );
-  return { ok: true, token, expiraEm: new Date(r.rows[0].expira_em) };
+  return { ok: true, ...(await abrirSessaoAluno(db, aluno.arena_id, aluno.id)) };
 }
 
 export async function validarSessaoAluno(db: Db, token: string): Promise<SessaoAluno | null> {
@@ -80,32 +149,36 @@ export async function sairAluno(db: Db, token: string): Promise<void> {
   await db.query("delete from sessoes_aluno where token_hash = $1", [hashToken(token)]);
 }
 
-// Nome da quadra e arena do slug, para a tela de entrar. Não lista reserva nem aluno.
+// Nome da quadra e arena do slug da quadra, para as rotas antigas (/q). Não lista reserva nem aluno.
 export async function quadraDoSlugPublica(
   db: Db,
   slug: string,
 ): Promise<{ quadra: string; arenaId: string } | null> {
-  const q = await quadraDoSlug(db, slug);
-  return q ? { quadra: q.nome, arenaId: q.arena_id } : null;
+  if (typeof slug !== "string" || !SLUG_VALIDO.test(slug)) return null;
+  const q = await db.query<{ nome: string; arena_id: string }>(
+    "select nome, arena_id from quadras where slug = $1",
+    [slug],
+  );
+  return q.rows[0] ? { quadra: q.rows[0].nome, arenaId: q.rows[0].arena_id } : null;
 }
 
-// Reservas da quadra do slug em que o aluno está, ainda na retenção e com pelo
-// menos um lance visível. Não há lista pública: nada aqui traz nome ou e-mail
-// (nem o do próprio aluno), e aluno de outra arena nunca casa.
+// Reservas do aluno em todas as quadras da arena do slug, ainda na retenção e com
+// pelo menos um lance visível, cada uma com o nome da quadra. Não há lista pública:
+// nada aqui traz nome ou e-mail (nem o do próprio aluno), e aluno de outra arena nunca casa.
 export async function reservasDoAluno(
   db: Db,
-  slug: string,
+  slugArena: string,
   alunoId: string,
 ): Promise<{
-  quadra: string;
+  arena: string;
   arenaId: string;
-  reservas: { id: string; inicio: Date; fim: Date; lances: number }[];
+  reservas: { id: string; quadra: string; inicio: Date; fim: Date; lances: number }[];
 } | null> {
-  const quadra = await quadraDoSlug(db, slug);
-  if (!quadra) return null;
-  if (!ehUuid(alunoId)) return { quadra: quadra.nome, arenaId: quadra.arena_id, reservas: [] };
-  const { rows } = await db.query<{ id: string; inicio: Date; fim: Date; lances: number }>(
-    `select r.id, r.inicio, r.fim,
+  const arena = await arenaPorSlug(db, slugArena);
+  if (!arena) return null;
+  if (!ehUuid(alunoId)) return { arena: arena.nome, arenaId: arena.id, reservas: [] };
+  const { rows } = await db.query<{ id: string; quadra: string; inicio: Date; fim: Date; lances: number }>(
+    `select r.id, q.nome as quadra, r.inicio, r.fim,
             (select count(*) from clipes c
                join cameras cam on cam.id = c.camera_id and cam.arena_id = c.arena_id
               where cam.quadra_id = r.quadra_id and cam.arena_id = r.arena_id
@@ -115,41 +188,43 @@ export async function reservasDoAluno(
                 and c.recebido_em >= r.inicio and c.recebido_em < r.fim)::int as lances
        from reservas r
        join arenas ar on ar.id = r.arena_id
+       join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
        join reserva_alunos ra on ra.reserva_id = r.id and ra.arena_id = r.arena_id
-      where r.quadra_id = $1 and r.arena_id = $2 and ra.aluno_id = $3
+      where r.arena_id = $1 and ra.aluno_id = $2
         and r.fim >= now() - make_interval(days => ar.dias_retencao)
       order by r.inicio desc, r.id`,
-    [quadra.id, quadra.arena_id, alunoId],
+    [arena.id, alunoId],
   );
   return {
-    quadra: quadra.nome,
-    arenaId: quadra.arena_id,
+    arena: arena.nome,
+    arenaId: arena.id,
     reservas: rows
       .filter((r) => Number(r.lances) > 0)
-      .map((r) => ({ id: r.id, inicio: r.inicio, fim: r.fim, lances: Number(r.lances) })),
+      .map((r) => ({ id: r.id, quadra: r.quadra, inicio: r.inicio, fim: r.fim, lances: Number(r.lances) })),
   };
 }
 
 const COLUNAS_CLIPE = "c.id, c.recebido_em, c.duracao, c.status, c.chave_r2";
 
 // Lances da reserva para um aluno que está nela. null se a reserva não é da
-// quadra/arena do slug ou o aluno não está nela (mesma resposta nos dois casos).
+// arena do slug ou o aluno não está nela (mesma resposta nos dois casos).
 export async function lancesDaReserva(
   db: Db,
   r2: LeitorR2,
-  slug: string,
+  slugArena: string,
   reservaId: string,
   alunoId: string,
-): Promise<{ reserva: { inicio: Date; fim: Date }; clipes: ClipePublico[] } | null> {
+): Promise<{ reserva: { inicio: Date; fim: Date; quadra: string }; clipes: ClipePublico[] } | null> {
   if (!ehUuid(reservaId) || !ehUuid(alunoId)) return null;
-  const quadra = await quadraDoSlug(db, slug);
-  if (!quadra) return null;
-  const res = await db.query<{ inicio: Date; fim: Date }>(
-    `select r.inicio, r.fim
+  const arena = await arenaPorSlug(db, slugArena);
+  if (!arena) return null;
+  const res = await db.query<{ inicio: Date; fim: Date; quadra_id: string; quadra: string }>(
+    `select r.inicio, r.fim, r.quadra_id, q.nome as quadra
        from reservas r
+       join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
        join reserva_alunos ra on ra.reserva_id = r.id and ra.arena_id = r.arena_id
-      where r.id = $1 and r.quadra_id = $2 and r.arena_id = $3 and ra.aluno_id = $4`,
-    [reservaId, quadra.id, quadra.arena_id, alunoId],
+      where r.id = $1 and r.arena_id = $2 and ra.aluno_id = $3`,
+    [reservaId, arena.id, alunoId],
   );
   const reserva = res.rows[0];
   if (!reserva) return null;
@@ -164,35 +239,33 @@ export async function lancesDaReserva(
         and c.expira_em > now()
         and c.recebido_em >= $3 and c.recebido_em < $4
       order by c.recebido_em desc, c.id`,
-    [quadra.id, quadra.arena_id, reserva.inicio, reserva.fim],
+    [reserva.quadra_id, arena.id, reserva.inicio, reserva.fim],
   );
   return {
-    reserva: { inicio: reserva.inicio, fim: reserva.fim },
-    clipes: await Promise.all(rows.map((c) => paraClipePublico(r2, quadra.arena_id, c))),
+    reserva: { inicio: reserva.inicio, fim: reserva.fim, quadra: reserva.quadra },
+    clipes: await Promise.all(rows.map((c) => paraClipePublico(r2, arena.id, c))),
   };
 }
 
-// Lances atribuídos explicitamente ao aluno, nesta quadra.
+// Lances atribuídos explicitamente ao aluno, em qualquer quadra da arena.
 export async function lancesAvulsosDoAluno(
   db: Db,
   r2: LeitorR2,
-  slug: string,
+  slugArena: string,
   alunoId: string,
 ): Promise<ClipePublico[]> {
   if (!ehUuid(alunoId)) return [];
-  const quadra = await quadraDoSlug(db, slug);
-  if (!quadra) return [];
+  const arena = await arenaPorSlug(db, slugArena);
+  if (!arena) return [];
   const { rows } = await db.query<LinhaClipe>(
     `select ${COLUNAS_CLIPE}
        from clipe_alunos ca
        join clipes c on c.id = ca.clipe_id and c.arena_id = ca.arena_id
-       join cameras cam on cam.id = c.camera_id and cam.arena_id = c.arena_id
-      where ca.aluno_id = $3 and ca.arena_id = $2
-        and cam.quadra_id = $1 and cam.arena_id = $2
+      where ca.aluno_id = $2 and ca.arena_id = $1 and c.arena_id = $1
         and c.status in ('pronto', 'parcial') and c.chave_r2 is not null
         and c.expira_em > now()
       order by c.recebido_em desc, c.id`,
-    [quadra.id, quadra.arena_id, alunoId],
+    [arena.id, alunoId],
   );
-  return Promise.all(rows.map((c) => paraClipePublico(r2, quadra.arena_id, c)));
+  return Promise.all(rows.map((c) => paraClipePublico(r2, arena.id, c)));
 }
