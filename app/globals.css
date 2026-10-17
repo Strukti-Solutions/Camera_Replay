@@ -1,0 +1,244 @@
+/*
+  Base visual do Replay. Sem framework e sem fonte baixada: a página do
+  jogador abre em rede ruim de arena, então só fontes do sistema.
+  Direção: azul de quadra com linha branca de marcação e o amarelo da bola
+  como acento. Contraste AA nos dois temas (texto ≥ 4,5:1, foco ≥ 3:1).
+*/
+
+:root {
+  --fundo: #f3f6f9;
+  --superficie: #ffffff;
+  --tinta: #0e2235;
+  --tinta-suave: #4a5d70;
+  --borda: #c9d4df;
+  --quadra: #1a5aa0;
+  --sobre-quadra: #ffffff;
+  --linha: #ffffff;
+  --link: #1a5aa0;
+  --bola: #d9f24a;
+  --sobre-bola: #0e2235;
+  --foco: #1a5aa0;
+  --perigo: #b42318;
+  --sucesso: #1d6b3a;
+  --video: #000000;
+
+  --fonte: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fonte-titulo: "Bahnschrift SemiCondensed", "Roboto Condensed", "Arial Narrow", var(--fonte);
+
+  --raio: 10px;
+  --alvo: 48px;
+  --gutter: 16px;
+  --largura: 40rem;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #0b1c2c;
+    --superficie: #12293f;
+    --tinta: #e8eff6;
+    --tinta-suave: #a7b8c9;
+    --borda: #2a4560;
+    --quadra: #123a63;
+    --sobre-quadra: #ffffff;
+    --linha: #dbe6f0;
+    --link: #8cc4ff;
+    --foco: #d9f24a;
+    --perigo: #ff8a80;
+    --sucesso: #7fd8a0;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--fundo);
+  color: var(--tinta);
+  font-family: var(--fonte);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.18em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+video {
+  display: block;
+  max-width: 100%;
+}
+
+/* Conteúdo centralizado com margem lateral fixa no celular. */
+.miolo {
+  width: 100%;
+  max-width: var(--largura);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Botões e links com cara de botão: alvo de toque ≥ 44 px. */
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  min-height: var(--alvo);
+  min-width: var(--alvo);
+  padding: 0.5rem 1.1rem;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.botao-cheio {
+  background: var(--quadra);
+  border-color: var(--quadra);
+  color: var(--sobre-quadra);
+}
+
+/* ---------- Faixa da quadra (topo da página do jogador) ---------- */
+
+.faixa {
+  background: var(--quadra);
+  color: var(--sobre-quadra);
+  /* Linha branca de marcação da quadra fechando a faixa. */
+  border-bottom: 4px solid var(--linha);
+  padding-block: 1.25rem 1.5rem;
+}
+
+.faixa :focus-visible {
+  outline-color: var(--bola);
+}
+
+.faixa .miolo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.faixa h1 {
+  font-family: var(--fonte-titulo);
+  font-size: clamp(2rem, 9vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.faixa .botao {
+  color: var(--sobre-quadra);
+}
+
+/* ---------- Lista de lances ---------- */
+
+.lances {
+  list-style: none;
+  margin: 0;
+  padding: 1.5rem 0 3rem;
+  display: grid;
+  gap: 2rem;
+}
+
+.lance-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.lance-cabeca h2 {
+  font-family: var(--fonte-titulo);
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lance-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--tinta-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+.selo {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bola);
+  color: var(--sobre-bola);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.lance video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--video);
+  border-radius: var(--raio);
+}
+
+/* Estado vazio, aviso e página de erro: texto curto e direto. */
+.aviso {
+  padding-block: 2.5rem 3rem;
+  font-size: 1.125rem;
+  max-width: 32ch;
+}
+
+.aviso p + p,
+.aviso p + .botao {
+  margin-top: 1.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.aviso h1 {
+  font-family: var(--fonte-titulo);
+  font-size: 1.75rem;
+}
