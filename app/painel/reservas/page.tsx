@@ -5,7 +5,7 @@ import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { listarReservas } from "@/app/lib/reservas";
 import { textoData, textoReserva } from "@/app/painel/apresentacao";
-import { AvataresEmpilhados } from "@/app/painel/avatar";
+import { AvataresEmpilhados } from "@/app/componentes/avatar";
 import { EditarAlunos } from "@/app/painel/escolha-alunos";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { exigirSessao } from "@/app/painel/sessao-atual";

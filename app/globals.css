@@ -1107,3 +1107,121 @@ video {
 .lance-alunos {
   margin-bottom: 0.5rem;
 }
+
+/* ---------- Página do QR: reservas e aluno ---------- */
+
+.faixa-quadra,
+.entrar-quadra {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.entrar-quadra {
+  color: var(--tinta-suave);
+  margin-bottom: 0.25rem;
+}
+
+.entrar-voltar {
+  margin-top: 1.5rem;
+}
+
+.entrar-voltar a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+}
+
+.quadra-publica {
+  padding-block: 1.25rem 3rem;
+}
+
+.aluno-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.aluno-ola {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.aluno-barra form {
+  margin: 0;
+}
+
+/* Modelo de tabela (avatar, nome, status) virado cartão empilhado: no
+   celular cada reserva é uma linha de toque, sem rolagem lateral. */
+.reservas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.reserva {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "avatares texto acao"
+    "avatares selo acao";
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--superficie);
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.reserva .avatares {
+  grid-area: avatares;
+}
+
+.reserva-texto {
+  grid-area: texto;
+  min-width: 0;
+}
+
+.reserva-texto .suave {
+  overflow-wrap: anywhere;
+}
+
+.reserva-titulo {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.reserva > .selo-neutro {
+  grid-area: selo;
+  justify-self: start;
+}
+
+.reserva-acao {
+  grid-area: acao;
+}
+
+.cadeado {
+  display: grid;
+  place-items: center;
+  width: var(--alvo);
+  height: var(--alvo);
+  color: var(--tinta-suave);
+}
+
+.cadeado-link {
+  border: 2px solid var(--borda);
+  border-radius: 50%;
+  color: var(--link);
+}
+
+.cadeado-link:hover {
+  border-color: currentColor;
+}
+
+.cadeado-link:focus-visible {
+  border-radius: 50%;
+}

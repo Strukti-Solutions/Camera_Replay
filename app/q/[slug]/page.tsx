@@ -1,55 +1,40 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cache } from "react";
-import { clipesDaQuadra, type LeitorR2 } from "@/app/lib/clipes";
-import { formatarDuracao, formatarHorario } from "@/app/lib/formato";
+import { lancesAvulsosDoAluno } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { criarR2, lerConfigR2 } from "@/app/lib/r2";
-import { CarrosselLances, type LanceDoCarrossel } from "./carrossel-lances";
+import { Avatar } from "@/app/componentes/avatar";
+import { textoReserva } from "@/app/painel/apresentacao";
+import { textoDia, textoLances, tituloReserva } from "./apresentacao";
+import { sairAlunoAction } from "./entrar/actions";
+import { semR2 } from "./galeria";
+import { quadraEAluno } from "./sessao-aluno";
 
-// Lista muda a cada aperto do botão e as URLs assinadas valem 15 min:
-// nada de cache estático.
+// A lista muda a cada aperto do botão e depende do aluno logado: nada de cache.
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
 
-// Sem R2 configurado a página ainda confere o slug e mostra o nome da
-// quadra, mas não assina URL nenhuma.
-const semR2: LeitorR2 = { urlLeitura: async () => "" };
-
-// cache() evita consultar o banco duas vezes (metadata e página) no mesmo pedido.
-const carregar = cache(async (slug: string) => {
-  const config = lerConfigR2();
-  const dados = await clipesDaQuadra(poolCompartilhado(), config ? criarR2(config) : semR2, slug);
-  return dados && { ...dados, videosDisponiveis: config !== null };
-});
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const dados = await carregar(slug);
+  const dados = await quadraEAluno(slug);
   return {
     title: dados?.quadra ?? "Quadra não encontrada",
     robots: { index: false, follow: false },
   };
 }
 
+// Página aberta pelo QR: as reservas da quadra (horário, primeiro nome e
+// quantidade de lances). Os lances só abrem para o aluno logado que está na reserva.
 export default async function PaginaDaQuadra({ params }: Props) {
   const { slug } = await params;
-  const dados = await carregar(slug);
+  const dados = await quadraEAluno(slug);
   if (!dados) notFound();
+  const { aluno } = dados;
 
-  // Horário e duração já formatados aqui: servidor e celular podem discordar
-  // do relógio e do fuso ("hoje"/"ontem"), e a hidratação quebraria.
+  // Só a contagem: o leitor que não assina evita gerar URL que ninguém vai usar.
+  const avulsos = aluno ? (await lancesAvulsosDoAluno(poolCompartilhado(), semR2, slug, aluno.alunoId)).length : 0;
+  // Dia formatado no servidor, com o relógio dele.
   const agora = new Date();
-  const lances: LanceDoCarrossel[] = dados.clipes.map((clipe) => ({
-    id: clipe.id,
-    horario: formatarHorario(clipe.recebidoEm, agora),
-    duracao: formatarDuracao(clipe.duracao),
-    parcial: clipe.parcial,
-    url: clipe.url,
-    capa: clipe.capa,
-    download: clipe.download,
-  }));
 
   return (
     <>
@@ -57,56 +42,97 @@ export default async function PaginaDaQuadra({ params }: Props) {
         <div className="miolo">
           <h1>{dados.quadra}</h1>
           {/* Link comum (não <Link>) para recarregar de verdade, inclusive sem JavaScript. */}
-          <a className="botao" href={`/q/${encodeURIComponent(slug)}`}>
+          <a className="botao" href={`/q/${slug}`}>
             Atualizar lista
           </a>
         </div>
       </header>
 
-      <main>
-        {!dados.videosDisponiveis ? (
-          <div className="miolo">
-            <div className="aviso" role="status">
-              <p>Vídeos indisponíveis no momento.</p>
-            </div>
-          </div>
-        ) : lances.length === 0 ? (
-          <div className="miolo">
-            <div className="aviso">
-              <p>Nenhum lance nos últimos dias. Aperte o botão da quadra e volte em 1 minuto.</p>
-            </div>
+      <main className="miolo quadra-publica">
+        <div className="aluno-barra">
+          {aluno ? (
+            <>
+              <p className="aluno-ola">Olá, {aluno.nome}</p>
+              <div className="atalhos">
+                {avulsos > 0 && (
+                  <a className="botao" href={`/q/${slug}/meus-lances`}>
+                    Meus lances avulsos
+                  </a>
+                )}
+                <form action={sairAlunoAction}>
+                  <input type="hidden" name="slug" value={slug} />
+                  <button type="submit" className="botao">
+                    Sair
+                  </button>
+                </form>
+              </div>
+            </>
+          ) : (
+            <a className="botao" href={`/q/${slug}/entrar`}>
+              Entrar
+            </a>
+          )}
+        </div>
+
+        <h2 className="so-leitor">Reservas</h2>
+        {dados.reservas.length === 0 ? (
+          <div className="aviso">
+            <p>Nenhuma reserva com lances nos últimos dias.</p>
           </div>
         ) : (
-          <>
-            <CarrosselLances lances={lances} />
-            {/* Sem JavaScript: a lista simples, com os vídeos direto na página. */}
-            <noscript>
-              <div className="miolo">
-                <ol className="lances">
-                  {lances.map((lance) => (
-                    <li key={lance.id} className="lance">
-                      <div className="lance-cabeca">
-                        <h2>{lance.horario}</h2>
-                        <p className="lance-meta">
-                          <span>{lance.duracao}</span>
-                          {lance.parcial && <span className="selo">Parcial</span>}
-                        </p>
-                      </div>
-                      <video
-                        controls
-                        playsInline
-                        preload="none"
-                        src={lance.url}
-                        aria-label={`Lance de ${lance.horario}`}
-                      />
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </noscript>
-          </>
+          <ul className="reservas">
+            {dados.reservas.map((r) => {
+              const titulo = tituloReserva(r.inicio, r.fim, agora);
+              return (
+                <li key={r.id} className="reserva">
+                  {/* A cor sai do primeiro nome: a página pública não recebe id de aluno. */}
+                  <span className="avatares" aria-hidden="true">
+                    {r.primeirosNomes.map((nome, i) => (
+                      <Avatar key={i} id={nome} nome={nome} />
+                    ))}
+                  </span>
+                  <div className="reserva-texto">
+                    <h3 className="reserva-titulo num-tab">{textoReserva(r.inicio, r.fim)}</h3>
+                    <p className="suave">
+                      <span className="num-tab">{textoDia(r.inicio, agora)}</span> · {r.primeirosNomes.join(", ")}
+                    </p>
+                  </div>
+                  <span className="selo-neutro num-tab">{textoLances(r.lances)}</span>
+                  <div className="reserva-acao">
+                    {r.minha && aluno ? (
+                      <a className="botao botao-cheio" href={`/q/${slug}/r/${r.id}`} aria-label={`Abrir ${titulo}`}>
+                        Abrir
+                      </a>
+                    ) : aluno ? (
+                      <span className="cadeado" role="img" aria-label="Reserva de outro aluno">
+                        <IconeCadeado />
+                      </span>
+                    ) : (
+                      <a
+                        className="cadeado cadeado-link"
+                        href={`/q/${slug}/entrar?r=${r.id}`}
+                        aria-label={`Entrar para ver ${titulo}`}
+                      >
+                        <IconeCadeado />
+                      </a>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </main>
     </>
+  );
+}
+
+function IconeCadeado() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+      <rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="15.5" r="1.5" fill="currentColor" />
+    </svg>
   );
 }

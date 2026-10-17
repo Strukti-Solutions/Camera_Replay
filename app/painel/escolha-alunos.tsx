@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Avatar } from "./avatar";
+import { Avatar } from "@/app/componentes/avatar";
 
 // Escolha de alunos por caixas de marcar, usada na reserva nova, em "Editar
 // alunos" da reserva e em "Atribuir a alunos" do lance. Tudo funciona sem

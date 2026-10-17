@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { listarAlunos } from "@/app/lib/alunos";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { textoData } from "@/app/painel/apresentacao";
-import { Avatar } from "@/app/painel/avatar";
+import { Avatar } from "@/app/componentes/avatar";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import { removerAlunoAction } from "./actions";

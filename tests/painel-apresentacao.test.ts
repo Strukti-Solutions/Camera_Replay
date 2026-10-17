@@ -55,7 +55,7 @@ test("valor lançado que não é Error também vira genérico sem eco", () => {
 
 // ---------- Reservas e alunos ----------
 
-import { PALETA_AVATAR, corDoAvatar, iniciais } from "../app/painel/avatar-cor";
+import { PALETA_AVATAR, corDoAvatar, iniciais } from "../app/componentes/avatar-cor";
 import {
   instanteEmSaoPaulo,
   intervaloDaReserva,
