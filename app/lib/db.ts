@@ -5,6 +5,8 @@ export type Db = {
   query<T = any>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
   // Roda vários comandos de uma vez (existe no PGlite).
   exec?(sql: string): Promise<unknown>;
+  // Reserva uma conexão (existe no pg.Pool); necessário para transações.
+  connect?(): Promise<{ query(sql: string): Promise<unknown>; release(): void }>;
 };
 
 export function criarPool(url = process.env.DATABASE_URL): Db {

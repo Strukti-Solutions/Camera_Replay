@@ -24,13 +24,41 @@ export async function migrar(db: Db, pasta = PASTA_PADRAO): Promise<string[]> {
     // Arquivo inteiro numa transação; o registro entra junto. O nome vem do
     // sistema de arquivos, então o escape de aspas basta.
     const nomeSql = nome.split("'").join("''");
-    const script = `begin;\n${sql}\ninsert into schema_migrations (nome) values ('${nomeSql}');\ncommit;`;
-    try {
-      if (db.exec) await db.exec(script);
-      else await db.query(script);
-    } catch (e) {
-      await desfazer(db);
-      throw e;
+    const registro = `insert into schema_migrations (nome) values ('${nomeSql}')`;
+    if (db.exec) {
+      try {
+        await db.exec(`begin;
+${sql}
+${registro};
+commit;`);
+      } catch (e) {
+        await desfazer((s) => db.exec!(s));
+        throw e;
+      }
+    } else if (db.connect) {
+      // Pool: begin, SQL, registro e commit/rollback têm de usar a mesma conexão.
+      const cliente = await db.connect();
+      try {
+        await cliente.query("begin");
+        await cliente.query(sql);
+        await cliente.query(registro);
+        await cliente.query("commit");
+      } catch (e) {
+        await desfazer((s) => cliente.query(s));
+        throw e;
+      } finally {
+        cliente.release();
+      }
+    } else {
+      try {
+        await db.query(`begin;
+${sql}
+${registro};
+commit;`);
+      } catch (e) {
+        await desfazer((s) => db.query(s));
+        throw e;
+      }
     }
     aplicadas.push(nome);
   }
@@ -38,10 +66,9 @@ export async function migrar(db: Db, pasta = PASTA_PADRAO): Promise<string[]> {
 }
 
 // Melhor esforço: a falha original é a que importa.
-async function desfazer(db: Db): Promise<void> {
+async function desfazer(rodar: (sql: string) => Promise<unknown>): Promise<void> {
   try {
-    if (db.exec) await db.exec("rollback");
-    else await db.query("rollback");
+    await rodar("rollback");
   } catch {
     // sem transação aberta
   }
