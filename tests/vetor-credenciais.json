@@ -1,0 +1,11 @@
+{
+  "formato": "v1:<iv>:<tag>:<cifra>, AES-256-GCM, partes em base64",
+  "chave_base64": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+  "iv_base64": "AgICAgICAgICAgIC",
+  "credenciais": {
+    "authcode": "authcode-de-teste",
+    "local_user": "admin",
+    "local_pwd": "senha-de-teste"
+  },
+  "cifrado": "v1:AgICAgICAgICAgIC:Foe0OUd4T5G+UCY5/T6Cfw==:fPSoPD4/opK3qZ7yfsa3xsrWvouOnOkU8POFiAyeVlNVE3FUDAP8mjRLIMulBT0fxxyw9Yt4sUmoIt/tE0MpqE7G4ofIonxFFTJizIVvHEQpCg=="
+}
