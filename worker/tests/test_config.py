@@ -46,11 +46,22 @@ def test_lista_vazia_e_permitida(tmp_path):
 
 
 def test_campo_obrigatorio_que_nao_e_string_levanta_valueerror(tmp_path):
-    import json
-    import pytest
-    from replay_worker.config import load_cameras
     p = tmp_path / "cameras.json"
     p.write_text(json.dumps({"cameras": [{"sn": "A", "authcode": 5,
                                           "local_user": "u", "local_pwd": "p"}]}))
     with pytest.raises(ValueError, match="authcode"):
         load_cameras(str(p))
+
+
+@pytest.mark.parametrize("campo", ["sn", "authcode", "local_user", "local_pwd"])
+def test_campo_obrigatorio_so_com_espacos_levanta_valueerror(tmp_path, campo):
+    cam = {"sn": "A", "authcode": "x", "local_user": "u", "local_pwd": "p"}
+    cam[campo] = "   "
+    with pytest.raises(ValueError, match="cameras.json|sem os campos"):
+        load_cameras(_escreve(tmp_path, {"cameras": [cam]}))
+
+
+def test_sn_e_guardado_sem_espacos(tmp_path):
+    cam = {"sn": "  S1 ", "authcode": "x", "local_user": "u", "local_pwd": "p"}
+    cams = load_cameras(_escreve(tmp_path, {"cameras": [cam]}))
+    assert list(cams) == ["S1"] and cams["S1"].sn == "S1"

@@ -168,3 +168,29 @@ def test_camera_offline_no_aperto_falha_sem_enviar():
     assert not run(anel_cheio(), q, up, j=job(200.0), clock=lambda: 201.0)
     assert "offline" in q.failed[0][1]
     assert up.chamadas == 0 and q.ready == []
+
+
+def test_max_stale_na_fronteira_e_inclusivo():
+    # último quadro do anel em t=59; defasagem de exatamente 30 s ainda é aceita
+    q = FakeQueue()
+    run(anel_cheio(), q, FakeUploader(), j=job(89.0), clock=lambda: 90.0)
+    assert not any("offline" in motivo for _, motivo in q.failed)
+
+
+def test_max_stale_acima_do_limite_marca_offline():
+    q = FakeQueue()
+    assert not run(anel_cheio(), q, FakeUploader(), j=job(89.5), clock=lambda: 90.0)
+    assert "offline" in q.failed[0][1]
+
+
+def test_mensagem_de_envio_usa_singular_com_uma_tentativa():
+    q = FakeQueue()
+    process_job(job(), anel_cheio(), q, FakeUploader(falhas=99), fps=15,
+                mux=mux_ok, clock=lambda: 60.0, retries=1)
+    assert "após 1 tentativa " in q.failed[0][1]
+
+
+def test_mensagem_de_envio_usa_plural_com_varias_tentativas():
+    q = FakeQueue()
+    assert not run(anel_cheio(), q, FakeUploader(falhas=99))
+    assert "após 3 tentativas" in q.failed[0][1]

@@ -96,7 +96,8 @@ def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
         except Exception as exc:
             erro = exc
     if key is None:
-        _safe_mark_failed(queue, job.clip_id, "falha no envio após %d tentativas (%s)" % (attempts, type(erro).__name__))
+        _safe_mark_failed(queue, job.clip_id, "falha no envio após %d %s (%s)" % (
+            attempts, "tentativa" if attempts == 1 else "tentativas", type(erro).__name__))
         return False
 
     queue.mark_ready(job.clip_id, key, len(mp4), cut.duration, cut.partial or cut.has_gap)

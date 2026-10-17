@@ -18,16 +18,18 @@ def load_cameras(path: str) -> dict[str, CameraCreds]:
         sn = item.get("sn")
         if not isinstance(sn, str) or not sn.strip():
             raise ValueError("cameras.json: item %d com sn inválido" % i)
-        faltando = [k for k in _OBRIGATORIOS if not item.get(k)]
+        faltando = [k for k in _OBRIGATORIOS
+                    if not item.get(k) or (isinstance(item[k], str) and not item[k].strip())]
         if faltando:
             raise ValueError("câmera %s sem os campos: %s"
                              % (item.get("sn", "?"), ", ".join(faltando)))
         for k in _OBRIGATORIOS:
             if not isinstance(item[k], str):
                 raise ValueError("cameras.json: item %d com %s inválido" % (i, k))
-        if item["sn"] in cams:
-            raise ValueError("SN duplicado: %s" % item["sn"])
-        cams[item["sn"]] = CameraCreds(
-            sn=item["sn"], authcode=item["authcode"], local_user=item["local_user"],
+        sn = sn.strip()
+        if sn in cams:
+            raise ValueError("SN duplicado: %s" % sn)
+        cams[sn] = CameraCreds(
+            sn=sn, authcode=item["authcode"], local_user=item["local_user"],
             local_pwd=item["local_pwd"], name=item.get("name", ""))
     return cams
