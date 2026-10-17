@@ -88,7 +88,7 @@ O app e o worker usam estas funções SQL. Não há outro caminho entre os dois.
 - `pegar_clipes(camera_id uuid, limite int) → setof (clipe_id uuid, camera_id uuid, recebido_em timestamptz)`. Passa os clipes `pendente` para `processando`, com `FOR UPDATE SKIP LOCKED`.
 - `marcar_pronto(clipe_id, chave text, tamanho bigint, duracao real, parcial bool) → bool`. Só age sobre `processando`. Grava `pronto`, ou `parcial` se `parcial = true`.
 - `marcar_falhou(clipe_id, motivo text) → bool`. Só age sobre `processando`.
-- `expirar_presos() → int`. Marca como `falhou` os clipes presos em `pendente` ou `processando` além do limite e retorna quantos foram.
+- `expirar_presos() → int`. Marca como `falhou` os clipes presos em `pendente` ou `processando` há mais de 2 minutos desde `recebido_em` e retorna quantos foram.
 
 Chave no R2: `clipes/<arena_id>/<clipe_id>.mp4`.
 
@@ -101,7 +101,7 @@ Chave no R2: `clipes/<arena_id>/<clipe_id>.mp4`.
 - Reconexão do worker com backoff (1, 2, 4… até 60 s). Câmera `offline` após ~30 s sem vídeo.
 - Aperto durante um buraco do anel: clipe `parcial`, com a duração real.
 - Upload ao R2: 3 tentativas, depois `falhou`.
-- Clipe `pendente` há mais de 2 minutos: `falhou`.
+- Clipe `pendente` ou `processando` há mais de 2 minutos (contados de `recebido_em`): `falhou`.
 - Câmera offline no aperto: `falhou`, com o motivo visível no painel.
 - Alerta de câmera offline por e-mail ou WhatsApp: fora da v1. O status aparece no painel.
 
