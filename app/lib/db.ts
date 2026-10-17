@@ -11,5 +11,9 @@ export type Db = {
 };
 
 export function criarPool(url = process.env.DATABASE_URL): Db {
-  return new pg.Pool({ connectionString: url }) as unknown as Db;
+  const pool = new pg.Pool({ connectionString: url });
+  // Sem listener, uma conexão ociosa derrubada pelo servidor derruba o processo Node.
+  // Registra só a mensagem, nunca a connection string.
+  pool.on("error", (err) => console.error("pg.Pool: erro em conexão ociosa:", err.message));
+  return pool as unknown as Db;
 }

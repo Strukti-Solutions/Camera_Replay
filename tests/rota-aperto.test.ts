@@ -1,8 +1,10 @@
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { criarHandlerAperto } from "../app/lib/handler-aperto";
 import type { Db } from "../app/lib/db";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
+
+afterEach(() => vi.restoreAllMocks());
 
 async function cenario() {
   const db = await novoBanco();
@@ -94,11 +96,21 @@ test("token malformado não consulta o banco", async () => {
 
 test("falha do banco: 500 sem vazar a mensagem", async () => {
   const db = { query: () => Promise.reject(new Error("senha do postgres: segredo123")) } as unknown as Db;
-  vi.spyOn(console, "error").mockImplementation(() => {});
-  const r = await criarHandlerAperto(db)(post(`Bearer ${"a".repeat(43)}`));
+  const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+  const token = "a".repeat(43);
+  const r = await criarHandlerAperto(db)(post(`Bearer ${token}`));
   expect(r.status).toBe(500);
   const texto = await r.text();
   expect(JSON.parse(texto)).toEqual({ erro: "erro interno" });
   expect(texto).not.toContain("segredo123");
+  expect(erro).toHaveBeenCalled();
+  expect(JSON.stringify(erro.mock.calls, (_k, v) => (v instanceof Error ? v.message : v))).not.toContain(token);
   expect(r.headers.get("cache-control")).toBe("no-store");
+});
+
+test("token válido com espaços em volta é aceito (trim)", async () => {
+  const { handler, botao } = await cenario();
+  const t = botao.token;
+  expect((await handler(post(`  Bearer ${t}  `))).status).toBe(202);
+  expect((await handler(post(`Bearer  ${t}`))).status).toBe(202);
 });
