@@ -12,7 +12,7 @@ import signal
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from replay_worker.capture import CameraCapture
@@ -69,6 +69,10 @@ class Supervisor:
         a = self._ativas.pop(camera_id)
         a.stop.set()
         a.thread.join(_JOIN_TIMEOUT)
+        try:
+            self._queue.marcar_camera(camera_id, "offline")
+        except Exception as exc:
+            log.warning("câmera %s: falha ao marcar offline (%s)", camera_id, type(exc).__name__)
 
     def refresh(self) -> None:
         """Sincroniza as capturas com a lista de câmeras do banco."""
@@ -102,6 +106,8 @@ class Supervisor:
                 continue
             for job in jobs:
                 self._esperar_relay(job.pressed_at)
+                # o anel guarda a chegada do quadro: o lance chega em aperto + atraso
+                job = replace(job, pressed_at=job.pressed_at + self._relay_lag)
                 if process_job(job, a.capture.ring, self._queue, self._uploader,
                                fps=None, clock=self._clock, mux=self._mux):
                     prontos += 1
@@ -118,6 +124,13 @@ class Supervisor:
         self._parar.set()
         for camera_id in list(self._ativas):
             self._parar_captura(camera_id)
+
+
+def _kwargs_conexao() -> dict[str, Any]:
+    """Opções do psycopg.connect: timeouts e keepalive evitam travar numa conexão morta."""
+    return dict(autocommit=True, connect_timeout=10, keepalives=1, keepalives_idle=30,
+                keepalives_interval=10, keepalives_count=3,
+                options="-c statement_timeout=15000")
 
 
 def _ler_float(nome: str, padrao: float) -> float:
@@ -157,7 +170,7 @@ def main() -> int:
     url = os.environ["DATABASE_URL"]
 
     def connect():
-        return psycopg.connect(url, autocommit=True)
+        return psycopg.connect(url, **_kwargs_conexao())
 
     relogio_conn: list[Any] = [None]
 
@@ -166,7 +179,7 @@ def main() -> int:
         try:
             if relogio_conn[0] is None:
                 relogio_conn[0] = connect()
-            linha = relogio_conn[0].execute("select extract(epoch from now())::float8").fetchone()
+            linha = relogio_conn[0].execute("select extract(epoch from clock_timestamp())::float8").fetchone()
             return float(linha[0])
         except Exception:
             c, relogio_conn[0] = relogio_conn[0], None

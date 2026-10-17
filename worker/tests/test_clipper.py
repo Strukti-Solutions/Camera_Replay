@@ -234,18 +234,22 @@ class QueueQueLanca(FakeQueue):
         raise ConnectionError("banco caiu")
 
 
-def test_mark_ready_levantando_apaga_o_objeto_e_marca_falhou():
+def test_mark_ready_levantando_nao_apaga_o_objeto_e_marca_falhou():
+    # o banco pode ter gravado 'pronto' antes de a conexão cair: apagar quebraria o clipe
     q, up = QueueQueLanca(), FakeUploader()
     assert run(anel_cheio(), q, up) is False
-    assert up.deletes == ["clipes/arena1/c1.mp4"]
+    assert up.deletes == []
     assert "ConnectionError" in q.failed[0][1]
 
 
-def test_mark_ready_levantando_com_delete_falhando_ainda_marca_falhou():
-    q, up = QueueQueLanca(), FakeUploader()
-    up.delete_falha = True
-    assert run(anel_cheio(), q, up) is False
-    assert "ConnectionError" in q.failed[0][1]
+def test_mark_ready_levantando_e_mark_failed_levantando_nao_propaga_nem_apaga():
+    class Ruim(QueueQueLanca):
+        def mark_failed(self, *a):
+            raise ConnectionError("banco caiu")
+
+    up = FakeUploader()
+    assert run(anel_cheio(), Ruim(), up) is False
+    assert up.deletes == []
 
 
 def _fps_usado(ring, t, min_duration=1.0):

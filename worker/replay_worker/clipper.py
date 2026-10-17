@@ -77,8 +77,10 @@ def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader,
     Nunca lança: qualquer exceção vira `mark_failed`; se a fila também falhar,
     isso é engolido e registrado no log só com o tipo.
     Com `fps=None`, usa o fps medido do anel (1..60; 15 sem medida).
-    Se `mark_ready` devolver False (o reaper já deu o pedido como falho) ou lançar,
-    o objeto enviado é apagado para não ficar órfão no armazenamento.
+    Se `mark_ready` devolver False (recusa definitiva: o reaper já deu o pedido como
+    falho ou o servidor rejeitou a chave), o objeto enviado é apagado para não ficar órfão.
+    Se `mark_ready` LANÇAR, o objeto NÃO é apagado: o banco pode ter gravado 'pronto'
+    antes de a conexão cair; segue-se para `mark_failed` e a varredura do backend limpa.
     """
     try:
         return _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
@@ -132,13 +134,9 @@ def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
             attempts, "tentativa" if attempts == 1 else "tentativas", type(erro).__name__))
         return False
 
-    try:
-        aceito = queue.mark_ready(job.clip_id, key, len(mp4), cut.duration,
-                                  cut.partial or cut.has_gap)
-    except Exception:
-        # o banco recusou ou caiu: o objeto ficaria órfão; o handler geral marca falhou
-        _apagar_orfao(uploader, key, job.clip_id)
-        raise
+    # se lançar, não apaga (resultado ambíguo); o handler geral marca falhou
+    aceito = queue.mark_ready(job.clip_id, key, len(mp4), cut.duration,
+                              cut.partial or cut.has_gap)
     if not aceito:
         _apagar_orfao(uploader, key, job.clip_id)
         return False

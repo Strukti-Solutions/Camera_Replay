@@ -150,10 +150,20 @@ def test_relay_lag_espera_o_relogio_passar(sup_factory):
     ring = ring_de(sup, "cam1")
     feed(ring, 40, start=960.0)
     original = ring.cut
-    ring.cut = lambda *a, **k: (cortes.append(rel.t), original(*a, **k))[1]
+    fim_do_corte = []
+
+    def cut_espiao(end_t, *a, **k):
+        cortes.append(rel.t)
+        fim_do_corte.append(end_t)
+        return original(end_t, *a, **k)
+
+    ring.cut = cut_espiao
     fila.jobs["cam1"] = [ClipJob("c1", "cam1", "arena1", 1000.0)]
     assert sup.poll_once() == 1
     assert cortes and cortes[0] >= 1002.0
+    # o anel guarda a chegada: o corte termina no aperto + atraso do relay
+    assert sup._uploader.puts == ["clipes/arena1/c1.mp4"]
+    assert fim_do_corte == [1002.0]
 
 
 def test_relay_lag_espera_no_maximo_10s(sup_factory):
@@ -165,6 +175,49 @@ def test_relay_lag_espera_no_maximo_10s(sup_factory):
     fila.jobs["cam1"] = [ClipJob("c1", "cam1", "arena1", 1000.0)]
     sup.poll_once()
     assert rel.t <= 1010.0 + 1e-6
+
+
+def test_camera_removida_no_refresh_recebe_offline(sup_factory):
+    fila = FilaFalsa([cam(1), cam(2)])
+    sup = sup_factory(fila)
+    sup.refresh()
+    fila.cameras = [cam(1)]
+    sup.refresh()
+    assert ("cam2", "offline") in fila.status
+    assert ("cam1", "offline") not in fila.status
+
+
+def test_erro_ao_marcar_offline_nao_impede_parar_o_resto(sup_factory):
+    fila = FilaFalsa([cam(1), cam(2)])
+
+    def marcar_ruim(camera_id, status):
+        raise RuntimeError("banco caiu")
+
+    fila.marcar_camera = marcar_ruim
+    sup = sup_factory(fila)
+    sup.refresh()
+    removida = sup._ativas["cam2"]
+    fila.cameras = [cam(1)]
+    sup.refresh()
+    assert not removida.thread.is_alive()
+    assert set(sup._ativas) == {"cam1"}
+
+
+def test_stop_marca_as_cameras_offline(sup_factory):
+    fila = FilaFalsa([cam(1)])
+    sup = sup_factory(fila)
+    sup.refresh()
+    sup.stop()
+    assert ("cam1", "offline") in fila.status
+
+
+def test_kwargs_de_conexao_tem_timeouts_e_keepalive():
+    kw = main_mod._kwargs_conexao()
+    assert kw["autocommit"] is True
+    assert kw["connect_timeout"] == 10
+    assert kw["keepalives"] == 1 and kw["keepalives_idle"] == 30
+    assert kw["keepalives_interval"] == 10 and kw["keepalives_count"] == 3
+    assert kw["options"] == "-c statement_timeout=15000"
 
 
 def test_erro_da_fila_numa_camera_nao_impede_a_outra(sup_factory):

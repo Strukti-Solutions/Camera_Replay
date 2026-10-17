@@ -171,8 +171,50 @@ def test_erro_que_nao_e_de_conexao_nao_descarta_a_conexao():
     q = PgJobQueue(connect, _sync_nulo(), CHAVE)
     for _ in range(2):
         with pytest.raises(psycopg.Error):
-            q.mark_ready("c", "chave-errada", 1, 1.0, False)
+            q.claim_pending("c")
     assert len(conexoes) == 1 and not conexoes[0].fechada
+
+
+@pytest.mark.parametrize("erro", [
+    psycopg.errors.InvalidParameterValue("chave"),      # 22023, DataError
+    psycopg.errors.UniqueViolation("dup"),              # IntegrityError
+    psycopg.errors.UndefinedFunction("sem funcao"),     # ProgrammingError
+])
+def test_mark_ready_recusa_definitiva_do_servidor_vira_false(erro, caplog):
+    conexoes = []
+
+    def connect():
+        c = Conn(erro=erro)
+        conexoes.append(c)
+        return c
+
+    q = PgJobQueue(connect, _sync_nulo(), CHAVE)
+    with caplog.at_level(logging.DEBUG):
+        assert q.mark_ready("c1", "chave-errada", 1, 1.0, False) is False
+    assert "clipe c1: marcar_pronto recusado" in caplog.text
+    assert str(erro.sqlstate) in caplog.text
+    assert "chave" not in caplog.text.replace("marcar_pronto", "")
+    assert len(conexoes) == 1 and not conexoes[0].fechada
+
+
+def test_mark_ready_erro_de_conexao_continua_subindo():
+    conn = Conn(erro=psycopg.OperationalError("host=segredo"))
+    q = PgJobQueue(lambda: conn, _sync_nulo(), CHAVE)
+    with pytest.raises(psycopg.OperationalError):
+        q.mark_ready("c1", "k", 1, 1.0, False)
+    assert conn.fechada
+
+
+def test_credencial_invalida_loga_so_na_primeira_vez(caplog):
+    boa = _cifrar()
+    ruim = boa[:-4] + ("AAAA" if not boa.endswith("AAAA") else "BBBB")
+    cam_ruim, arena = uuid.UUID(int=11), uuid.UUID(int=20)
+    conn = Conn(respostas=[[(cam_ruim, arena, "SN2", ruim)], [(cam_ruim, arena, "SN2", ruim)]])
+    q = PgJobQueue(lambda: conn, _sync_nulo(), CHAVE)
+    with caplog.at_level(logging.DEBUG):
+        assert q.listar_cameras() == []
+        assert q.listar_cameras() == []
+    assert caplog.text.count("credencial inválida") == 1
 
 
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="sem DATABASE_URL")
@@ -210,9 +252,7 @@ def test_integracao_fluxo_da_fila():
         assert jobs[0].arena_id == ids["arena"]
 
         # chave fora do contrato: 22023, e a conexão segue utilizável
-        with pytest.raises(psycopg.Error) as exc:
-            q.mark_ready(clipe, f"clipes/outra/{clipe}.mp4", 10, 1.5, False)
-        assert exc.value.sqlstate == "22023"
+        assert q.mark_ready(clipe, f"clipes/outra/{clipe}.mp4", 10, 1.5, False) is False
         assert q.expirar_presos() >= 0
 
         chave = f"clipes/{ids['arena']}/{clipe}.mp4"

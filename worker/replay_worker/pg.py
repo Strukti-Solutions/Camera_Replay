@@ -73,6 +73,7 @@ class PgJobQueue:
         self._chave = chave
         self._limite = limite
         self._conn: Any = None
+        self._cameras_avisadas: set[str] = set()  # credencial inválida: avisa 1 vez por câmera
 
     def _exec(self, sql: str, params: tuple = ()) -> list:
         """Executa uma consulta; erro de conexão descarta a conexão e sobe."""
@@ -99,8 +100,15 @@ class PgJobQueue:
 
     def mark_ready(self, clip_id: str, key: str, size: int, duration: float,
                    partial: bool) -> bool:
-        linhas = self._exec("select marcar_pronto(%s::uuid, %s::text, %s::bigint, %s::real, %s::boolean)",
-                            (clip_id, key, size, duration, partial))
+        try:
+            linhas = self._exec(
+                "select marcar_pronto(%s::uuid, %s::text, %s::bigint, %s::real, %s::boolean)",
+                (clip_id, key, size, duration, partial))
+        except (psycopg.errors.DataError, psycopg.errors.IntegrityError,
+                psycopg.errors.ProgrammingError) as e:
+            # recusa definitiva do servidor (ex.: 22023, chave fora do contrato)
+            log.warning("clipe %s: marcar_pronto recusado (%s)", clip_id, e.sqlstate)
+            return False
         return bool(linhas[0][0]) if linhas else False
 
     def mark_failed(self, clip_id: str, reason: str) -> None:
@@ -112,7 +120,9 @@ class PgJobQueue:
             try:
                 creds = decifrar_credenciais(texto, self._chave, sn)
             except ValueError:
-                log.warning("câmera %s: credencial inválida", cam)
+                if str(cam) not in self._cameras_avisadas:
+                    self._cameras_avisadas.add(str(cam))
+                    log.warning("câmera %s: credencial inválida", cam)
                 continue
             cameras.append(Camera(str(cam), str(arena), sn, creds))
         return cameras
