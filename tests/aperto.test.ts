@@ -55,6 +55,22 @@ test("dois botões de arenas diferentes: sem dedupe cruzado e cada clipe na pró
   }
 });
 
+test("dois botões da mesma arena em quadras diferentes: dedupe é por botão", async () => {
+  const db = await novoBanco();
+  const arena = await criarArena(db);
+  const montar = async () => {
+    const quadra = await criarQuadra(db, arena.id);
+    const camera = await criarCamera(db, arena.id, quadra.id);
+    return criarBotao(db, arena.id, quadra.id, camera.id);
+  };
+  const b1 = await montar(), b2 = await montar();
+  const r1 = await registrarAperto(db, b1.token);
+  const r2 = await registrarAperto(db, b2.token);
+  expect(r1!.duplicado).toBe(false);
+  expect(r2!.duplicado).toBe(false);
+  expect(r1!.clipeId).not.toBe(r2!.clipeId);
+});
+
 test("segundo aperto em menos de 5 s devolve o mesmo clipe com duplicado=true", async () => {
   const { db, botao } = await cenario();
   const a = await registrarAperto(db, botao.token);
