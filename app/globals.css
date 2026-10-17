@@ -309,3 +309,254 @@ video {
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+
+/* ---------- Painel: quadras, câmera, botões e clipes ---------- */
+
+:root {
+  --sobre-perigo: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sobre-perigo: #0b1c2c;
+  }
+}
+
+.painel {
+  padding-block: 1.5rem 3rem;
+}
+
+.painel h1 {
+  font-family: var(--fonte-titulo);
+  font-size: 2rem;
+  margin-block: 0.5rem 1rem;
+  overflow-wrap: anywhere;
+}
+
+.painel h2 {
+  font-family: var(--fonte-titulo);
+  font-size: 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.painel h3 {
+  font-size: 1.125rem;
+}
+
+/* Links de texto do painel com alvo de toque confortável. */
+.painel p > a:not(.botao),
+.cartao h2 a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+}
+
+.secao {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--borda);
+  display: grid;
+  gap: 1rem;
+}
+
+.secao-cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.atalhos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.suave {
+  color: var(--tinta-suave);
+}
+
+.mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.painel-vazio {
+  color: var(--tinta-suave);
+  margin-bottom: 1rem;
+}
+
+.cartoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.cartao {
+  background: var(--superficie);
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 0.75rem 1rem 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.dados {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.dados > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+}
+
+.dados dt {
+  color: var(--tinta-suave);
+  min-width: 8.5rem;
+}
+
+.dados dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status da câmera: texto e cor juntos (a cor nunca é a única pista). */
+.estado::before {
+  content: "";
+  display: inline-block;
+  width: 0.65em;
+  height: 0.65em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.estado-on {
+  color: var(--sucesso);
+}
+
+.estado-off {
+  color: var(--perigo);
+}
+
+.estado-nenhum {
+  color: var(--tinta-suave);
+}
+
+.estado-nenhum::before {
+  background: transparent;
+  border: 2px solid currentColor;
+}
+
+.selo-revogado,
+.selo-status {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.selo-revogado,
+.selo-falhou {
+  color: var(--perigo);
+}
+
+.selo-pronto {
+  color: var(--sucesso);
+}
+
+.selo-parcial {
+  background: var(--bola);
+  border-color: var(--bola);
+  color: var(--sobre-bola);
+}
+
+.motivo {
+  color: var(--perigo);
+  margin-bottom: 0.5rem;
+}
+
+.ok-form {
+  color: var(--sucesso);
+  font-weight: 600;
+}
+
+.ok-form:empty {
+  display: none;
+}
+
+/* Token do botão novo: aparece uma vez, fácil de selecionar inteiro. */
+.novo-botao {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.token {
+  padding: 1rem;
+  border: 2px solid var(--quadra);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.token code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* Confirmação em dois cliques. */
+.confirmar {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.confirmar summary {
+  list-style: none;
+  width: fit-content;
+}
+
+.confirmar summary::-webkit-details-marker {
+  display: none;
+}
+
+.confirmar-caixa {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  margin-top: 0.75rem;
+}
+
+.botao-perigo {
+  color: var(--perigo);
+}
+
+.botao-perigo-cheio {
+  background: var(--perigo);
+  border-color: var(--perigo);
+  color: var(--sobre-perigo);
+}
+
+/* No painel os clipes ficam dentro de seção: sem o respiro da página do jogador. */
+.secao .lances {
+  padding: 0;
+}
+
+.lance-cabeca h3 {
+  font-family: var(--fonte-titulo);
+  font-size: 1.375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
