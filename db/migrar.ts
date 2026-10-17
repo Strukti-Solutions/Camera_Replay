@@ -7,6 +7,9 @@ const PASTA_PADRAO = join(dirname(fileURLToPath(import.meta.url)), "migrations")
 
 // Aplica, em ordem alfabética, os .sql ainda não registrados.
 export async function migrar(db: Db, pasta = PASTA_PADRAO): Promise<string[]> {
+  if (!db.exec && !db.connect) {
+    throw new Error("migrar: o Db precisa de exec (PGlite) ou connect (pg.Pool) para rodar em transação");
+  }
   await db.query(
     `create table if not exists schema_migrations (
        nome text primary key,
@@ -35,29 +38,22 @@ commit;`);
         await desfazer((s) => db.exec!(s));
         throw e;
       }
-    } else if (db.connect) {
+    } else {
       // Pool: begin, SQL, registro e commit/rollback têm de usar a mesma conexão.
-      const cliente = await db.connect();
+      const cliente = await db.connect!();
+      let erro: Error | undefined;
       try {
         await cliente.query("begin");
         await cliente.query(sql);
         await cliente.query(registro);
         await cliente.query("commit");
       } catch (e) {
+        erro = e instanceof Error ? e : new Error(String(e));
         await desfazer((s) => cliente.query(s));
         throw e;
       } finally {
-        cliente.release();
-      }
-    } else {
-      try {
-        await db.query(`begin;
-${sql}
-${registro};
-commit;`);
-      } catch (e) {
-        await desfazer((s) => db.query(s));
-        throw e;
+        // Com erro, o pg.Pool descarta a conexão em vez de devolvê-la suja.
+        cliente.release(erro);
       }
     }
     aplicadas.push(nome);
