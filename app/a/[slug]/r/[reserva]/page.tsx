@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { lancesDaReserva } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
+import { MarcaDaFaixa } from "@/app/componentes/marca";
 import { ehUuid, tituloReserva } from "../../apresentacao";
 import { Galeria, leitorR2 } from "../../galeria";
 import { arenaEAluno } from "../../sessao-aluno";
@@ -30,6 +31,7 @@ export default async function PaginaDaReserva({ params }: Props) {
     <>
       <header className="faixa">
         <div className="miolo">
+          <MarcaDaFaixa />
           <div>
             <p className="faixa-quadra">{lances?.reserva.quadra ?? dados.arena}</p>
             <h1>{lances ? tituloReserva(lances.reserva.inicio, lances.reserva.fim) : "Reserva"}</h1>

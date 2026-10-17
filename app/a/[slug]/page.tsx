@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { lancesAvulsosDoAluno, reservasDoAluno } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
+import { MarcaDaFaixa } from "@/app/componentes/marca";
 import { primeiroNome, textoDia, textoLances, tituloReservaNaQuadra } from "./apresentacao";
 import { sairAlunoAction } from "./entrar/actions";
 import { TelaEntrar } from "./entrar/tela";
@@ -47,6 +48,7 @@ export default async function PaginaDaArena({ params }: Props) {
     <>
       <header className="faixa">
         <div className="miolo">
+          <MarcaDaFaixa />
           <h1>{dados.arena}</h1>
           {/* Link comum (não <Link>) para recarregar de verdade, inclusive sem JavaScript. */}
           <a className="botao" href={`/a/${slug}`}>

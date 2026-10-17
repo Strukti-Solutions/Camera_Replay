@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { MarcaDaFaixa } from "@/app/componentes/marca";
 import { sessaoAtual } from "@/app/painel/sessao-atual";
 import { FormularioEntrar } from "./formulario";
 
@@ -13,9 +14,16 @@ export const metadata: Metadata = {
 export default async function PaginaEntrar() {
   if (await sessaoAtual()) redirect("/painel");
   return (
-    <main className="miolo entrar">
-      <h1>Entrar</h1>
-      <FormularioEntrar />
-    </main>
+    <>
+      <header className="faixa faixa-so-marca">
+        <div className="miolo">
+          <MarcaDaFaixa />
+        </div>
+      </header>
+      <main className="miolo entrar">
+        <h1>Entrar</h1>
+        <FormularioEntrar />
+      </main>
+    </>
   );
 }

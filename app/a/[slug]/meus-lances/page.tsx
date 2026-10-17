@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { lancesAvulsosDoAluno } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
+import { MarcaDaFaixa } from "@/app/componentes/marca";
 import { Galeria, leitorR2 } from "../galeria";
 import { arenaEAluno } from "../sessao-aluno";
 
@@ -28,6 +29,7 @@ export default async function MeusLances({ params }: Props) {
     <>
       <header className="faixa">
         <div className="miolo">
+          <MarcaDaFaixa />
           <div>
             <p className="faixa-quadra">{dados.arena}</p>
             <h1>Meus lances avulsos</h1>

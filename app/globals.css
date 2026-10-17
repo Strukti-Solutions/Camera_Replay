@@ -1,31 +1,65 @@
 /*
-  Base visual do Replay. Sem framework e sem fonte baixada: a página do
-  jogador abre em rede ruim de arena, então só fontes do sistema.
-  Direção: azul de quadra com linha branca de marcação e o amarelo da bola
-  como acento. Contraste AA nos dois temas (texto ≥ 4,5:1, foco ≥ 3:1).
+  Base visual do Replay, na linguagem do design system da Strukti Soluções
+  (strukti-site/design-system/strukti-solucoes/MASTER.md). Sem framework.
+  Fonte: Geologica, carregada por next/font (arquivo de ~29 KB servido pelo
+  próprio site, sem requisição externa; display: swap mostra o texto na fonte
+  do sistema enquanto ela chega, então a rede ruim de arena não segura a página).
+  Escuro para mostrar, claro para ler: a faixa do topo é o "espaço" da marca
+  nos dois temas; o conteúdo segue o tema do aparelho (papel no claro, noite no
+  escuro). Contraste AA conferido nos dois temas (texto ≥ 4,5:1, interface e
+  foco ≥ 3:1).
 */
 
 :root {
-  --fundo: #f3f6f9;
+  /* Escalas da marca (MASTER §3.1). Só os tokens semânticos abaixo as usam. */
+  --navy-950: #08121d; /* espaço */
+  --navy-900: #0e1c2b; /* noite */
+  --navy-800: #15273b;
+  --navy-700: #1e3550;
+  --navy-600: #2a4766;
+  --navy-500: #3d5e80;
+  --navy-400: #5f7e9e;
+  --navy-300: #8ea6be;
+  --navy-200: #bfcedc;
+  --navy-100: #dfe7ef;
+  --navy-50: #f1f5f8; /* papel */
+  --electric-700: #0166d2;
+  --electric-800: #0353ad;
+  --cyan-300: #5fe3e8;
+  --cyan-400: #00d1d8;
+
+  /* Tema claro: papel. */
+  --fundo: var(--navy-50);
   --superficie: #ffffff;
-  --tinta: #0e2235;
-  --tinta-suave: #4a5d70;
-  --borda: #c9d4df;
-  --quadra: #1a5aa0;
-  --sobre-quadra: #ffffff;
-  --linha: #ffffff;
-  --link: #1a5aa0;
-  --bola: #d9f24a;
-  --sobre-bola: #0e2235;
-  --foco: #1a5aa0;
-  --perigo: #b42318;
-  --sucesso: #1d6b3a;
+  --tinta: var(--navy-800);
+  --tinta-suave: var(--navy-600);
+  --borda: var(--navy-100); /* decorativa */
+  --borda-campo: var(--navy-400); /* funcional, ≥ 3:1 */
+  --borda-selo: var(--navy-500);
+  --link: var(--electric-700);
+  --primario: var(--electric-700);
+  --primario-hover: var(--electric-800);
+  --sobre-primario: #ffffff;
+  --foco: var(--electric-700);
+  --perigo: #c0262d;
+  --sucesso: #11793f;
   --video: #000000;
 
-  --fonte: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --fonte-titulo: "Bahnschrift SemiCondensed", "Roboto Condensed", "Arial Narrow", var(--fonte);
+  /* Faixa do topo: sempre o espaço da marca, nos dois temas. */
+  --faixa: var(--navy-950);
+  --sobre-faixa: #ffffff;
+  --faixa-suave: var(--navy-200);
+  --faixa-borda: var(--navy-800);
+  --faixa-contorno: var(--navy-300);
+  --faixa-foco: var(--cyan-400);
 
-  --raio: 10px;
+  --fonte: var(--font-geologica), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Mesma família; os títulos ganham o corte do hexágono (eixo SHRP). */
+  --fonte-titulo: var(--fonte);
+
+  --raio: 10px; /* cartões, diálogo, vídeo */
+  --raio-botao: 6px;
+  --raio-campo: 4px; /* campos e selos */
   --alvo: 48px;
   --gutter: 16px;
   --largura: 40rem;
@@ -35,16 +69,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --fundo: #0b1c2c;
-    --superficie: #12293f;
-    --tinta: #e8eff6;
-    --tinta-suave: #a7b8c9;
-    --borda: #2a4560;
-    --quadra: #123a63;
-    --sobre-quadra: #ffffff;
-    --linha: #dbe6f0;
-    --link: #8cc4ff;
-    --foco: #d9f24a;
+    /* Tema escuro: noite, com peças elevadas em navy-800. */
+    --fundo: var(--navy-900);
+    --superficie: var(--navy-800);
+    --tinta: #ffffff;
+    --tinta-suave: var(--navy-200);
+    --borda: var(--navy-700);
+    --borda-campo: var(--navy-300);
+    --borda-selo: var(--navy-300);
+    /* Ciano só no escuro (MASTER §3.2). */
+    --link: var(--cyan-300);
+    --foco: var(--cyan-400);
     --perigo: #ff8a80;
     --sucesso: #7fd8a0;
   }
@@ -68,7 +103,7 @@ body {
   color: var(--tinta);
   font-family: var(--fonte);
   font-size: 1.0625rem;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 h1,
@@ -77,6 +112,14 @@ h3 {
   margin: 0;
   line-height: 1.15;
   text-wrap: balance;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  font-variation-settings: "SHRP" 100;
+}
+
+h3 {
+  font-weight: 640;
+  font-variation-settings: "SHRP" 60;
 }
 
 p {
@@ -85,7 +128,11 @@ p {
 
 a {
   color: var(--link);
-  text-underline-offset: 0.18em;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
 }
 
 :focus-visible {
@@ -115,35 +162,73 @@ video {
   gap: 0.5em;
   min-height: var(--alvo);
   min-width: var(--alvo);
-  padding: 0.5rem 1.1rem;
-  border: 2px solid currentColor;
-  border-radius: 999px;
+  padding: 0.5rem 1.25rem;
+  /* Contorno (MASTER §8.1): borda de 1,5 px na cor do texto. */
+  border: 1.5px solid currentColor;
+  border-radius: var(--raio-botao);
   background: transparent;
-  color: var(--link);
+  color: var(--tinta);
   font: inherit;
+  font-size: 1rem;
   font-weight: 600;
+  line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.botao:hover {
+  background: var(--realce);
 }
 
 .botao-cheio {
-  background: var(--quadra);
-  border-color: var(--quadra);
-  color: var(--sobre-quadra);
+  background: var(--primario);
+  border-color: var(--primario);
+  color: var(--sobre-primario);
+}
+
+.botao-cheio:hover {
+  background: var(--primario-hover);
+  border-color: var(--primario-hover);
 }
 
 /* ---------- Faixa da quadra (topo da página do jogador) ---------- */
 
 .faixa {
-  background: var(--quadra);
-  color: var(--sobre-quadra);
-  /* Linha branca de marcação da quadra fechando a faixa. */
-  border-bottom: 4px solid var(--linha);
-  padding-block: 1.25rem 1.5rem;
+  background: var(--faixa);
+  color: var(--sobre-faixa);
+  border-bottom: 1px solid var(--faixa-borda);
+  /* O topo respeita a área de proteção da assinatura (altura do "S"). */
+  padding-block: 1.5rem;
 }
 
 .faixa :focus-visible {
-  outline-color: var(--bola);
+  outline-color: var(--faixa-foco);
+}
+
+:root {
+  /* Mínimo da assinatura horizontal: 24 px de altura (MASTER §7). */
+  --altura-marca: 28px;
+}
+
+/* Assinatura da Strukti (versão para fundo escuro) no topo da faixa. Altura
+   fixa e largura automática: nunca esticada. A margem abaixo é a área de
+   proteção: o "S" ocupa 3/4 da altura da imagem. */
+.marca {
+  flex-basis: 100%;
+  margin-bottom: calc(var(--altura-marca) * 0.75);
+}
+
+.marca img {
+  display: block;
+  height: var(--altura-marca);
+  width: auto;
+}
+
+/* Telas de entrar: a faixa leva só a assinatura; o respiro da faixa já é
+   maior que a área de proteção. */
+.faixa-so-marca .marca {
+  margin-bottom: 0;
 }
 
 .faixa .miolo {
@@ -157,13 +242,18 @@ video {
 .faixa h1 {
   font-family: var(--fonte-titulo);
   font-size: clamp(2rem, 9vw, 2.75rem);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
 
+/* Contorno no escuro (MASTER §8.1): borda navy-300, texto branco. */
 .faixa .botao {
-  color: var(--sobre-quadra);
+  color: var(--sobre-faixa);
+  border-color: var(--faixa-contorno);
+}
+
+.faixa .botao:hover {
+  background: rgb(255 255 255 / 0.06);
 }
 
 /* ---------- Lista de lances ---------- */
@@ -201,12 +291,12 @@ video {
 
 .selo {
   display: inline-block;
-  padding: 0.1rem 0.6rem;
-  border-radius: 999px;
-  background: var(--bola);
-  color: var(--sobre-bola);
+  padding: 0.1rem 0.5rem;
+  border: 1.5px solid var(--borda-selo);
+  border-radius: var(--raio-campo);
+  color: var(--tinta);
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .lance video {
@@ -257,15 +347,17 @@ video {
   /* Largura do cartão: tudo do carrossel deriva dela. Grande no celular
      para a capa ser reconhecível; os vizinhos aparecem nas bordas. */
   --cartao-lance: min(76vw, 28rem);
-  /* Fundo neutro quando a capa não existe; ícone branco por cima (> 7:1). */
-  --capa-vazia: #2a3d50;
+  /* Fundo neutro quando a capa não existe; ícone branco por cima (≥ 12:1). */
+  --capa-vazia: var(--navy-700);
   --sobre-capa-vazia: #ffffff;
-  --fundo-dialogo: rgba(5, 14, 24, 0.82);
+  --fundo-dialogo: rgb(8 18 29 / 0.82);
+  /* Sombra tingida de marinho, só no que flutua (MASTER §5.4). */
+  --sombra-flutua: 0 12px 32px -12px rgb(8 18 29 / 0.45);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --capa-vazia: #1d3348;
+    --capa-vazia: var(--navy-800);
   }
 }
 
@@ -339,7 +431,7 @@ video {
   overflow: hidden;
   background: var(--capa-vazia);
   color: var(--sobre-capa-vazia);
-  box-shadow: 0 14px 30px rgba(5, 14, 24, 0.35);
+  box-shadow: var(--sombra-flutua);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -387,11 +479,11 @@ video {
   width: var(--alvo);
   height: var(--alvo);
   padding: 0;
-  border: 2px solid var(--borda);
-  border-radius: 50%;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio-botao);
   background: var(--superficie);
   color: var(--tinta);
-  box-shadow: 0 4px 12px rgba(5, 14, 24, 0.2);
+  box-shadow: var(--sombra-flutua);
   transform: translateY(-50%);
   cursor: pointer;
 }
@@ -421,7 +513,8 @@ video {
 .carrossel-horario {
   font-family: var(--fonte-titulo);
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 720;
+  font-variation-settings: "SHRP" 100;
   font-variant-numeric: tabular-nums;
 }
 
@@ -502,11 +595,12 @@ video {
   font-weight: 600;
 }
 
+/* Campo (MASTER §8.7): 48 px, borda funcional de 1,5 px, texto de 16 px ou mais. */
 .campo input {
   min-height: var(--alvo);
   padding: 0.5rem 0.75rem;
-  border: 2px solid var(--borda);
-  border-radius: var(--raio);
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio-campo);
   background: var(--superficie);
   color: var(--tinta);
   font: inherit;
@@ -530,7 +624,8 @@ video {
 .painel-arena {
   font-family: var(--fonte-titulo);
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 720;
+  font-variation-settings: "SHRP" 100;
   overflow-wrap: anywhere;
 }
 
@@ -542,7 +637,7 @@ video {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --sobre-perigo: #0b1c2c;
+    --sobre-perigo: var(--navy-950);
   }
 }
 
@@ -658,7 +753,7 @@ video {
   width: 0.65em;
   height: 0.65em;
   margin-right: 0.4em;
-  border-radius: 50%;
+  border-radius: 2px;
   background: currentColor;
 }
 
@@ -682,11 +777,11 @@ video {
 .selo-revogado,
 .selo-status {
   display: inline-block;
-  padding: 0.1rem 0.6rem;
-  border-radius: 999px;
-  border: 2px solid currentColor;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--raio-campo);
+  border: 1.5px solid currentColor;
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .selo-revogado,
@@ -699,9 +794,8 @@ video {
 }
 
 .selo-parcial {
-  background: var(--bola);
-  border-color: var(--bola);
-  color: var(--sobre-bola);
+  border-color: var(--borda-selo);
+  color: var(--tinta);
 }
 
 .motivo {
@@ -726,7 +820,7 @@ video {
 
 .token {
   padding: 1rem;
-  border: 2px solid var(--quadra);
+  border: 1.5px solid var(--primario);
   border-radius: var(--raio);
   background: var(--superficie);
   display: grid;
@@ -801,6 +895,19 @@ video {
   font-family: var(--fonte-titulo);
   font-size: 1.75rem;
   line-height: 1.15;
+}
+
+/* Assinatura de fundo claro no pé da folha (papel branco). A margem acima é
+   maior que a área de proteção (altura do "S", 3/4 da imagem). */
+.folha-marca {
+  margin-top: 32px;
+}
+
+.folha-marca img {
+  display: block;
+  height: 32px;
+  width: auto;
+  margin-inline: auto;
 }
 
 .folha-qr p {
@@ -879,13 +986,14 @@ video {
 /* ---------- Painel: navegação, tabelas, alunos e reservas ---------- */
 
 :root {
-  /* Linha sob o ponteiro nas tabelas e caixas de alunos. */
-  --realce: #e6eef6;
+  /* Fundo sob o ponteiro (tabelas, caixas de alunos, botões de contorno).
+     Mais claro que o navy-100 para o link azul seguir ≥ 4,5:1 por cima. */
+  --realce: #eaf0f5;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --realce: #1a3550;
+    --realce: var(--navy-700);
   }
 }
 
@@ -907,22 +1015,23 @@ video {
   align-items: center;
   min-height: var(--alvo);
   padding: 0.5rem 1rem;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  color: var(--sobre-quadra);
+  border: 1.5px solid transparent;
+  border-radius: var(--raio-botao);
+  color: var(--faixa-suave);
   font-weight: 600;
   text-decoration: none;
 }
 
 .painel-nav a:hover {
-  border-color: currentColor;
+  color: var(--sobre-faixa);
+  border-color: var(--faixa-contorno);
 }
 
-/* Seção atual: a linha branca da quadra vira o fundo (contraste > 4,5:1). */
+/* Seção atual: fundo branco com o texto no espaço (18,8:1). */
 .painel-nav a[aria-current="page"] {
-  background: var(--linha);
-  border-color: var(--linha);
-  color: var(--quadra);
+  background: var(--sobre-faixa);
+  border-color: var(--sobre-faixa);
+  color: var(--faixa);
 }
 
 /* Tabela: a rolagem é do invólucro, que também leva a borda arredondada. */
@@ -1032,11 +1141,11 @@ video {
 .selo-neutro {
   display: inline-block;
   padding: 0.1rem 0.6rem;
-  border-radius: 999px;
-  border: 2px solid currentColor;
+  border-radius: var(--raio-campo);
+  border: 1.5px solid currentColor;
   color: var(--tinta-suave);
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1103,8 +1212,8 @@ video {
 .campo select {
   min-height: var(--alvo);
   padding: 0.5rem 0.75rem;
-  border: 2px solid var(--borda);
-  border-radius: var(--raio);
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio-campo);
   background: var(--superficie);
   color: var(--tinta);
   font: inherit;

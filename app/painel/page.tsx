@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
+import { AssinaturaStrukti } from "@/app/componentes/marca";
 import { slugDaArena } from "@/app/lib/acesso-aluno";
 import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
@@ -58,11 +59,12 @@ export default async function PaginaPainel() {
         </ul>
       )}
 
-      <QrDaArena arena={sessao.arenaNome} slug={slug} />
-
       <section className="secao nao-imprimir">
         <FormularioNovaQuadra />
       </section>
+
+      {/* O QR da arena fica no fim da tela, depois da lista e do formulário. */}
+      <QrDaArena arena={sessao.arenaNome} slug={slug} />
     </main>
   );
 }
@@ -111,6 +113,10 @@ async function QrDaArena({ arena, slug }: { arena: string; slug: string | null }
           dangerouslySetInnerHTML={{ __html: svg }}
         />
         <p className="folha-url">{url}</p>
+        {/* Papel branco: a assinatura de fundo claro, sem nada escrito ao lado. */}
+        <div className="folha-marca">
+          <AssinaturaStrukti fundo="claro" altura={32} />
+        </div>
       </div>
     </section>
   );

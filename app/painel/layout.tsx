@@ -1,4 +1,5 @@
 import { sairAction } from "@/app/entrar/actions";
+import { MarcaDaFaixa } from "@/app/componentes/marca";
 import { NavegacaoPainel } from "./navegacao";
 import { exigirSessao } from "./sessao-atual";
 
@@ -11,6 +12,7 @@ export default async function LayoutPainel({ children }: { children: React.React
     <>
       <header className="faixa">
         <div className="miolo">
+          <MarcaDaFaixa />
           <p className="painel-arena">{sessao.arenaNome}</p>
           <form action={sairAction}>
             <button type="submit" className="botao">

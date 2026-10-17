@@ -48,9 +48,6 @@ export async function slugDaArena(db: Db, arenaId: string): Promise<string | nul
   return q.rows[0]?.slug ?? null;
 }
 
-const LIMITE_CADASTRO = 5; // tentativas de cadastro por IP na janela
-const JANELA_CADASTRO_MIN = 60;
-
 async function abrirSessaoAluno(db: Db, arenaId: string, alunoId: string) {
   const token = novoToken();
   const r = await db.query<{ expira_em: Date }>(
