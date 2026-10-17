@@ -80,22 +80,31 @@ export async function sairAluno(db: Db, token: string): Promise<void> {
   await db.query("delete from sessoes_aluno where token_hash = $1", [hashToken(token)]);
 }
 
-// Reservas da quadra que ainda estão na retenção, com pelo menos um aluno e um
-// lance visível. Só o primeiro nome dos alunos; nunca e-mail nem sobrenome.
-export async function reservasPublicas(
+// Nome da quadra e arena do slug, para a tela de entrar. Não lista reserva nem aluno.
+export async function quadraDoSlugPublica(
   db: Db,
   slug: string,
-  alunoId?: string,
+): Promise<{ quadra: string; arenaId: string } | null> {
+  const q = await quadraDoSlug(db, slug);
+  return q ? { quadra: q.nome, arenaId: q.arena_id } : null;
+}
+
+// Reservas da quadra do slug em que o aluno está, ainda na retenção e com pelo
+// menos um lance visível. Não há lista pública: nada aqui traz nome ou e-mail
+// (nem o do próprio aluno), e aluno de outra arena nunca casa.
+export async function reservasDoAluno(
+  db: Db,
+  slug: string,
+  alunoId: string,
 ): Promise<{
   quadra: string;
-  arenaId: string; // a página compara com a arena da sessão do aluno
-  reservas: { id: string; inicio: Date; fim: Date; primeirosNomes: string[]; lances: number; minha: boolean }[];
+  arenaId: string;
+  reservas: { id: string; inicio: Date; fim: Date; lances: number }[];
 } | null> {
   const quadra = await quadraDoSlug(db, slug);
   if (!quadra) return null;
-  const { rows } = await db.query<{
-    id: string; inicio: Date; fim: Date; lances: number; nomes: string[] | null; minha: boolean;
-  }>(
+  if (!ehUuid(alunoId)) return { quadra: quadra.nome, arenaId: quadra.arena_id, reservas: [] };
+  const { rows } = await db.query<{ id: string; inicio: Date; fim: Date; lances: number }>(
     `select r.id, r.inicio, r.fim,
             (select count(*) from clipes c
                join cameras cam on cam.id = c.camera_id and cam.arena_id = c.arena_id
@@ -103,30 +112,21 @@ export async function reservasPublicas(
                 and c.arena_id = r.arena_id
                 and c.status in ('pronto', 'parcial') and c.chave_r2 is not null
                 and c.expira_em > now()
-                and c.recebido_em >= r.inicio and c.recebido_em < r.fim)::int as lances,
-            (select array_agg((regexp_match(a.nome, '[^\\s\\u00a0]+'))[1] order by a.nome, a.id)
-               from reserva_alunos ra
-               join alunos a on a.id = ra.aluno_id and a.arena_id = ra.arena_id
-              where ra.reserva_id = r.id and ra.arena_id = r.arena_id) as nomes,
-            exists (select 1 from reserva_alunos rm
-                     where rm.reserva_id = r.id and rm.arena_id = r.arena_id
-                       and rm.aluno_id = $3::uuid) as minha
+                and c.recebido_em >= r.inicio and c.recebido_em < r.fim)::int as lances
        from reservas r
        join arenas ar on ar.id = r.arena_id
-      where r.quadra_id = $1 and r.arena_id = $2
+       join reserva_alunos ra on ra.reserva_id = r.id and ra.arena_id = r.arena_id
+      where r.quadra_id = $1 and r.arena_id = $2 and ra.aluno_id = $3
         and r.fim >= now() - make_interval(days => ar.dias_retencao)
       order by r.inicio desc, r.id`,
-    [quadra.id, quadra.arena_id, ehUuid(alunoId) ? alunoId : null],
+    [quadra.id, quadra.arena_id, alunoId],
   );
   return {
     quadra: quadra.nome,
     arenaId: quadra.arena_id,
     reservas: rows
-      .filter((r) => Number(r.lances) > 0 && r.nomes !== null && r.nomes.length > 0)
-      .map((r) => ({
-        id: r.id, inicio: r.inicio, fim: r.fim, primeirosNomes: r.nomes as string[], lances: Number(r.lances),
-        minha: Boolean(r.minha),
-      })),
+      .filter((r) => Number(r.lances) > 0)
+      .map((r) => ({ id: r.id, inicio: r.inicio, fim: r.fim, lances: Number(r.lances) })),
   };
 }
 

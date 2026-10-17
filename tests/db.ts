@@ -14,10 +14,11 @@ afterEach(async () => {
   await Promise.all(fechar.map((p) => p.close().catch((e) => console.warn("PGlite: falha ao fechar:", e))));
 });
 
-// Banco em memória, já migrado.
-export async function novoBanco(): Promise<Db> {
+// Banco em memória, já migrado (por padrão com todas as migrações; `pasta`
+// permite parar numa versão antiga para testar uma migração com dados).
+export async function novoBanco(pasta?: string): Promise<Db> {
   const pg = new PGlite();
   abertos.push(pg);
-  await migrar(pg as unknown as Db);
+  await migrar(pg as unknown as Db, pasta);
   return pg as unknown as Db;
 }

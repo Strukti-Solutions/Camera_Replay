@@ -5,7 +5,7 @@ import { criarReserva, definirAlunosDaReserva } from "../app/lib/reservas";
 import { atribuirClipe } from "../app/lib/painel";
 import { entrar, validarSessao } from "../app/lib/sessao";
 import {
-  entrarAluno, lancesAvulsosDoAluno, lancesDaReserva, reservasPublicas, sairAluno, validarSessaoAluno,
+  entrarAluno, lancesAvulsosDoAluno, lancesDaReserva, quadraDoSlugPublica, reservasDoAluno, sairAluno, validarSessaoAluno,
 } from "../app/lib/acesso-aluno";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -93,54 +93,6 @@ test("lance avulso atribuído aparece só para o aluno atribuído, na quadra cer
   expect(await lancesAvulsosDoAluno(db, r2Falso(), s.qa.slug, s.anaB.id)).toEqual([]);
 });
 
-test("reservasPublicas: só primeiro nome, sem e-mail, omite reserva sem lance, sem aluno e fora da retenção", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  const r1 = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id, s.beto.id] }))!;
-  const vazia = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(11), fim: h(12), alunoIds: [s.ana.id] }))!;
-  const semAluno = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(13), fim: h(14), alunoIds: [s.ana.id] }))!;
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(8, 30));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(9));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(13, 30));
-  // a última aluna da reserva sai: a reserva some da lista pública
-  await definirAlunosDaReserva(db, s.a.id, semAluno.id, [s.beto.id]);
-  await removerAluno(db, s.a.id, s.beto.id);
-
-  const p = await reservasPublicas(db, s.qa.slug);
-  expect(p?.quadra).toBe("Quadra 1");
-  expect(p?.reservas.map((x) => x.id)).toEqual([r1.id]);
-  expect(p?.reservas[0]).toMatchObject({ lances: 2, primeirosNomes: ["Ana"] });
-  expect(p?.reservas.find((x) => x.id === vazia.id)).toBeUndefined();
-  const texto = JSON.stringify(p);
-  for (const proibido of ["Souza", "Lima", "@", "ana@x.com"]) expect(texto).not.toContain(proibido);
-});
-
-test("reservasPublicas: mais nova primeiro, janela de retenção e slug inválido/desconhecido", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  const antiga = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(1), fim: h(2), alunoIds: [s.ana.id] }))!;
-  const nova = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(3), fim: h(4), alunoIds: [s.ana.id] }))!;
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(1, 30));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(3, 30));
-  expect((await reservasPublicas(db, s.qa.slug))!.reservas.map((x) => x.id)).toEqual([nova.id, antiga.id]);
-
-  // reserva que terminou há mais que dias_retencao (7) não entra
-  await db.query("update reservas set inicio = now() - interval '9 days', fim = now() - interval '9 days' + interval '1 hour' where id = $1", [antiga.id]);
-  expect((await reservasPublicas(db, s.qa.slug))!.reservas.map((x) => x.id)).toEqual([nova.id]);
-
-  expect(await reservasPublicas(db, "A".repeat(22))).toBeNull();
-  expect(await reservasPublicas(db, "../x")).toBeNull();
-});
-
-test("reservasPublicas não mistura reservas de outra quadra", async () => {
-  const db = await novoBanco();
-  const s = await cenario(db);
-  await criarReserva(db, s.a.id, { quadraId: s.qa2.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id] });
-  await clipeEm(db, s.a.id, s.qa2.id, s.ca2.id, h(9));
-  expect((await reservasPublicas(db, s.qa.slug))!.reservas).toEqual([]);
-  expect((await reservasPublicas(db, s.qa2.slug))!.reservas).toHaveLength(1);
-});
-
 test("login do aluno: entra, valida, sai; e-mail normalizado; mesma resposta para erro", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
@@ -219,31 +171,70 @@ test("chave de tentativa por conta: aluno:<arena>:<email>, slug desconhecido usa
   expect(r.rows.map((x) => x.email)).toEqual([`aluno:${s.a.id}:ana@x.com`, "aluno:?:ana@x.com"]);
 });
 
-test("primeiro nome seguro com tab e espaço não separável; criarAluno normaliza o espaço", async () => {
+test("criarAluno normaliza tab e espaço não separável do nome", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
-  await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id, s.beto.id] });
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(9));
-  await db.query("update alunos set nome = $2 where id = $1", [s.ana.id, "Ana\tSouza"]);
-  await db.query("update alunos set nome = $2 where id = $1", [s.beto.id, "Beto\u00a0Lima"]);
-  const p = await reservasPublicas(db, s.qa.slug);
-  expect(p?.reservas[0].primeirosNomes.sort()).toEqual(["Ana", "Beto"]);
-
-  const novo = await criarAluno(db, s.a.id, { nome: "Caio\u00a0\tMota", email: "caio@x.com", senha: SENHA });
+  const novo = await criarAluno(db, s.a.id, { nome: "Caio 	Mota", email: "caio@x.com", senha: SENHA });
   const n = await db.query<{ nome: string }>("select nome from alunos where id = $1", [novo.id]);
   expect(n.rows[0].nome).toBe("Caio Mota");
 });
 
-test("reservasPublicas devolve arenaId e minha (só para o aluno da arena do slug)", async () => {
+test("reservasDoAluno: só as reservas do aluno, sem as de outro aluno, sem lance ou de outra quadra/arena", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
-  const r1 = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id] }))!;
+  const minha = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id, s.beto.id] }))!;
+  const doBeto = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(11), fim: h(12), alunoIds: [s.beto.id] }))!;
+  const semLance = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(13), fim: h(14), alunoIds: [s.ana.id] }))!;
+  const outraQuadra = (await criarReserva(db, s.a.id, { quadraId: s.qa2.id, inicio: h(15), fim: h(16), alunoIds: [s.ana.id] }))!;
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(8, 30));
   await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(9));
-  const get = async (aluno?: string) => (await reservasPublicas(db, s.qa.slug, aluno))!;
-  expect((await get()).arenaId).toBe(s.a.id);
-  expect((await get()).reservas[0].minha).toBe(false);
-  expect((await get(s.ana.id)).reservas[0]).toMatchObject({ id: r1.id, minha: true });
-  expect((await get(s.beto.id)).reservas[0].minha).toBe(false);
-  expect((await get(s.anaB.id)).reservas[0].minha).toBe(false); // aluno de outra arena
-  expect((await get("lixo")).reservas[0].minha).toBe(false);
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(11, 30));
+  await clipeEm(db, s.a.id, s.qa2.id, s.ca2.id, h(15, 30));
+
+  const p = await reservasDoAluno(db, s.qa.slug, s.ana.id);
+  expect(p?.quadra).toBe("Quadra 1");
+  expect(p?.arenaId).toBe(s.a.id);
+  expect(p?.reservas.map((x) => x.id)).toEqual([minha.id]);
+  expect(p?.reservas[0]).toMatchObject({ lances: 2 });
+  const ids = p!.reservas.map((x) => x.id);
+  for (const fora of [doBeto.id, semLance.id, outraQuadra.id]) expect(ids).not.toContain(fora);
+  // nenhum campo de nome nem de e-mail, de ninguém
+  expect(Object.keys(p!.reservas[0]).sort()).toEqual(["fim", "id", "inicio", "lances"]);
+  const texto = JSON.stringify(p);
+  for (const proibido of ["Ana", "Beto", "Souza", "Lima", "@"]) expect(texto).not.toContain(proibido);
+
+  expect((await reservasDoAluno(db, s.qa.slug, s.beto.id))!.reservas.map((x) => x.id)).toEqual([doBeto.id, minha.id]);
+  // aluno de outra arena com mesmo e-mail, id malformado: nada
+  expect((await reservasDoAluno(db, s.qa.slug, s.anaB.id))!.reservas).toEqual([]);
+  expect((await reservasDoAluno(db, s.qa.slug, "lixo"))!.reservas).toEqual([]);
+  expect((await reservasDoAluno(db, s.qb.slug, s.ana.id))!.reservas).toEqual([]);
+});
+
+test("reservasDoAluno: mais nova primeiro, janela de retenção da arena e slug inválido/desconhecido", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const antiga = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(1), fim: h(2), alunoIds: [s.ana.id] }))!;
+  const nova = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(3), fim: h(4), alunoIds: [s.ana.id] }))!;
+  const clipeAntigo = await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(1, 30));
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(3, 30));
+  expect((await reservasDoAluno(db, s.qa.slug, s.ana.id))!.reservas.map((x) => x.id)).toEqual([nova.id, antiga.id]);
+
+  // reserva que terminou há mais que dias_retencao (3) não entra
+  await db.query("update reservas set inicio = now() - interval '4 days', fim = now() - interval '4 days' + interval '1 hour' where id = $1", [antiga.id]);
+  expect((await reservasDoAluno(db, s.qa.slug, s.ana.id))!.reservas.map((x) => x.id)).toEqual([nova.id]);
+  // dentro dos 3 dias ainda entra (o lance acompanha a reserva)
+  await db.query("update clipes set recebido_em = now() - interval '2 days' + interval '30 minutes' where id = $1", [clipeAntigo]);
+  await db.query("update reservas set inicio = now() - interval '2 days', fim = now() - interval '2 days' + interval '1 hour' where id = $1", [antiga.id]);
+  expect((await reservasDoAluno(db, s.qa.slug, s.ana.id))!.reservas.map((x) => x.id)).toEqual([nova.id, antiga.id]);
+
+  expect(await reservasDoAluno(db, "A".repeat(22), s.ana.id)).toBeNull();
+  expect(await reservasDoAluno(db, "../x", s.ana.id)).toBeNull();
+});
+
+test("quadraDoSlugPublica devolve só nome da quadra e arena; null para slug inválido ou desconhecido", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  expect(await quadraDoSlugPublica(db, s.qa.slug)).toEqual({ quadra: "Quadra 1", arenaId: s.a.id });
+  expect(await quadraDoSlugPublica(db, "A".repeat(22))).toBeNull();
+  expect(await quadraDoSlugPublica(db, "../x")).toBeNull();
 });
