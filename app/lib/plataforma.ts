@@ -3,13 +3,12 @@ import { criarArenaComDono } from "./donos";
 import { hashSenha } from "./senha";
 
 // Funções de plataforma: as ÚNICAS que cruzam arenas. Só podem ser chamadas por
-// páginas e actions de /admin depois de exigirSuperAdmin(), e por `listarArenasPublicas`
-// na página de escolha da arena (que devolve apenas nome e slug). Nenhuma página
-// de dono ou aluno importa este módulo.
+// páginas e actions de /admin depois de exigirSuperAdmin(). Nenhuma página de
+// dono ou aluno importa este módulo (tests/isolamento-plataforma.test.ts confere).
+// A lista pública de arenas (só nome e slug) mora em arenas-publicas.ts.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SENHA_ADMIN_MIN = 12;
-const LIMITE_PUBLICO = 50;
 
 export type StatusArena = "ativa" | "suspensa";
 
@@ -17,21 +16,6 @@ export type ArenaAdmin = {
   id: string; nome: string; slug: string; status: StatusArena;
   quadras: number; alunos: number; donoEmail: string | null; criadoEm: Date;
 };
-
-// Arenas ativas para o aluno escolher. Só nome e slug: nada de dono, quadras ou contagens.
-// A busca é por trecho do nome, sem curingas (% e _ valem como texto).
-export async function listarArenasPublicas(db: Db, busca?: string): Promise<{ nome: string; slug: string }[]> {
-  const termo = typeof busca === "string" ? busca.trim().slice(0, 80) : "";
-  const { rows } = await db.query<{ nome: string; slug: string }>(
-    `select nome, slug from arenas
-      where status_assinatura = 'ativa'
-        and ($1 = '' or position(lower($1) in lower(nome)) > 0)
-      order by nome, id
-      limit ${LIMITE_PUBLICO}`,
-    [termo],
-  );
-  return rows.map((r) => ({ nome: r.nome, slug: r.slug }));
-}
 
 // Todas as arenas, para o painel do super admin. Nunca devolve senha_hash.
 export async function listarArenasAdmin(db: Db): Promise<ArenaAdmin[]> {

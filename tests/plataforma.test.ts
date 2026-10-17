@@ -3,8 +3,9 @@ import { novoBanco } from "./db";
 import { criarArena, criarQuadra } from "./fixtures";
 import { hashSenha } from "../app/lib/senha";
 import {
-  criarArenaAdmin, criarSuperAdmin, definirStatusArena, listarArenasAdmin, listarArenasPublicas,
+  criarArenaAdmin, criarSuperAdmin, definirStatusArena, listarArenasAdmin,
 } from "../app/lib/plataforma";
+import { listarArenasPublicas } from "../app/lib/arenas-publicas";
 import { criarAluno } from "../app/lib/alunos";
 import { entrarAdmin } from "../app/lib/sessao-admin";
 
