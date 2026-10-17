@@ -18,10 +18,41 @@ test("token válido cria aperto e clipe pendente da câmera do botão", async ()
   const r = await registrarAperto(db, botao.token);
   expect(r?.duplicado).toBe(false);
   const c = await db.query(
-    `select status, camera_id, arena_id, extract(epoch from expira_em - recebido_em) as seg
+    `select status, camera_id, arena_id, (expira_em - recebido_em = interval '7 days') as sete_dias
      from clipes where id = $1`, [r!.clipeId]);
-  expect(c.rows[0]).toMatchObject({ status: "pendente", camera_id: camera.id, arena_id: arena.id });
-  expect(Number(c.rows[0].seg)).toBe(7 * 86400);
+  expect(c.rows[0]).toMatchObject({
+    status: "pendente", camera_id: camera.id, arena_id: arena.id, sete_dias: true,
+  });
+});
+
+test("clipes.recebido_em é igual ao apertos.recebido_em", async () => {
+  const { db, botao } = await cenario();
+  await registrarAperto(db, botao.token);
+  const r = await db.query(
+    `select (c.recebido_em = a.recebido_em) as igual
+     from clipes c join apertos a on a.id = c.aperto_id`);
+  expect(r.rows).toEqual([{ igual: true }]);
+});
+
+test("dois botões de arenas diferentes: sem dedupe cruzado e cada clipe na própria arena/câmera", async () => {
+  const db = await novoBanco();
+  const montar = async () => {
+    const arena = await criarArena(db);
+    const quadra = await criarQuadra(db, arena.id);
+    const camera = await criarCamera(db, arena.id, quadra.id);
+    const botao = await criarBotao(db, arena.id, quadra.id, camera.id);
+    return { arena, camera, botao };
+  };
+  const a = await montar(), b = await montar();
+  const ra = await registrarAperto(db, a.botao.token);
+  const rb = await registrarAperto(db, b.botao.token);
+  expect(ra!.duplicado).toBe(false);
+  expect(rb!.duplicado).toBe(false);
+  expect(ra!.clipeId).not.toBe(rb!.clipeId);
+  for (const [r, x] of [[ra, a], [rb, b]] as const) {
+    const c = await db.query("select arena_id, camera_id from clipes where id = $1", [r!.clipeId]);
+    expect(c.rows[0]).toEqual({ arena_id: x.arena.id, camera_id: x.camera.id });
+  }
 });
 
 test("segundo aperto em menos de 5 s devolve o mesmo clipe com duplicado=true", async () => {
@@ -31,6 +62,15 @@ test("segundo aperto em menos de 5 s devolve o mesmo clipe com duplicado=true", 
   expect(b).toEqual({ clipeId: a!.clipeId, duplicado: true });
   expect((await db.query("select count(*)::int as n from clipes")).rows[0].n).toBe(1);
   expect((await db.query("select count(*)::int as n from apertos")).rows[0].n).toBe(1);
+});
+
+test("aperto duplicado também atualiza botoes.visto_em", async () => {
+  const { db, botao } = await cenario();
+  await registrarAperto(db, botao.token);
+  await db.query("update botoes set visto_em = now() - interval '1 hour'");
+  await registrarAperto(db, botao.token);
+  const r = await db.query("select (visto_em > now() - interval '1 minute') as recente from botoes");
+  expect(r.rows[0].recente).toBe(true);
 });
 
 test("aperto depois de 5 s cria outro clipe", async () => {
@@ -54,14 +94,17 @@ test("token revogado devolve null", async () => {
   await db.query("update botoes set revogado_em = now()");
   expect(await registrarAperto(db, botao.token)).toBeNull();
   expect((await db.query("select count(*)::int as n from apertos")).rows[0].n).toBe(0);
+  expect((await db.query("select count(*)::int as n from clipes")).rows[0].n).toBe(0);
+  expect((await db.query("select visto_em from botoes")).rows[0].visto_em).toBeNull();
 });
 
 test("dias_retencao da arena define expira_em", async () => {
   const { db, botao } = await cenario(3);
   const r = await registrarAperto(db, botao.token);
   const c = await db.query(
-    "select extract(epoch from expira_em - recebido_em) as seg from clipes where id = $1", [r!.clipeId]);
-  expect(Number(c.rows[0].seg)).toBe(3 * 86400);
+    "select (expira_em - recebido_em = interval '3 days') as tres_dias from clipes where id = $1",
+    [r!.clipeId]);
+  expect(c.rows[0].tres_dias).toBe(true);
 });
 
 test("atualiza botoes.visto_em", async () => {

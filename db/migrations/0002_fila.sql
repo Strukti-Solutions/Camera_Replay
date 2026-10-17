@@ -1,3 +1,6 @@
+-- Atenção: registrar_aperto conta com READ COMMITTED (o padrão do Postgres).
+-- Em REPEATABLE READ/SERIALIZABLE o POST concorrente do mesmo botão recebe
+-- erro de serialização em vez de duplicado=true.
 -- Registra o aperto do botão. O FOR UPDATE no botão serializa POSTs
 -- simultâneos do mesmo botão, então o dedupe de 5 s vale sob concorrência.
 create or replace function registrar_aperto(p_token_hash text)

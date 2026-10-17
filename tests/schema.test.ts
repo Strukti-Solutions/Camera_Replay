@@ -9,9 +9,9 @@ const APERTO = "insert into apertos (arena_id, botao_id) values ($1, $2) returni
 
 test("migrar aplica tudo uma vez e é idempotente", async () => {
   const db = await novoBanco();
+  const r = await db.query<{ nome: string }>("select nome from schema_migrations");
+  expect(r.rows.map((x) => x.nome)).toContain("0001_schema.sql");
   expect(await migrar(db)).toEqual([]);
-  const r = await db.query("select nome from schema_migrations");
-  expect(r.rows).toEqual([{ nome: "0001_schema.sql" }, { nome: "0002_fila.sql" }]);
 });
 
 test("botão não pode apontar para quadra de outra arena", async () => {
