@@ -55,7 +55,7 @@ $$;
 -- O RETURNING de UPDATE ... FROM não garante ordem, por isso o select final
 -- ordena por recebido_em (mais antigo primeiro).
 create or replace function pegar_clipes(p_camera_id uuid, p_limite int default 10)
-returns table (clipe_id uuid, camera_id uuid, recebido_em timestamptz)
+returns table (clipe_id uuid, camera_id uuid, arena_id uuid, recebido_em timestamptz)
 language sql as $$
   with u as (
     update clipes c
@@ -68,19 +68,33 @@ language sql as $$
          for update skip locked
       ) s
      where c.id = s.id
-    returning c.id, c.camera_id, c.recebido_em
+    returning c.id, c.camera_id, c.arena_id, c.recebido_em
   )
-  select u.id, u.camera_id, u.recebido_em from u order by u.recebido_em;
+  select u.id, u.camera_id, u.arena_id, u.recebido_em from u order by u.recebido_em;
 $$;
 
 -- Só age sobre 'processando': um clipe que o reaper já marcou 'falhou' não ressuscita.
+-- A chave tem de ser exatamente clipes/<arena_id do clipe>/<clipe_id>.mp4, conferida
+-- contra o arena_id gravado no banco. Chave errada LANÇA erro (bug do worker, não
+-- pode ser confundido com o false de "o reaper chegou antes"), e a verificação vem
+-- ANTES do teste de status: lança mesmo se o clipe já não está em processando.
+-- Clipe inexistente devolve false (não há arena para conferir).
 create or replace function marcar_pronto(
   p_clipe_id uuid, p_chave text, p_tamanho bigint, p_duracao real, p_parcial boolean)
 returns boolean
 language plpgsql as $$
 declare
+  v_arena uuid;
   v_n int;
 begin
+  select arena_id into v_arena from clipes where id = p_clipe_id;
+  if not found then
+    return false;
+  end if;
+  if p_chave is distinct from 'clipes/' || v_arena || '/' || p_clipe_id || '.mp4' then
+    raise exception 'chave invalida para o clipe %: esperado clipes/<arena_id>/<clipe_id>.mp4', p_clipe_id;
+  end if;
+
   update clipes
      set status = case when p_parcial then 'parcial' else 'pronto' end,
          chave_r2 = p_chave, tamanho = p_tamanho, duracao = p_duracao
