@@ -268,3 +268,29 @@ test("slugDaArena devolve o slug da arena do painel; id inválido não consulta 
   for (const ruim of ["", "x", "1 or 1=1", 42 as unknown as string]) expect(await slugDaArena(db, ruim)).toBeNull();
   expect(espiao).not.toHaveBeenCalled();
 });
+
+test("arena suspensa: aluno não entra (motivo suspensa, só com a senha certa) e sessão aberta cai; reativar volta", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const aberta = await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "1.1.1.1");
+  if (!aberta.ok) throw new Error("login falhou");
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [s.a.id]);
+  expect(await validarSessaoAluno(db, aberta.token)).toBeNull();
+  expect(await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "1.1.1.1")).toEqual({ ok: false, motivo: "suspensa" });
+  expect(await entrarAluno(db, s.a.slug, "ana@x.com", "errada-123", "1.1.1.1")).toEqual({ ok: false, motivo: "credenciais" });
+  // a outra arena não é afetada
+  expect((await entrarAluno(db, s.b.slug, "ana@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
+
+  await db.query("update arenas set status_assinatura = 'ativa' where id = $1", [s.a.id]);
+  expect(await validarSessaoAluno(db, aberta.token)).not.toBeNull();
+  expect((await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
+});
+
+test("limite por IP do aluno só conta tentativas aluno:, não as do dono", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  for (let i = 0; i < 25; i++) {
+    await db.query("insert into tentativas_login (email, ip) values ($1, '9.9.9.9')", [`dono:u${i}@x.com`]);
+  }
+  expect((await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "9.9.9.9")).ok).toBe(true);
+});

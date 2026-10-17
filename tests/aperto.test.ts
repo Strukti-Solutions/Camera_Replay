@@ -129,3 +129,28 @@ test("atualiza botoes.visto_em", async () => {
   await registrarAperto(db, botao.token);
   expect((await db.query("select visto_em from botoes")).rows[0].visto_em).not.toBeNull();
 });
+
+test("arena suspensa: aperto não grava nada e responde como token inválido; reativar volta a gravar", async () => {
+  const { db, arena, botao } = await cenario();
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [arena.id]);
+  expect(await registrarAperto(db, botao.token)).toBeNull();
+  expect((await db.query("select 1 from apertos")).rows).toHaveLength(0);
+  expect((await db.query("select 1 from clipes")).rows).toHaveLength(0);
+  expect((await db.query("select visto_em from botoes")).rows).toEqual([{ visto_em: null }]);
+
+  await db.query("update arenas set status_assinatura = 'ativa' where id = $1", [arena.id]);
+  const r = await registrarAperto(db, botao.token);
+  expect(r?.duplicado).toBe(false);
+  expect((await db.query("select 1 from clipes")).rows).toHaveLength(1);
+});
+
+test("suspender só afeta a própria arena: o botão de outra arena segue gravando", async () => {
+  const { db, arena, botao } = await cenario();
+  const outra = await criarArena(db);
+  const q = await criarQuadra(db, outra.id);
+  const c = await criarCamera(db, outra.id, q.id);
+  const b2 = await criarBotao(db, outra.id, q.id, c.id);
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [arena.id]);
+  expect(await registrarAperto(db, botao.token)).toBeNull();
+  expect((await registrarAperto(db, b2.token))?.duplicado).toBe(false);
+});

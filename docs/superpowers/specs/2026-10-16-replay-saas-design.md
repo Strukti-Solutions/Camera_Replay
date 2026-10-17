@@ -57,7 +57,7 @@ O aperto grava o **instante do servidor** (`recebido_em`), não o do ESP32.
 
 | Tabela | Campos principais |
 |---|---|
-| `arenas` | id, nome, plano, status da assinatura, `dias_retencao` (int, padrão 3, entre 1 e 3) |
+| `arenas` | id, nome, plano, status da assinatura (`ativa` ou `suspensa`), `dias_retencao` (int, padrão 3, entre 1 e 3) |
 | `usuarios` | id, arena_id, e-mail, hash da senha, papel |
 | `quadras` | id, arena_id, nome, `slug` público aleatório |
 | `cameras` | id, quadra_id, nome, SN, credenciais cifradas, status, última vez visto |
@@ -143,6 +143,15 @@ Migração `0006_reservas.sql`. O dono cadastra alunos e reservas; o aluno vê o
 - **Slug da arena e QR geral** (migração `0008_arena_slug.sql`): `arenas.slug` (texto, único, formato `[A-Za-z0-9_-]{20,64}`, aleatório de 22 caracteres via `novoSlug()`; as arenas já existentes recebem um slug de 32 caracteres hexadecimais). O QR geral abre `/a/<slug-da-arena>`, que só oferece login. **Não há cadastro pelo aluno:** só o dono cria contas de aluno no painel e atribui reservas e lances; o aluno apenas entra para ver as partidas dele. `/q/<slug-da-quadra>` e as subrotas antigas respondem com redirecionamento 308 para a arena da quadra. O painel tem uma folha única para imprimir, com o QR da arena. As chaves de login seguem `aluno:<arena_id>:<email>`.
 - Contagem de lances de uma reserva: clipes de câmeras da quadra da reserva, `pronto`/`parcial`, não expirados, com `recebido_em` em `[inicio, fim)`.
 - As funções de `alunos.ts` e `reservas.ts` recebem o `arena_id` da sessão, validam uuid (malformado = inexistente) e nunca devolvem `senha_hash`.
+
+## Plataforma e super admin
+
+Várias arenas no mesmo sistema; o aluno escolhe a arena e a equipe Strukti cria e suspende arenas. Migração `0009_super_admin.sql`.
+
+- **Super admin:** tabela `super_admins` (e-mail minúsculo e único, hash scrypt; sem `arena_id`, não pertence a arena) e sessão própria em `sessoes_admin` (só o hash do token, 12 h; cookie `replay_admin`, HttpOnly, Secure em produção, SameSite Strict). Nunca vale como sessão de dono ou aluno, nem o contrário. Limite de tentativas igual ao do dono (5 por e-mail, 20 por IP, 15 min), chave `admin:<email>`. O primeiro vem de `npm run criar-super-admin -- --email <email>` (senha pela entrada padrão, mínimo 12 caracteres); os demais, pelo `/admin`. Super admin não entra no painel de uma arena na v1.
+- **Limite por IP por tipo de login:** a contagem por IP considera só as chaves do mesmo tipo (`dono:`, `aluno:` ou `admin:`). Alunos errando a senha no Wi-Fi da arena não travam o login do dono nem o do admin; o limite por e-mail segue por conta.
+- **Funções de plataforma** (`app/lib/plataforma.ts`) são as únicas que cruzam arenas: `listarArenasPublicas` (só ativas, só nome e slug, até 50, busca por trecho do nome), `listarArenasAdmin`, `criarArenaAdmin` (arena e dono num comando só; e-mail de dono já usado falha sem criar nada), `definirStatusArena`, `criarSuperAdmin`. Só as páginas e actions de `/admin`, depois de `exigirSuperAdmin()`, chamam as de administração; nenhuma página de dono ou aluno importa o módulo.
+- **Arena suspensa** (`arenas.status_assinatura` com check `ativa`/`suspensa`; valores antigos viraram `ativa`): some da lista pública; o login do dono e do aluno responde `suspensa` (só a quem acertou a senha); as sessões abertas de dono e aluno deixam de valer na próxima validação, porque a sessão é conferida contra o estado da arena; `registrar_aperto` não grava nada e responde como token inválido. Nada é apagado: reativar devolve tudo.
 
 ## Interface do buffer
 

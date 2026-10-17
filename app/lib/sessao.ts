@@ -13,7 +13,7 @@ export type Sessao = { usuarioId: string; arenaId: string; arenaNome: string; em
 
 export type ResultadoEntrar =
   | { ok: true; token: string; expiraEm: Date }
-  | { ok: false; motivo: "credenciais" | "bloqueado" };
+  | { ok: false; motivo: "credenciais" | "bloqueado" | "suspensa" };
 
 // Hash de uma senha sem dono, para e-mail inexistente gastar o mesmo tempo de
 // scrypt que um e-mail real (evita revelar quais e-mails existem pelo tempo).
@@ -27,7 +27,9 @@ export function obterHashFalso(): Promise<string> {
 // Compartilhada pelo login do dono e do aluno: os dois usam tentativas_login.
 // A chave identifica a conta (`dono:<email>` ou `aluno:<arena_id>:<email>`), para
 // que o sucesso numa conta nunca zere o limite de outra com o mesmo e-mail.
-// O limite por IP soma todas as chaves de login.
+// O limite por IP soma só as chaves do mesmo tipo (`dono`, `aluno` ou `admin`, o
+// trecho antes do primeiro ":"): alunos errando a senha no Wi-Fi da arena não podem
+// travar o login do dono nem o do admin.
 export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
@@ -36,14 +38,15 @@ export async function registrarTentativa(db: Db, chave: string, ip: string): Pro
     [chave, ip],
   );
   const idTentativa = ins.rows[0].id;
+  const tipo = chave.split(":")[0];
 
   // A contagem inclui a própria tentativa, por isso o bloqueio é com ">".
   const falhas = await db.query<{ por_email: number; por_ip: number }>(
     `select count(*) filter (where email = $1)::int as por_email,
-            count(*) filter (where ip = $2)::int as por_ip
+            count(*) filter (where ip = $2 and split_part(email, ':', 1) = $4)::int as por_ip
        from tentativas_login
       where em > now() - make_interval(mins => $3) and (email = $1 or ip = $2)`,
-    [chave, ip, JANELA_MIN],
+    [chave, ip, JANELA_MIN, tipo],
   );
   const { por_email, por_ip } = falhas.rows[0];
   if (por_email > LIMITE_EMAIL || por_ip > LIMITE_IP) {
@@ -64,13 +67,17 @@ export async function entrar(db: Db, email: string, senha: string, ip: string): 
   const chave = `dono:${emailNorm}`;
   if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
 
-  const u = await db.query<{ id: string; arena_id: string; senha_hash: string }>(
-    "select id, arena_id, senha_hash from usuarios where email = $1",
+  const u = await db.query<{ id: string; arena_id: string; senha_hash: string; status: string }>(
+    `select u.id, u.arena_id, u.senha_hash, a.status_assinatura as status
+       from usuarios u join arenas a on a.id = u.arena_id
+      where u.email = $1`,
     [emailNorm],
   );
   const usuario = u.rows[0];
   const certa = await conferirSenha(senha, usuario ? usuario.senha_hash : await obterHashFalso());
   if (!usuario || !certa) return { ok: false, motivo: "credenciais" };
+  // Só quem acertou a senha fica sabendo que a arena está suspensa.
+  if (usuario.status !== "ativa") return { ok: false, motivo: "suspensa" };
 
   // Apaga as falhas do e-mail (inclui a linha desta tentativa).
   await db.query("delete from tentativas_login where email = $1", [chave]);
@@ -90,7 +97,8 @@ export async function validarSessao(db: Db, token: string): Promise<Sessao | nul
        from sessoes s
        join usuarios u on u.id = s.usuario_id and u.arena_id = s.arena_id
        join arenas a on a.id = s.arena_id
-      where s.token_hash = $1 and s.expira_em > now()`,
+      where s.token_hash = $1 and s.expira_em > now()
+        and a.status_assinatura = 'ativa'`,
     [hashToken(token)],
   );
   const l = r.rows[0];

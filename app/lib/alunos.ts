@@ -19,9 +19,7 @@ const esquemaEmail = z.string().trim().toLowerCase().max(200).email();
 // A senha não leva trim: espaços podem fazer parte dela.
 const esquemaSenha = z.string().min(SENHA_MIN).max(SENHA_MAX);
 
-export type AlunoLista = {
-  id: string; nome: string; email: string; reservas: number; criadoEm: Date;
-};
+export type AlunoLista = { id: string; nome: string; email: string; reservas: number; criadoEm: Date };
 
 export async function criarAluno(
   db: Db,

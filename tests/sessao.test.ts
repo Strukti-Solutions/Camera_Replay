@@ -140,3 +140,27 @@ test("tentativa bloqueada não deixa linha em tentativas_login", async () => {
   expect(await entrar(db, "dono@x.com", SENHA, "3.3.3.3")).toEqual({ ok: false, motivo: "bloqueado" });
   expect((await db.query("select 1 from tentativas_login")).rows).toHaveLength(5);
 });
+
+test("arena suspensa: dono não entra (motivo suspensa, só com a senha certa) e sessão aberta cai; reativar volta", async () => {
+  const { db, arena } = await preparar();
+  const aberta = await entrar(db, "dono@x.com", SENHA, "1.1.1.1");
+  if (!aberta.ok) throw new Error("login falhou");
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [arena.id]);
+  expect(await validarSessao(db, aberta.token)).toBeNull();
+  expect(await entrar(db, "dono@x.com", SENHA, "1.1.1.1")).toEqual({ ok: false, motivo: "suspensa" });
+  // senha errada continua sendo "credenciais": não revela o estado a quem não sabe a senha
+  expect(await entrar(db, "dono@x.com", "errada", "1.1.1.1")).toEqual({ ok: false, motivo: "credenciais" });
+  expect((await db.query("select 1 from sessoes")).rows).toHaveLength(1); // nenhuma sessão nova
+
+  await db.query("update arenas set status_assinatura = 'ativa' where id = $1", [arena.id]);
+  expect(await validarSessao(db, aberta.token)).not.toBeNull();
+  expect((await entrar(db, "dono@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
+});
+
+test("limite por IP só conta tentativas do mesmo tipo (dono:)", async () => {
+  const { db } = await preparar();
+  for (let i = 0; i < 25; i++) {
+    await db.query("insert into tentativas_login (email, ip) values ($1, '9.9.9.9')", [`aluno:arena:u${i}@x.com`]);
+  }
+  expect((await entrar(db, "dono@x.com", SENHA, "9.9.9.9")).ok).toBe(true);
+});

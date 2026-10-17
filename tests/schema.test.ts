@@ -283,7 +283,7 @@ test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem
       [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
     const sete = await inserir(7), um = await inserir(1);
 
-    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql"]);
+    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql"]);
 
     const ar = await db.query("select id, dias_retencao from arenas");
     expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
@@ -306,7 +306,7 @@ test("migração 0008 dá slug próprio às arenas existentes; slug é único, o
     const db = await novoBanco(pasta);
     await db.query("insert into arenas (nome) values ('A'), ('B')");
 
-    expect(await migrar(db)).toEqual(["0008_arena_slug.sql"]);
+    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql"]);
 
     const r = await db.query<{ slug: string }>("select slug from arenas order by nome");
     expect(r.rows).toHaveLength(2);
@@ -321,6 +321,30 @@ test("migração 0008 dá slug próprio às arenas existentes; slug é único, o
     // insert sem slug (fixtures antigas, scripts) ganha um valor válido
     const sem = await db.query<{ slug: string }>("insert into arenas (nome) values ('D') returning slug");
     expect(sem.rows[0].slug).toMatch(/^[A-Za-z0-9_-]{20,64}$/);
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+});
+
+test("migração 0009 normaliza status_assinatura antigo para ativa e preserva a suspensa", async () => {
+  // Banco parado na 0008, com arenas de status antigos.
+  const pasta = mkdtempSync(join(tmpdir(), "mig-"));
+  try {
+    const todas = join(__dirname, "..", "db", "migrations");
+    for (const f of readdirSync(todas).filter((x) => x < "0009")) cpSync(join(todas, f), join(pasta, f));
+    const db = await novoBanco(pasta);
+    await db.query(
+      `insert into arenas (nome, slug, status_assinatura)
+       values ('A', 'a'||repeat('x', 21), 'ativa'), ('B', 'b'||repeat('x', 21), 'trial'), ('C', 'c'||repeat('x', 21), 'suspensa')`);
+
+    expect(await migrar(db)).toEqual(["0009_super_admin.sql"]);
+
+    const r = await db.query("select nome, status_assinatura from arenas order by nome");
+    expect(r.rows).toEqual([
+      { nome: "A", status_assinatura: "ativa" },
+      { nome: "B", status_assinatura: "ativa" },
+      { nome: "C", status_assinatura: "suspensa" },
+    ]);
   } finally {
     rmSync(pasta, { recursive: true, force: true });
   }

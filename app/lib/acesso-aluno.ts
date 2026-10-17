@@ -15,12 +15,12 @@ const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/; // 32 bytes em base64url (novoToken
 
 export type SessaoAluno = { alunoId: string; arenaId: string; nome: string };
 
-type Arena = { id: string; nome: string };
+type Arena = { id: string; nome: string; status: string };
 
 // Slug malformado nunca toca o banco; desconhecido devolve null.
 async function arenaPorSlug(db: Db, slug: string): Promise<Arena | null> {
   if (typeof slug !== "string" || !SLUG_VALIDO.test(slug)) return null;
-  const q = await db.query<Arena>("select id, nome from arenas where slug = $1", [slug]);
+  const q = await db.query<Arena>("select id, nome, status_assinatura as status from arenas where slug = $1", [slug]);
   return q.rows[0] ?? null;
 }
 
@@ -86,6 +86,8 @@ export async function entrarAluno(
   // Slug ou e-mail desconhecido gasta o mesmo scrypt e dá a mesma resposta.
   const certa = await conferirSenha(String(senha ?? ""), aluno ? aluno.senha_hash : await obterHashFalso());
   if (!aluno || !certa) return { ok: false, motivo: "credenciais" };
+  // Só quem acertou a senha fica sabendo que a arena está suspensa.
+  if (arena?.status !== "ativa") return { ok: false, motivo: "suspensa" };
 
   await db.query("delete from tentativas_login where email = $1", [chave]);
   return { ok: true, ...(await abrirSessaoAluno(db, aluno.arena_id, aluno.id)) };
@@ -97,7 +99,9 @@ export async function validarSessaoAluno(db: Db, token: string): Promise<SessaoA
     `select s.aluno_id, s.arena_id, a.nome
        from sessoes_aluno s
        join alunos a on a.id = s.aluno_id and a.arena_id = s.arena_id
-      where s.token_hash = $1 and s.expira_em > now()`,
+       join arenas ar on ar.id = s.arena_id
+      where s.token_hash = $1 and s.expira_em > now()
+        and ar.status_assinatura = 'ativa'`,
     [hashToken(token)],
   );
   const l = r.rows[0];

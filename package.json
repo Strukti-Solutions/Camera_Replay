@@ -9,7 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "migrar": "tsx db/migrar-cli.ts",
-    "criar-dono": "tsx db/criar-dono.ts"
+    "criar-dono": "tsx db/criar-dono.ts",
+    "criar-super-admin": "tsx db/criar-super-admin.ts"
   },
   "dependencies": {
     "aws4fetch": "1.0.20",
