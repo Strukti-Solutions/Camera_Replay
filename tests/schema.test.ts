@@ -103,3 +103,59 @@ test("câmera continua editável: nome, status, visto_em e credenciais", async (
   // update que repete os mesmos quadra_id e arena_id também passa
   await db.query("update cameras set quadra_id = quadra_id, arena_id = arena_id where id = $1", [c.id]);
 });
+
+async function criarUsuario(db: Awaited<ReturnType<typeof novoBanco>>, arenaId: string) {
+  const r = await db.query<{ id: string }>(
+    `insert into usuarios (arena_id, email, senha_hash, papel)
+     values ($1, $2, 'h', 'dono') returning id`,
+    [arenaId, `${Math.random()}@x.com`],
+  );
+  return r.rows[0].id;
+}
+
+const SESSAO = `insert into sessoes (arena_id, usuario_id, token_hash, expira_em)
+  values ($1, $2, $3, now() + interval '7 days')`;
+
+test("sessão com usuário de outra arena viola a FK", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db), b = await criarArena(db);
+  const u = await criarUsuario(db, a.id);
+  await expect(db.query(SESSAO, [b.id, u, "h1"])).rejects.toThrow(/foreign key/i);
+});
+
+test("apagar o usuário apaga as sessões", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const u = await criarUsuario(db, a.id);
+  await db.query(SESSAO, [a.id, u, "h1"]);
+  await db.query("delete from usuarios where id = $1", [u]);
+  const r = await db.query("select 1 from sessoes");
+  expect(r.rows).toHaveLength(0);
+});
+
+test("token_hash da sessão é único", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const u = await criarUsuario(db, a.id);
+  await db.query(SESSAO, [a.id, u, "h1"]);
+  await expect(db.query(SESSAO, [a.id, u, "h1"])).rejects.toThrow(/unique|duplicate/i);
+});
+
+test("tentativas_login grava em com padrão", async () => {
+  const db = await novoBanco();
+  await db.query("insert into tentativas_login (email, ip) values ('a@x.com', '1.2.3.4')");
+  const r = await db.query<{ em: Date }>("select em from tentativas_login");
+  expect(r.rows[0].em).toBeInstanceOf(Date);
+});
+
+test("cameras.criado_em e botoes.criado_em vêm preenchidos", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const q = await criarQuadra(db, a.id);
+  const c = await criarCamera(db, a.id, q.id);
+  const b = await criarBotao(db, a.id, q.id, c.id);
+  const rc = await db.query<{ criado_em: Date }>("select criado_em from cameras where id = $1", [c.id]);
+  const rb = await db.query<{ criado_em: Date }>("select criado_em from botoes where id = $1", [b.id]);
+  expect(rc.rows[0].criado_em).toBeInstanceOf(Date);
+  expect(rb.rows[0].criado_em).toBeInstanceOf(Date);
+});

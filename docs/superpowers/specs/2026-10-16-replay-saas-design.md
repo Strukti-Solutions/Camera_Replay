@@ -98,6 +98,28 @@ O worker usa `clock_timestamp()` do banco como relógio de referência.
 
 Chave no R2: `clipes/<arena_id>/<clipe_id>.mp4`.
 
+## Painel do dono
+
+Migração `0005_painel.sql`. O painel é a única parte com login.
+
+**Tabelas novas**
+
+- `sessoes (id, arena_id, usuario_id, token_hash unique, criado_em, expira_em)`, com FK composta `(usuario_id, arena_id)` para `usuarios (id, arena_id)` e `on delete cascade`.
+- `tentativas_login (id, email, ip, em)`, com índices em `(email, em)` e `(ip, em)`. Registra falhas de login. **Exceção à regra do `arena_id`:** é anterior ao login e ainda não há arena conhecida.
+- `cameras.criado_em` e `botoes.criado_em` (`timestamptz not null default now()`).
+
+**Regras**
+
+- Sessão de 7 dias, sem renovação, em cookie HttpOnly. O banco guarda só o hash do token da sessão. Sair apaga a linha.
+- Limite de login: 5 falhas por e-mail e 20 por IP em 15 minutos. Passou disso, o login é recusado até a janela esvaziar.
+- Senha com scrypt (`scrypt$32768$8$1$<sal>$<hash>`, sal de 16 bytes, comparação em tempo constante). Hash malformado conta como senha errada.
+- Câmera **online** no painel = `status = 'online'` e `visto_em` com menos de 60 s. Worker parado não deixa câmera "online".
+- Uma câmera por quadra no painel: cadastrar só aparece se a quadra não tem câmera. Troca continua manual.
+- O token do botão aparece uma única vez, na criação. O banco guarda só o hash.
+- Conta de dono criada por nós (`npm run criar-dono`); papel `equipe` tem o mesmo acesso de `dono` na v1.
+- `APP_URL`: URL pública do site, sem barra no fim, usada no QR.
+- Toda consulta do painel filtra por `arena_id` vindo da sessão. Id de outra arena se comporta como inexistente.
+
 ## Interface do buffer
 
 `Buffer.append(chunk, t)` e `Buffer.cut(t, 30s)`. O anel é uma implementação. Trocar por segmentos em disco (abordagem B) não deve mexer no restante do worker.
