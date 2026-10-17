@@ -1,16 +1,18 @@
-from replay_worker.clipper import ClipJob, process_job
+from replay_worker.clipper import ClipJob, chave_do_clipe, process_job
 from replay_worker.mux import MuxError
 from replay_worker.ring import Ring
 from tests.helpers import KEY, P, feed
 
 
 class FakeQueue:
-    def __init__(self):
+    def __init__(self, aceita=True):
         self.ready = []
         self.failed = []
+        self.aceita = aceita
 
     def mark_ready(self, clip_id, key, size, duration, partial):
         self.ready.append((clip_id, key, size, duration, partial))
+        return self.aceita
 
     def mark_failed(self, clip_id, reason):
         self.failed.append((clip_id, reason))
@@ -20,12 +22,20 @@ class FakeUploader:
     def __init__(self, falhas=0):
         self.falhas = falhas
         self.chamadas = 0
+        self.puts = []
+        self.deletes = []
+        self.delete_falha = False
 
-    def upload(self, clip_id, mp4):
+    def put(self, key, data):
         self.chamadas += 1
         if self.chamadas <= self.falhas:
             raise OSError("rede")
-        return "clips/%s.mp4" % clip_id
+        self.puts.append((key, data))
+
+    def delete(self, key):
+        self.deletes.append(key)
+        if self.delete_falha:
+            raise OSError("r2 fora")
 
 
 def mux_ok(h264, fps):
@@ -33,7 +43,7 @@ def mux_ok(h264, fps):
 
 
 def job(pressed_at=59.0):
-    return ClipJob("c1", "cam1", pressed_at)
+    return ClipJob("c1", "cam1", "arena1", pressed_at)
 
 
 def anel_cheio():
@@ -49,7 +59,7 @@ def run(ring, queue, uploader, j=None, mux=mux_ok, clock=lambda: 60.0):
 def test_sucesso_envia_e_marca_pronto():
     q = FakeQueue()
     assert run(anel_cheio(), q, FakeUploader())
-    assert q.ready == [("c1", "clips/c1.mp4", 3, 39.0, False)]
+    assert q.ready == [("c1", "clipes/arena1/c1.mp4", 3, 39.0, False)]
     assert q.failed == []
 
 
@@ -144,7 +154,7 @@ def test_mark_failed_levantando_tambem_nao_propaga():
 
 def test_motivo_do_envio_nao_vaza_segredo():
     class UpRuim:
-        def upload(self, clip_id, mp4):
+        def put(self, key, data):
             raise OSError("https://bucket.r2.example/x?X-Amz-Signature=SEGREDO")
 
     q = FakeQueue()
@@ -194,3 +204,77 @@ def test_mensagem_de_envio_usa_plural_com_varias_tentativas():
     q = FakeQueue()
     assert not run(anel_cheio(), q, FakeUploader(falhas=99))
     assert "após 3 tentativas" in q.failed[0][1]
+
+
+def test_chave_do_contrato_e_a_mesma_do_mark_ready():
+    q, up = FakeQueue(), FakeUploader()
+    assert run(anel_cheio(), q, up)
+    assert up.puts == [("clipes/arena1/c1.mp4", b"MP4")]
+    assert q.ready[0][1] == up.puts[0][0]
+    assert chave_do_clipe(job()) == "clipes/arena1/c1.mp4"
+
+
+def test_mark_ready_false_apaga_o_objeto_e_devolve_false():
+    q, up = FakeQueue(aceita=False), FakeUploader()
+    assert run(anel_cheio(), q, up) is False
+    assert up.deletes == ["clipes/arena1/c1.mp4"]
+    assert q.failed == []
+
+
+def test_mark_ready_false_com_delete_falhando_nao_lanca_e_loga_so_o_id(caplog):
+    q, up = FakeQueue(aceita=False), FakeUploader()
+    up.delete_falha = True
+    assert run(anel_cheio(), q, up) is False
+    assert "r2 fora" not in caplog.text and "clipes/" not in caplog.text
+    assert "c1" in caplog.text
+
+
+class QueueQueLanca(FakeQueue):
+    def mark_ready(self, *a):
+        raise ConnectionError("banco caiu")
+
+
+def test_mark_ready_levantando_apaga_o_objeto_e_marca_falhou():
+    q, up = QueueQueLanca(), FakeUploader()
+    assert run(anel_cheio(), q, up) is False
+    assert up.deletes == ["clipes/arena1/c1.mp4"]
+    assert "ConnectionError" in q.failed[0][1]
+
+
+def test_mark_ready_levantando_com_delete_falhando_ainda_marca_falhou():
+    q, up = QueueQueLanca(), FakeUploader()
+    up.delete_falha = True
+    assert run(anel_cheio(), q, up) is False
+    assert "ConnectionError" in q.failed[0][1]
+
+
+def _fps_usado(ring, t, min_duration=1.0):
+    vistos = []
+    process_job(ClipJob("c1", "cam1", "arena1", t), ring, FakeQueue(), FakeUploader(),
+                mux=lambda h, f: vistos.append(f) or b"MP4", clock=lambda: t,
+                min_duration=min_duration)
+    return vistos
+
+
+def test_fps_none_usa_o_medido_do_anel_arredondado():
+    ring = Ring()
+    for i in range(60):
+        ring.append(i / 14.7, KEY if i % 10 == 0 else P)
+    assert _fps_usado(ring, 59 / 14.7) == [15]
+
+
+def test_fps_none_sem_medida_usa_15():
+    ring = Ring()
+    ring.append(59.0, KEY)          # um quadro só: o anel não tem fps medido
+    assert _fps_usado(ring, 59.0, min_duration=0.0) == [15]
+
+
+def test_fps_none_limitado_entre_1_e_60():
+    ring = Ring()
+    for i in range(300):
+        ring.append(i / 120.0, KEY if i % 10 == 0 else P)   # ~120 fps
+    assert _fps_usado(ring, 299 / 120.0) == [60]
+    lento = Ring()
+    for i in range(20):
+        lento.append(i * 4.0, KEY if i % 5 == 0 else P)     # 0,25 fps
+    assert _fps_usado(lento, 19 * 4.0, min_duration=0.0) == [1]

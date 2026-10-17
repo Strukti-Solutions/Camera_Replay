@@ -22,18 +22,42 @@ from .ring import Ring
 class ClipJob:
     clip_id: str
     camera_id: str
-    pressed_at: float   # segundos desde a época, relógio do servidor (apertos.recebido_em)
+    arena_id: str       # compõe a chave do objeto no R2 (isolamento entre arenas)
+    pressed_at: float   # segundos desde a época, já no relógio do worker (quem converte é a fila)
 
 
 class JobQueue(Protocol):
     def claim_pending(self, camera_id: str) -> list[ClipJob]: ...
     def mark_ready(self, clip_id: str, key: str, size: int, duration: float,
-                   partial: bool) -> None: ...
+                   partial: bool) -> bool: ...
     def mark_failed(self, clip_id: str, reason: str) -> None: ...
 
 
 class Uploader(Protocol):
-    def upload(self, clip_id: str, mp4: bytes) -> str: ...
+    def put(self, key: str, data: bytes) -> None: ...
+    def delete(self, key: str) -> None: ...
+
+
+def chave_do_clipe(job: ClipJob) -> str:
+    """Chave do objeto no R2, exatamente como o contrato do banco exige."""
+    return "clipes/%s/%s.mp4" % (job.arena_id, job.clip_id)
+
+
+def _fps_do_anel(ring: Ring) -> int:
+    """fps medido do anel, arredondado e limitado a 1..60; 15 se não houver medida."""
+    medido = ring.stats().fps
+    if medido <= 0:
+        return 15
+    return max(1, min(60, round(medido)))
+
+
+def _apagar_orfao(uploader: Uploader, key: str, clip_id: str) -> None:
+    """Apaga o objeto que ficou sem registro; falha é engolida e loga só o id do clipe."""
+    try:
+        uploader.delete(key)
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "falha ao apagar objeto órfão do clipe %s: %s", clip_id, type(exc).__name__)
 
 
 def _safe_mark_failed(queue: JobQueue, clip_id: str, reason: str) -> None:
@@ -44,14 +68,17 @@ def _safe_mark_failed(queue: JobQueue, clip_id: str, reason: str) -> None:
             "falha ao marcar clipe %s como falhou: %s", clip_id, type(exc).__name__)
 
 
-def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader, fps: float,
-                seconds: float = 30.0, retries: int = 3, max_age: float = 120.0,
+def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader,
+                fps: float | None = None, seconds: float = 30.0, retries: int = 3, max_age: float = 120.0,
                 clock=time.time, mux=h264_to_mp4, min_duration: float = 1.0,
                 max_stale: float = 30.0) -> bool:
     """Corta, converte e envia. Devolve True se o clipe ficou pronto.
 
     Nunca lança: qualquer exceção vira `mark_failed`; se a fila também falhar,
     isso é engolido e registrado no log só com o tipo.
+    Com `fps=None`, usa o fps medido do anel (1..60; 15 sem medida).
+    Se `mark_ready` devolver False (o reaper já deu o pedido como falho) ou lançar,
+    o objeto enviado é apagado para não ficar órfão no armazenamento.
     """
     try:
         return _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
@@ -80,25 +107,39 @@ def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
         _safe_mark_failed(queue, job.clip_id, "trecho curto demais")
         return False
 
+    if fps is None:
+        fps = _fps_do_anel(ring)
+
     try:
         mp4 = mux(cut.data, fps)
     except MuxError as exc:
         _safe_mark_failed(queue, job.clip_id, "falha no ffmpeg: %s" % str(exc)[:200])
         return False
 
-    key = None
+    key = chave_do_clipe(job)
+    enviado = False
     erro = None
     attempts = max(1, retries)
     for _ in range(attempts):
         try:
-            key = uploader.upload(job.clip_id, mp4)
+            uploader.put(key, mp4)
+            enviado = True
             break
         except Exception as exc:
             erro = exc
-    if key is None:
+    if not enviado:
         _safe_mark_failed(queue, job.clip_id, "falha no envio após %d %s (%s)" % (
             attempts, "tentativa" if attempts == 1 else "tentativas", type(erro).__name__))
         return False
 
-    queue.mark_ready(job.clip_id, key, len(mp4), cut.duration, cut.partial or cut.has_gap)
+    try:
+        aceito = queue.mark_ready(job.clip_id, key, len(mp4), cut.duration,
+                                  cut.partial or cut.has_gap)
+    except Exception:
+        # o banco recusou ou caiu: o objeto ficaria órfão; o handler geral marca falhou
+        _apagar_orfao(uploader, key, job.clip_id)
+        raise
+    if not aceito:
+        _apagar_orfao(uploader, key, job.clip_id)
+        return False
     return True

@@ -48,7 +48,7 @@ def main() -> int:
 
     pressed = time.time()
     s = ring.stats()
-    queue = MemoryQueue([ClipJob("smoke-%d" % pressed, a.sn, pressed)])
+    queue = MemoryQueue([ClipJob("smoke-%d" % pressed, a.sn, "smoke", pressed)])
     job = queue.claim_pending(a.sn)[0]
     ok = process_job(job, ring, queue, LocalDirUploader(a.out), fps=a.fps)
     stop.set()

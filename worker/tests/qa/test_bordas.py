@@ -44,7 +44,7 @@ def test_process_job_com_retries_zero_tenta_uma_vez():
     ring = Ring()
     feed(ring, 60)
     q, up = FakeQueue(), FakeUploader()
-    ok = process_job(ClipJob("c1", "cam1", 59.0), ring, q, up, fps=15,
+    ok = process_job(ClipJob("c1", "cam1", "arena1", 59.0), ring, q, up, fps=15,
                      mux=mux_ok, clock=lambda: 60.0, retries=0)
     assert ok is True and up.chamadas == 1 and q.failed == []
 
@@ -53,7 +53,7 @@ def test_process_job_com_retries_zero_e_envio_falho_tem_motivo_legivel():
     ring = Ring()
     feed(ring, 60)
     q, up = FakeQueue(), FakeUploader(falhas=99)
-    ok = process_job(ClipJob("c1", "cam1", 59.0), ring, q, up, fps=15,
+    ok = process_job(ClipJob("c1", "cam1", "arena1", 59.0), ring, q, up, fps=15,
                      mux=mux_ok, clock=lambda: 60.0, retries=0)
     assert ok is False and up.chamadas == 1
     assert "NoneType" not in q.failed[0][1]
