@@ -5,9 +5,11 @@ import { decifrarCredenciais } from "../app/lib/cripto";
 import { registrarAperto } from "../app/lib/aperto";
 import { hashToken } from "../app/lib/segredos";
 import {
-  ErroPainel, apagarClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
+  ErroPainel, apagarClipe, atribuirClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
   criarBotao, criarQuadra, detalheQuadra, listarQuadras, revogarBotao,
 } from "../app/lib/painel";
+import { criarAluno } from "../app/lib/alunos";
+import { criarReserva } from "../app/lib/reservas";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao as fxBotao, criarCamera, criarQuadra as fxQuadra } from "./fixtures";
 
@@ -262,4 +264,57 @@ test("apagarClipe: falhou sem chave_r2 apaga a linha sem chamar o R2", async () 
   expect(await apagarClipe(db, r2, s.a.id, id)).toBe(true);
   expect(r2.apagar).not.toHaveBeenCalled();
   expect((await db.query("select 1 from clipes where id = $1", [id])).rows).toHaveLength(0);
+});
+
+test("clipesDoPainel traz a reserva do lance (semiaberta) e os alunos atribuídos", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const ana = await criarAluno(db, s.a.id, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
+  const dentro = await clipe(db, s.a.id, s.ba.id, s.ca.id);
+  const noFim = await clipe(db, s.a.id, s.ba.id, s.ca.id);
+  const avulso = await clipe(db, s.a.id, s.ba.id, s.ca.id);
+  const t0 = new Date("2026-10-17T12:00:00Z");
+  await db.query("update clipes set recebido_em = $2 where id = $1", [dentro, new Date(t0.getTime() + 600_000)]);
+  await db.query("update clipes set recebido_em = $2 where id = $1", [noFim, new Date(t0.getTime() + 3_600_000)]);
+  await db.query("update clipes set recebido_em = $2 where id = $1", [avulso, new Date(t0.getTime() + 7_200_000)]);
+  const r = (await criarReserva(db, s.a.id, {
+    quadraId: s.qa.id, inicio: t0, fim: new Date(t0.getTime() + 3_600_000), alunoIds: [ana.id],
+  }))!;
+  expect(await atribuirClipe(db, s.a.id, avulso, [ana.id])).toBe(true);
+
+  const lista = await clipesDoPainel(db, r2Leitor(), s.a.id, s.qa.id);
+  const por = (id: string) => lista.find((c) => c.id === id)!;
+  expect(por(dentro).reserva).toEqual({ id: r.id, inicio: t0, fim: new Date(t0.getTime() + 3_600_000) });
+  expect(por(noFim).reserva).toBeNull();
+  expect(por(avulso).reserva).toBeNull();
+  expect(por(avulso).alunos).toEqual([{ id: ana.id, nome: "Ana" }]);
+  expect(por(dentro).alunos).toEqual([]);
+});
+
+test("atribuirClipe substitui a lista, aceita vazia, ignora aluno de outra arena e id malformado", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const ana = await criarAluno(db, s.a.id, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
+  const beto = await criarAluno(db, s.a.id, { nome: "Beto", email: "beto@x.com", senha: "senha-boa-1" });
+  const caio = await criarAluno(db, s.b.id, { nome: "Caio", email: "caio@x.com", senha: "senha-boa-1" });
+  const c = await clipe(db, s.a.id, s.ba.id, s.ca.id);
+  const nomes = async () => (await clipesDoPainel(db, r2Leitor(), s.a.id, s.qa.id))[0].alunos.map((x) => x.nome);
+
+  expect(await atribuirClipe(db, s.a.id, c, [ana.id, beto.id, caio.id, "lixo"])).toBe(true);
+  expect(await nomes()).toEqual(["Ana", "Beto"]);
+  expect(await atribuirClipe(db, s.a.id, c, [beto.id])).toBe(true);
+  expect(await nomes()).toEqual(["Beto"]);
+  expect(await atribuirClipe(db, s.a.id, c, [])).toBe(true);
+  expect(await nomes()).toEqual([]);
+});
+
+test("atribuirClipe com clipe de outra arena ou malformado devolve false e não altera nada", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const ana = await criarAluno(db, s.a.id, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
+  const doB = await clipe(db, s.b.id, s.bb.id, s.cb.id);
+  expect(await atribuirClipe(db, s.a.id, doB, [ana.id])).toBe(false);
+  expect(await atribuirClipe(db, s.a.id, "lixo", [ana.id])).toBe(false);
+  expect(await atribuirClipe(db, "lixo", doB, [ana.id])).toBe(false);
+  expect((await db.query("select 1 from clipe_alunos")).rows).toHaveLength(0);
 });

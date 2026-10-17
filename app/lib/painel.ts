@@ -27,6 +27,10 @@ export type ClipePainel = {
   motivo: string | null;
   duracao: number | null;
   url: string | null;
+  // Reserva da quadra que contém o lance (intervalo semiaberto), se houver.
+  reserva: { id: string; inicio: Date; fim: Date } | null;
+  // Alunos a quem o dono atribuiu o lance explicitamente.
+  alunos: { id: string; nome: string }[];
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -265,8 +269,19 @@ export async function clipesDoPainel(
     motivo: string | null;
     duracao: number | null;
     chave_r2: string | null;
+    reserva: { id: string; inicio: Date; fim: Date } | null;
+    alunos: { id: string; nome: string }[] | null;
   }>(
-    `select c.id, c.recebido_em, c.status, c.motivo, c.duracao, c.chave_r2
+    `select c.id, c.recebido_em, c.status, c.motivo, c.duracao, c.chave_r2,
+            (select json_build_object('id', r.id, 'inicio', r.inicio, 'fim', r.fim)
+               from reservas r
+              where r.quadra_id = cam.quadra_id and r.arena_id = c.arena_id
+                and c.recebido_em >= r.inicio and c.recebido_em < r.fim
+              limit 1) as reserva,
+            (select json_agg(json_build_object('id', a.id, 'nome', a.nome) order by a.nome, a.id)
+               from clipe_alunos ca
+               join alunos a on a.id = ca.aluno_id and a.arena_id = ca.arena_id
+              where ca.clipe_id = c.id and ca.arena_id = c.arena_id) as alunos
        from clipes c
        join cameras cam on cam.id = c.camera_id and cam.arena_id = c.arena_id
       where cam.quadra_id = $1
@@ -288,8 +303,44 @@ export async function clipesDoPainel(
         (c.status === "pronto" || c.status === "parcial") && c.chave_r2
           ? await r2.urlLeitura(c.chave_r2)
           : null,
+      reserva: c.reserva
+        ? { id: c.reserva.id, inicio: new Date(c.reserva.inicio), fim: new Date(c.reserva.fim) }
+        : null,
+      alunos: c.alunos ?? [],
     })),
   );
+}
+
+// Troca a lista de alunos a quem o lance foi atribuído (lista vazia retira todos).
+// Só entram alunos da própria arena; o resto (outra arena, malformado) é ignorado.
+// false se o clipe não existe nesta arena.
+export async function atribuirClipe(
+  db: Db,
+  arenaId: string,
+  clipeId: string,
+  alunoIds: string[],
+): Promise<boolean> {
+  if (!ehUuid(arenaId) || !ehUuid(clipeId)) return false;
+  const candidatos = Array.isArray(alunoIds) ? [...new Set(alunoIds.filter(ehUuid))] : [];
+  // Um só comando: tira quem saiu e põe quem entrou, atomicamente.
+  const r = await db.query(
+    `with c as (
+       select id, arena_id from clipes where id = $1 and arena_id = $2
+     ), validos as (
+       select id from alunos where arena_id = $2 and id = any($3::uuid[])
+     ), tira as (
+       delete from clipe_alunos
+        where clipe_id in (select id from c) and arena_id = $2
+          and aluno_id not in (select id from validos)
+     ), poe as (
+       insert into clipe_alunos (clipe_id, aluno_id, arena_id)
+       select c.id, v.id, c.arena_id from c, validos v
+       on conflict do nothing
+     )
+     select id from c`,
+    [clipeId, arenaId, candidatos],
+  );
+  return r.rows.length === 1;
 }
 
 // Apaga o objeto no R2 e depois a linha. Recusa clipe em andamento (o worker

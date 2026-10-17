@@ -18,18 +18,14 @@ export type ResultadoEntrar =
 // Hash de uma senha sem dono, para e-mail inexistente gastar o mesmo tempo de
 // scrypt que um e-mail real (evita revelar quais e-mails existem pelo tempo).
 let hashFalso: Promise<string> | undefined;
-function obterHashFalso(): Promise<string> {
+export function obterHashFalso(): Promise<string> {
   hashFalso ??= hashSenha("senha-que-ninguem-tem");
   return hashFalso;
 }
 
-export async function entrar(db: Db, email: string, senha: string, ip: string): Promise<ResultadoEntrar> {
-  const emailNorm = email.trim().toLowerCase();
-
-  // Limpeza oportunista: sessões vencidas e tentativas com mais de 1 dia.
-  await db.query("delete from sessoes where expira_em < now()");
-  await db.query("delete from tentativas_login where em < now() - interval '1 day'");
-
+// Registra a tentativa de login e diz se o limite já estourou (true = bloqueado).
+// Compartilhada pelo login do dono e do aluno: os dois usam tentativas_login.
+export async function registrarTentativa(db: Db, emailNorm: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
   const ins = await db.query<{ id: string }>(
@@ -50,8 +46,19 @@ export async function entrar(db: Db, email: string, senha: string, ip: string): 
   if (por_email > LIMITE_EMAIL || por_ip > LIMITE_IP) {
     // Tentativa bloqueada não prolonga o bloqueio.
     await db.query("delete from tentativas_login where id = $1", [idTentativa]);
-    return { ok: false, motivo: "bloqueado" };
+    return true;
   }
+  return false;
+}
+
+export async function entrar(db: Db, email: string, senha: string, ip: string): Promise<ResultadoEntrar> {
+  const emailNorm = email.trim().toLowerCase();
+
+  // Limpeza oportunista: sessões vencidas e tentativas com mais de 1 dia.
+  await db.query("delete from sessoes where expira_em < now()");
+  await db.query("delete from tentativas_login where em < now() - interval '1 day'");
+
+  if (await registrarTentativa(db, emailNorm, ip)) return { ok: false, motivo: "bloqueado" };
 
   const u = await db.query<{ id: string; arena_id: string; senha_hash: string }>(
     "select id, arena_id, senha_hash from usuarios where email = $1",

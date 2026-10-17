@@ -29,7 +29,28 @@ function nomeDoDownload(quando: Date): string {
   return `lance-${p.year}-${p.month}-${p.day}-${p.hour}h${p.minute}.mp4`;
 }
 
-const SLUG_VALIDO = /^[A-Za-z0-9_-]{20,64}$/;
+export type LinhaClipe = {
+  id: string;
+  recebido_em: Date;
+  duracao: number | null;
+  status: string;
+  chave_r2: string;
+};
+
+// Monta o clipe público com as três URLs assinadas (vídeo, capa e download).
+export async function paraClipePublico(r2: LeitorR2, arenaId: string, c: LinhaClipe): Promise<ClipePublico> {
+  return {
+    id: c.id,
+    recebidoEm: c.recebido_em,
+    duracao: Number(c.duracao ?? 0),
+    parcial: c.status === "parcial",
+    url: await r2.urlLeitura(c.chave_r2),
+    capa: await r2.urlLeitura(chaveDaCapa(arenaId, c.id)),
+    download: await r2.urlLeitura(c.chave_r2, { baixarComo: nomeDoDownload(c.recebido_em) }),
+  };
+}
+
+export const SLUG_VALIDO = /^[A-Za-z0-9_-]{20,64}$/;
 const LIMITE = 50;
 
 // Lista pública da quadra, aberta por /q/<slug>. O slug é o único acesso.
@@ -75,16 +96,6 @@ export async function clipesDaQuadra(
     [quadra.id, quadra.arena_id, LIMITE],
   );
 
-  const clipes = await Promise.all(
-    rows.map(async (c) => ({
-      id: c.id,
-      recebidoEm: c.recebido_em,
-      duracao: Number(c.duracao ?? 0),
-      parcial: c.status === "parcial",
-      url: await r2.urlLeitura(c.chave_r2),
-      capa: await r2.urlLeitura(chaveDaCapa(quadra.arena_id, c.id)),
-      download: await r2.urlLeitura(c.chave_r2, { baixarComo: nomeDoDownload(c.recebido_em) }),
-    })),
-  );
+  const clipes = await Promise.all(rows.map((c) => paraClipePublico(r2, quadra.arena_id, c)));
   return { quadra: quadra.nome, clipes };
 }
