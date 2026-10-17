@@ -19,7 +19,7 @@ async function preparar() {
 
 async function falhas(db: Db, email: string, ip: string, n: number) {
   for (let i = 0; i < n; i++) {
-    await db.query("insert into tentativas_login (email, ip) values ($1, $2)", [email, ip]);
+    await db.query("insert into tentativas_login (email, ip) values ($1, $2)", [`dono:${email}`, ip]);
   }
 }
 
@@ -71,7 +71,7 @@ test("falha grava tentativa e sucesso apaga as falhas do e-mail", async () => {
   expect(antes.rows).toHaveLength(2);
   expect((await entrar(db, "dono@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
   const depois = await db.query<{ email: string }>("select email from tentativas_login");
-  expect(depois.rows.map((r) => r.email)).toEqual(["outro@x.com"]);
+  expect(depois.rows.map((r) => r.email)).toEqual(["dono:outro@x.com"]);
 });
 
 test("sair invalida a sessão e token desconhecido não lança", async () => {

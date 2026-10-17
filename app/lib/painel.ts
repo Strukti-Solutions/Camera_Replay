@@ -325,7 +325,7 @@ export async function atribuirClipe(
   // Um só comando: tira quem saiu e põe quem entrou, atomicamente.
   const r = await db.query(
     `with c as (
-       select id, arena_id from clipes where id = $1 and arena_id = $2
+       select id, arena_id from clipes where id = $1 and arena_id = $2 for update
      ), validos as (
        select id from alunos where arena_id = $2 and id = any($3::uuid[])
      ), tira as (

@@ -13,7 +13,8 @@ const ehUuid = (id: unknown): id is string => typeof id === "string" && UUID.tes
 const SENHA_MIN = 8;
 const SENHA_MAX = 200;
 
-const esquemaNome = z.string().trim().min(1).max(80);
+// Espaços de qualquer tipo (tab, NBSP...) viram um espaço simples, para o primeiro nome ser previsível.
+const esquemaNome = z.string().trim().min(1).max(80).transform((s) => s.replace(/\s+/g, " "));
 const esquemaEmail = z.string().trim().toLowerCase().max(200).email();
 // A senha não leva trim: espaços podem fazer parte dela.
 const esquemaSenha = z.string().min(SENHA_MIN).max(SENHA_MAX);

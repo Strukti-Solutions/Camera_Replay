@@ -25,12 +25,15 @@ export function obterHashFalso(): Promise<string> {
 
 // Registra a tentativa de login e diz se o limite já estourou (true = bloqueado).
 // Compartilhada pelo login do dono e do aluno: os dois usam tentativas_login.
-export async function registrarTentativa(db: Db, emailNorm: string, ip: string): Promise<boolean> {
+// A chave identifica a conta (`dono:<email>` ou `aluno:<arena_id>:<email>`), para
+// que o sucesso numa conta nunca zere o limite de outra com o mesmo e-mail.
+// O limite por IP continua somando todas as chaves.
+export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
   const ins = await db.query<{ id: string }>(
     "insert into tentativas_login (email, ip) values ($1, $2) returning id",
-    [emailNorm, ip],
+    [chave, ip],
   );
   const idTentativa = ins.rows[0].id;
 
@@ -40,7 +43,7 @@ export async function registrarTentativa(db: Db, emailNorm: string, ip: string):
             count(*) filter (where ip = $2)::int as por_ip
        from tentativas_login
       where em > now() - make_interval(mins => $3) and (email = $1 or ip = $2)`,
-    [emailNorm, ip, JANELA_MIN],
+    [chave, ip, JANELA_MIN],
   );
   const { por_email, por_ip } = falhas.rows[0];
   if (por_email > LIMITE_EMAIL || por_ip > LIMITE_IP) {
@@ -58,7 +61,8 @@ export async function entrar(db: Db, email: string, senha: string, ip: string): 
   await db.query("delete from sessoes where expira_em < now()");
   await db.query("delete from tentativas_login where em < now() - interval '1 day'");
 
-  if (await registrarTentativa(db, emailNorm, ip)) return { ok: false, motivo: "bloqueado" };
+  const chave = `dono:${emailNorm}`;
+  if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
 
   const u = await db.query<{ id: string; arena_id: string; senha_hash: string }>(
     "select id, arena_id, senha_hash from usuarios where email = $1",
@@ -69,7 +73,7 @@ export async function entrar(db: Db, email: string, senha: string, ip: string): 
   if (!usuario || !certa) return { ok: false, motivo: "credenciais" };
 
   // Apaga as falhas do e-mail (inclui a linha desta tentativa).
-  await db.query("delete from tentativas_login where email = $1", [emailNorm]);
+  await db.query("delete from tentativas_login where email = $1", [chave]);
   const token = novoToken();
   const r = await db.query<{ expira_em: Date }>(
     `insert into sessoes (arena_id, usuario_id, token_hash, expira_em)

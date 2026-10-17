@@ -189,3 +189,61 @@ test("sessão de aluno não vale como sessão de dono e vice-versa", async () =>
   expect(await validarSessaoAluno(db, dono.token)).toBeNull();
   expect(await validarSessaoAluno(db, "lixo")).toBeNull();
 });
+
+test("sucesso do aluno em outra arena não zera as falhas do dono com o mesmo e-mail", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  // dono da arena A e aluno da arena B com o mesmo e-mail e senha conhecida
+  await db.query(
+    "insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'ana@x.com', $2, 'dono')",
+    [s.a.id, await hashSenha("senha-do-dono-1")]);
+  for (let i = 0; i < 5; i++) expect((await entrar(db, "ana@x.com", "errada-123", "4.4.4.4")).ok).toBe(false);
+  expect((await entrarAluno(db, s.qb.slug, "ana@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
+  expect(await entrar(db, "ana@x.com", "senha-do-dono-1", "6.6.6.6")).toEqual({ ok: false, motivo: "bloqueado" });
+});
+
+test("sucesso do aluno em uma arena não zera as falhas do mesmo e-mail em outra arena", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  for (let i = 0; i < 5; i++) await entrarAluno(db, s.qa.slug, "ana@x.com", "errada-123", "4.4.4.4");
+  expect((await entrarAluno(db, s.qb.slug, "ana@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
+  expect(await entrarAluno(db, s.qa.slug, "ana@x.com", SENHA, "6.6.6.6")).toEqual({ ok: false, motivo: "bloqueado" });
+});
+
+test("chave de tentativa por conta: aluno:<arena>:<email>, slug desconhecido usa ?", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  await entrarAluno(db, s.qa.slug, "ana@x.com", "errada-123", "1.1.1.1");
+  await entrarAluno(db, "A".repeat(22), "ana@x.com", "errada-123", "1.1.1.1");
+  const r = await db.query<{ email: string }>("select email from tentativas_login order by id");
+  expect(r.rows.map((x) => x.email)).toEqual([`aluno:${s.a.id}:ana@x.com`, "aluno:?:ana@x.com"]);
+});
+
+test("primeiro nome seguro com tab e espaço não separável; criarAluno normaliza o espaço", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id, s.beto.id] });
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(9));
+  await db.query("update alunos set nome = $2 where id = $1", [s.ana.id, "Ana\tSouza"]);
+  await db.query("update alunos set nome = $2 where id = $1", [s.beto.id, "Beto\u00a0Lima"]);
+  const p = await reservasPublicas(db, s.qa.slug);
+  expect(p?.reservas[0].primeirosNomes.sort()).toEqual(["Ana", "Beto"]);
+
+  const novo = await criarAluno(db, s.a.id, { nome: "Caio\u00a0\tMota", email: "caio@x.com", senha: SENHA });
+  const n = await db.query<{ nome: string }>("select nome from alunos where id = $1", [novo.id]);
+  expect(n.rows[0].nome).toBe("Caio Mota");
+});
+
+test("reservasPublicas devolve arenaId e minha (só para o aluno da arena do slug)", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const r1 = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id] }))!;
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(9));
+  const get = async (aluno?: string) => (await reservasPublicas(db, s.qa.slug, aluno))!;
+  expect((await get()).arenaId).toBe(s.a.id);
+  expect((await get()).reservas[0].minha).toBe(false);
+  expect((await get(s.ana.id)).reservas[0]).toMatchObject({ id: r1.id, minha: true });
+  expect((await get(s.beto.id)).reservas[0].minha).toBe(false);
+  expect((await get(s.anaB.id)).reservas[0].minha).toBe(false); // aluno de outra arena
+  expect((await get("lixo")).reservas[0].minha).toBe(false);
+});

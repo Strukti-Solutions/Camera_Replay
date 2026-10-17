@@ -36,10 +36,11 @@ export async function entrarAluno(
   await db.query("delete from sessoes_aluno where expira_em < now()");
   await db.query("delete from tentativas_login where em < now() - interval '1 day'");
 
-  if (await registrarTentativa(db, emailNorm, ip)) return { ok: false, motivo: "bloqueado" };
-
-  // A arena vem da quadra do slug; o aluno é procurado só nela.
+  // A arena vem da quadra do slug; o aluno é procurado só nela. A chave do limite
+  // é por conta (arena + e-mail); slug desconhecido usa "?" no lugar da arena.
   const quadra = await quadraDoSlug(db, slug);
+  const chave = `aluno:${quadra?.arena_id ?? "?"}:${emailNorm}`;
+  if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
   const a = quadra
     ? await db.query<{ id: string; arena_id: string; senha_hash: string }>(
         "select id, arena_id, senha_hash from alunos where arena_id = $1 and email = $2",
@@ -51,7 +52,7 @@ export async function entrarAluno(
   const certa = await conferirSenha(String(senha ?? ""), aluno ? aluno.senha_hash : await obterHashFalso());
   if (!aluno || !certa) return { ok: false, motivo: "credenciais" };
 
-  await db.query("delete from tentativas_login where email = $1", [emailNorm]);
+  await db.query("delete from tentativas_login where email = $1", [chave]);
   const token = novoToken();
   const r = await db.query<{ expira_em: Date }>(
     `insert into sessoes_aluno (arena_id, aluno_id, token_hash, expira_em)
@@ -84,14 +85,16 @@ export async function sairAluno(db: Db, token: string): Promise<void> {
 export async function reservasPublicas(
   db: Db,
   slug: string,
+  alunoId?: string,
 ): Promise<{
   quadra: string;
-  reservas: { id: string; inicio: Date; fim: Date; primeirosNomes: string[]; lances: number }[];
+  arenaId: string; // a página compara com a arena da sessão do aluno
+  reservas: { id: string; inicio: Date; fim: Date; primeirosNomes: string[]; lances: number; minha: boolean }[];
 } | null> {
   const quadra = await quadraDoSlug(db, slug);
   if (!quadra) return null;
   const { rows } = await db.query<{
-    id: string; inicio: Date; fim: Date; lances: number; nomes: string[] | null;
+    id: string; inicio: Date; fim: Date; lances: number; nomes: string[] | null; minha: boolean;
   }>(
     `select r.id, r.inicio, r.fim,
             (select count(*) from clipes c
@@ -101,23 +104,28 @@ export async function reservasPublicas(
                 and c.status in ('pronto', 'parcial') and c.chave_r2 is not null
                 and c.expira_em > now()
                 and c.recebido_em >= r.inicio and c.recebido_em < r.fim)::int as lances,
-            (select array_agg(split_part(btrim(a.nome), ' ', 1) order by a.nome, a.id)
+            (select array_agg((regexp_match(a.nome, '[^\\s\\u00a0]+'))[1] order by a.nome, a.id)
                from reserva_alunos ra
                join alunos a on a.id = ra.aluno_id and a.arena_id = ra.arena_id
-              where ra.reserva_id = r.id and ra.arena_id = r.arena_id) as nomes
+              where ra.reserva_id = r.id and ra.arena_id = r.arena_id) as nomes,
+            exists (select 1 from reserva_alunos rm
+                     where rm.reserva_id = r.id and rm.arena_id = r.arena_id
+                       and rm.aluno_id = $3::uuid) as minha
        from reservas r
        join arenas ar on ar.id = r.arena_id
       where r.quadra_id = $1 and r.arena_id = $2
         and r.fim >= now() - make_interval(days => ar.dias_retencao)
       order by r.inicio desc, r.id`,
-    [quadra.id, quadra.arena_id],
+    [quadra.id, quadra.arena_id, ehUuid(alunoId) ? alunoId : null],
   );
   return {
     quadra: quadra.nome,
+    arenaId: quadra.arena_id,
     reservas: rows
       .filter((r) => Number(r.lances) > 0 && r.nomes !== null && r.nomes.length > 0)
       .map((r) => ({
         id: r.id, inicio: r.inicio, fim: r.fim, primeirosNomes: r.nomes as string[], lances: Number(r.lances),
+        minha: Boolean(r.minha),
       })),
   };
 }
