@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { mensagemErroAdmin, nomeDaArena, textoStatusArena } from "../app/admin/apresentacao";
+import { ERRO_SENHA_LONGA, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoStatusArena } from "../app/admin/apresentacao";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -9,6 +9,12 @@ test("nome da arena: apara espaços e aceita de 1 a 80 caracteres", () => {
   expect(nomeDaArena("")).toBeNull();
   expect(nomeDaArena("   ")).toBeNull();
   expect(nomeDaArena("a".repeat(81))).toBeNull();
+});
+
+test("senha: até 200 caracteres passa; acima disso é recusada", () => {
+  expect(senhaLongaDemais("a".repeat(200))).toBe(false);
+  expect(senhaLongaDemais("a".repeat(201))).toBe(true);
+  expect(ERRO_SENHA_LONGA).toBe("Senha longa demais (máximo 200 caracteres).");
 });
 
 test("status da arena na tabela", () => {

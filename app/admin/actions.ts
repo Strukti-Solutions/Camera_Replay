@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarArenaAdmin, criarSuperAdmin, definirStatusArena, type StatusArena } from "@/app/lib/plataforma";
-import { ERRO_NOME_ARENA, mensagemErroAdmin, nomeDaArena } from "./apresentacao";
+import { ERRO_NOME_ARENA, ERRO_SENHA_LONGA, mensagemErroAdmin, nomeDaArena, senhaLongaDemais } from "./apresentacao";
 import { exigirSuperAdmin } from "./sessao-admin-atual";
 
 // Server Actions são endpoints públicos: cada uma confere a sessão de super
@@ -30,8 +30,10 @@ export async function criarArenaAction(_estado: EstadoNovaArena, form: FormData)
   const arena = nomeDaArena(arenaBruta);
   if (!arena) return volta(ERRO_NOME_ARENA);
   if (!emailValido(email)) return volta("E-mail inválido.");
+  const senha = campo(form, "senha");
+  if (senhaLongaDemais(senha)) return volta(ERRO_SENHA_LONGA);
   try {
-    await criarArenaAdmin(poolCompartilhado(), { arena, email, senha: campo(form, "senha") });
+    await criarArenaAdmin(poolCompartilhado(), { arena, email, senha });
   } catch (e) {
     return volta(mensagemErroAdmin(e, "criar arena"));
   }
@@ -69,8 +71,10 @@ export async function criarSuperAdminAction(
 ): Promise<EstadoNovoSuperAdmin> {
   await exigirSuperAdmin();
   const email = campo(form, "email").trim();
+  const senha = campo(form, "senha");
+  if (senhaLongaDemais(senha)) return { erro: ERRO_SENHA_LONGA, ok: false, email };
   try {
-    await criarSuperAdmin(poolCompartilhado(), { email, senha: campo(form, "senha") });
+    await criarSuperAdmin(poolCompartilhado(), { email, senha });
   } catch (e) {
     return { erro: mensagemErroAdmin(e, "criar super admin"), ok: false, email };
   }

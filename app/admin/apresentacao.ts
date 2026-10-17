@@ -11,6 +11,14 @@ export function nomeDaArena(bruto: string): string | null {
   return nome.length >= 1 && nome.length <= NOME_ARENA_MAX ? nome : null;
 }
 
+// Teto da senha antes do hash: o formulário já limita, mas a action é pública.
+export const SENHA_MAX = 200;
+export const ERRO_SENHA_LONGA = "Senha longa demais (máximo 200 caracteres).";
+
+export function senhaLongaDemais(senha: string): boolean {
+  return senha.length > SENHA_MAX;
+}
+
 export function textoStatusArena(status: "ativa" | "suspensa"): string {
   return status === "ativa" ? "Ativa" : "Suspensa";
 }

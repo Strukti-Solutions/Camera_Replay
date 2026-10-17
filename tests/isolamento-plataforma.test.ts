@@ -29,6 +29,26 @@ test("só app/admin importa app/lib/plataforma", () => {
   expect(proibidos).toEqual([]);
 });
 
+// Nada fora de /admin depende de /admin (sessão de super admin, actions de plataforma).
+const IMPORTA_ADMIN = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)["'](?:@\/app\/admin(?:\/[^"']*)?|[^"']*\/admin(?:\/[^"']*)?)["']/;
+
+test("só app/admin importa app/admin", () => {
+  const proibidos = arquivos(APP)
+    .map((p) => relative(RAIZ, p).split(sep).join("/"))
+    .filter((r) => !r.startsWith("app/admin/"))
+    .filter((r) => IMPORTA_ADMIN.test(readFileSync(join(RAIZ, r), "utf8")));
+  expect(proibidos).toEqual([]);
+});
+
+test("a varredura de app/admin reconhece as formas de import", () => {
+  expect(IMPORTA_ADMIN.test('import { exigirSuperAdmin } from "@/app/admin/sessao-admin-atual";')).toBe(true);
+  expect(IMPORTA_ADMIN.test('import x from "@/app/admin"')).toBe(true);
+  expect(IMPORTA_ADMIN.test("import { y } from '../admin/actions'")).toBe(true);
+  expect(IMPORTA_ADMIN.test('const m = await import("../../admin/apresentacao")')).toBe(true);
+  expect(IMPORTA_ADMIN.test('import { z } from "@/app/painel/administrar"')).toBe(false);
+  expect(IMPORTA_ADMIN.test('import { w } from "@/app/lib/sessao-admin"')).toBe(false);
+});
+
 test("a varredura reconhece as formas de import", () => {
   expect(IMPORTA_PLATAFORMA.test('import { x } from "@/app/lib/plataforma";')).toBe(true);
   expect(IMPORTA_PLATAFORMA.test("import { x } from './plataforma'")).toBe(true);

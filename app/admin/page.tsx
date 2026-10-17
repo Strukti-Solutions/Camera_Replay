@@ -64,8 +64,11 @@ export default async function PaginaAdmin() {
                     <td className="suave">{a.donoEmail ?? "Sem dono"}</td>
                     <td className="suave num-tab">{textoData(a.criadoEm)}</td>
                     <td>
+                      {/* key com o status: depois de suspender ou reativar, a confirmação
+                          remonta fechada; senão o <details> aberto deixaria desfazer com um clique. */}
                       {a.status === "ativa" ? (
                         <ConfirmarStatus
+                          key={`${a.id}-ativa`}
                           acao={suspenderArenaAction}
                           arenaId={a.id}
                           rotulo="Suspender"
@@ -75,6 +78,7 @@ export default async function PaginaAdmin() {
                         />
                       ) : (
                         <ConfirmarStatus
+                          key={`${a.id}-suspensa`}
                           acao={reativarArenaAction}
                           arenaId={a.id}
                           rotulo="Reativar"
