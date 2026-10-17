@@ -117,14 +117,14 @@ test("listarReservas ordena por início desc e filtra por quadra e desde", async
   expect(await listarReservas(db, s.a.id, { quadraId: "lixo" })).toEqual([]);
 });
 
-test("lances: só pronto/parcial, não expirado, na janela (inclusive) e na quadra da reserva", async () => {
+test("lances: só pronto/parcial, não expirado, na janela semiaberta [início, fim) e na quadra da reserva", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
   const q2 = await criarQuadra(db, s.a.id);
   await criarReserva(db, s.a.id, { quadraId: s.qa.id, alunoIds: [s.alA.id], inicio: h(8), fim: h(10) });
   await clipeEm(db, s.a.id, s.qa.id, h(8));                                  // borda: conta
   await clipeEm(db, s.a.id, s.qa.id, h(9), { status: "parcial" });           // conta
-  await clipeEm(db, s.a.id, s.qa.id, h(10));                                 // borda: conta
+  await clipeEm(db, s.a.id, s.qa.id, h(10));                                 // em fim: não conta (semiaberto)
   await clipeEm(db, s.a.id, s.qa.id, h(9), { status: "pendente" });          // não
   await clipeEm(db, s.a.id, s.qa.id, h(9), { status: "falhou" });            // não
   await clipeEm(db, s.a.id, s.qa.id, h(9), { expiraEmSeg: -10 });            // expirado
@@ -133,7 +133,7 @@ test("lances: só pronto/parcial, não expirado, na janela (inclusive) e na quad
   await clipeEm(db, s.a.id, q2.id, h(9));                                    // outra quadra
   await clipeEm(db, s.b.id, s.qb.id, h(9));                                  // outra arena
   const l = await listarReservas(db, s.a.id, {});
-  expect(l[0].lances).toBe(3);
+  expect(l[0].lances).toBe(2);
 });
 
 test("definirAlunosDaReserva troca a lista; exige ao menos um aluno da arena", async () => {
@@ -166,4 +166,38 @@ test("remover o aluno o tira das reservas", async () => {
   await criarReserva(db, s.a.id, { quadraId: s.qa.id, alunoIds: [s.alA.id, s.alA2.id], inicio: h(8), fim: h(9) });
   expect(await removerAluno(db, s.a.id, s.alA.id)).toBe(true);
   expect((await listarReservas(db, s.a.id, {}))[0].alunos.map((x) => x.id)).toEqual([s.alA2.id]);
+});
+
+test("clipe exatamente no fim de uma reserva conta só para a seguinte", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const base = { quadraId: s.qa.id, alunoIds: [s.alA.id] };
+  await criarReserva(db, s.a.id, { ...base, inicio: h(8), fim: h(10) });
+  await criarReserva(db, s.a.id, { ...base, inicio: h(10), fim: h(12) });
+  await clipeEm(db, s.a.id, s.qa.id, h(10));
+  const l = await listarReservas(db, s.a.id, {});
+  expect(l.find((x) => x.inicio.getTime() === h(10).getTime())?.lances).toBe(1);
+  expect(l.find((x) => x.inicio.getTime() === h(8).getTime())?.lances).toBe(0);
+});
+
+test("remover o único aluno mantém a reserva sem alunos e os clipes intactos", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  await criarReserva(db, s.a.id, { quadraId: s.qa.id, alunoIds: [s.alA.id], inicio: h(8), fim: h(10) });
+  await clipeEm(db, s.a.id, s.qa.id, h(9));
+  expect(await removerAluno(db, s.a.id, s.alA.id)).toBe(true);
+  const l = await listarReservas(db, s.a.id, {});
+  expect(l).toHaveLength(1);
+  expect(l[0].alunos).toEqual([]);
+  expect(l[0].lances).toBe(1);
+  expect((await db.query("select 1 from clipes")).rows).toHaveLength(1);
+});
+
+test("remover a reserva não apaga os clipes", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const r = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, alunoIds: [s.alA.id], inicio: h(8), fim: h(10) }))!;
+  await clipeEm(db, s.a.id, s.qa.id, h(9));
+  expect(await removerReserva(db, s.a.id, r.id)).toBe(true);
+  expect((await db.query("select 1 from clipes")).rows).toHaveLength(1);
 });

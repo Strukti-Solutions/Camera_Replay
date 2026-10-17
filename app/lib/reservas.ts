@@ -102,7 +102,7 @@ export async function listarReservas(
                 and c.arena_id = r.arena_id
                 and c.status in ('pronto', 'parcial')
                 and c.expira_em > now()
-                and c.recebido_em between r.inicio and r.fim)::int as lances,
+                and c.recebido_em >= r.inicio and c.recebido_em < r.fim)::int as lances,
             (select json_agg(json_build_object('id', a.id, 'nome', a.nome) order by a.nome, a.id)
                from reserva_alunos ra
                join alunos a on a.id = ra.aluno_id and a.arena_id = ra.arena_id

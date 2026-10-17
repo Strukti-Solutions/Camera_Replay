@@ -135,12 +135,12 @@ Migração `0006_reservas.sql`. O dono cadastra alunos e reservas; o aluno vê o
 
 **Regras**
 
-- Reservas da mesma quadra não se sobrepõem (`inicio < outro.fim and fim > outro.inicio`); reservas encostadas (fim = início do próximo) são aceitas. Duração máxima de 12 horas. Toda reserva tem pelo menos um aluno.
+- Reservas da mesma quadra não se sobrepõem (`inicio < outro.fim and fim > outro.inicio`); reservas encostadas (fim = início do próximo) são aceitas. Duração máxima de 12 horas. Ao criar ou editar, toda reserva tem pelo menos um aluno. Remover um aluno não apaga a reserva: ela fica sem alunos, continua visível no painel (com os lances) e some da lista pública.
 - E-mail do aluno é normalizado (trim, minúsculas). Senha com 8 ou mais caracteres, guardada com o mesmo scrypt do dono. Redefinir a senha apaga as sessões do aluno. Remover o aluno o tira das reservas e das atribuições.
-- Acesso do aluno a um lance: o lance está `pronto`/`parcial`, não expirado e (a) `recebido_em` está em `[inicio, fim]` de uma reserva da quadra da câmera do lance com o aluno nela, ou (b) há atribuição explícita do lance ao aluno. Tudo filtrado pela arena da quadra do QR.
+- Acesso do aluno a um lance: o lance está `pronto`/`parcial`, não expirado e (a) `recebido_em` está em `[inicio, fim)` (intervalo semiaberto: o lance exatamente em `fim` pertence à reserva seguinte) de uma reserva da quadra da câmera do lance com o aluno nela, ou (b) há atribuição explícita do lance ao aluno. Tudo filtrado pela arena da quadra do QR.
 - Sessão do aluno separada da do dono: cookie `replay_aluno` (HttpOnly, SameSite Lax, 7 dias), presa à arena. Limite de tentativas igual ao do dono (reusa `tentativas_login`).
 - Lista pública: nunca mostra e-mail nem sobrenome; reserva sem lance pronto não aparece. Lance fora de qualquer reserva só o dono vê, e ele pode atribuí-lo a alunos.
-- Contagem de lances de uma reserva: clipes de câmeras da quadra da reserva, `pronto`/`parcial`, não expirados, com `recebido_em` entre `inicio` e `fim` inclusive.
+- Contagem de lances de uma reserva: clipes de câmeras da quadra da reserva, `pronto`/`parcial`, não expirados, com `recebido_em` em `[inicio, fim)`.
 - As funções de `alunos.ts` e `reservas.ts` recebem o `arena_id` da sessão, validam uuid (malformado = inexistente) e nunca devolvem `senha_hash`.
 
 ## Interface do buffer
