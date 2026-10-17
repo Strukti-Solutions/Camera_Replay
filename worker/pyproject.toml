@@ -3,7 +3,7 @@ name = "replay-worker"
 version = "0.1.0"
 description = "Worker de captura do replay: anel de 30 s por câmera e corte do clipe"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["psycopg[binary]==3.3.6", "cryptography==50.0.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
