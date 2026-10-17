@@ -282,3 +282,83 @@ def test_fps_none_limitado_entre_1_e_60():
     for i in range(20):
         lento.append(i * 4.0, KEY if i % 5 == 0 else P)     # 0,25 fps
     assert _fps_usado(lento, 19 * 4.0, min_duration=0.0) == [1]
+
+
+# --- capa do lance (JPEG enviado ao lado do MP4) ---
+
+def capa_ok(mp4):
+    return b"\xff\xd8JPEG"
+
+
+def run_capa(ring, queue, uploader, capa):
+    return process_job(job(), ring, queue, uploader, fps=15, mux=mux_ok,
+                       clock=lambda: 60.0, capa=capa)
+
+
+def test_chave_da_capa_segue_o_contrato():
+    from replay_worker.clipper import chave_da_capa
+    assert chave_da_capa(job()) == "clipes/arena1/c1.jpg"
+
+
+def test_capa_enviada_antes_do_mark_ready():
+    ordem = []
+
+    class Q(FakeQueue):
+        def mark_ready(self, *a):
+            ordem.append("ready")
+            return super().mark_ready(*a)
+
+    class U(FakeUploader):
+        def put(self, key, data):
+            ordem.append(key)
+            super().put(key, data)
+
+    u = U()
+    assert run_capa(anel_cheio(), Q(), u, capa_ok)
+    assert ("clipes/arena1/c1.jpg", b"\xff\xd8JPEG") in u.puts
+    assert ordem == ["clipes/arena1/c1.mp4", "clipes/arena1/c1.jpg", "ready"]
+
+
+def test_capa_que_lanca_nao_impede_o_pronto_e_loga_sem_segredo(caplog):
+    def capa_ruim(mp4):
+        raise RuntimeError("senha=segredo123")
+
+    q, u = FakeQueue(), FakeUploader()
+    assert run_capa(anel_cheio(), q, u, capa_ruim)
+    assert len(q.ready) == 1 and q.failed == []
+    assert [k for k, _ in u.puts] == ["clipes/arena1/c1.mp4"]
+    assert "segredo123" not in caplog.text
+    assert "c1" in caplog.text and "RuntimeError" in caplog.text
+
+
+def test_upload_da_capa_falhando_nao_impede_o_pronto():
+    class U(FakeUploader):
+        def put(self, key, data):
+            if key.endswith(".jpg"):
+                raise OSError("rede")
+            super().put(key, data)
+
+    q = FakeQueue()
+    assert run_capa(anel_cheio(), q, U(), capa_ok)
+    assert len(q.ready) == 1
+
+
+def test_mark_ready_false_apaga_mp4_e_capa():
+    q, u = FakeQueue(aceita=False), FakeUploader()
+    assert not run_capa(anel_cheio(), q, u, capa_ok)
+    assert sorted(u.deletes) == ["clipes/arena1/c1.jpg", "clipes/arena1/c1.mp4"]
+
+
+def test_mark_ready_false_sem_capa_apaga_so_o_mp4():
+    def sem_capa(mp4):
+        raise RuntimeError("x")
+
+    q, u = FakeQueue(aceita=False), FakeUploader()
+    assert not run_capa(anel_cheio(), q, u, sem_capa)
+    assert u.deletes == ["clipes/arena1/c1.mp4"]
+
+
+def test_mark_ready_levantando_mantem_mp4_e_capa():
+    q, u = QueueQueLanca(), FakeUploader()
+    assert not run_capa(anel_cheio(), q, u, capa_ok)
+    assert u.deletes == []

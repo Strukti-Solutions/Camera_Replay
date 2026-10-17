@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
-from .mux import MuxError, h264_to_mp4
+from .mux import MuxError, extrair_capa, h264_to_mp4
 from .ring import Ring
 
 
@@ -41,6 +41,22 @@ class Uploader(Protocol):
 def chave_do_clipe(job: ClipJob) -> str:
     """Chave do objeto no R2, exatamente como o contrato do banco exige."""
     return "clipes/%s/%s.mp4" % (job.arena_id, job.clip_id)
+
+
+def chave_da_capa(job: ClipJob) -> str:
+    """Chave da capa (JPEG) ao lado do MP4; o app assina e apaga por esta chave."""
+    return "clipes/%s/%s.jpg" % (job.arena_id, job.clip_id)
+
+
+def _enviar_capa(uploader: Uploader, job: ClipJob, mp4: bytes, capa) -> bool:
+    """Gera e envia a capa. A capa é opcional: falha só loga (id do clipe e tipo do erro)."""
+    try:
+        uploader.put(chave_da_capa(job), capa(mp4))
+        return True
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "capa do clipe %s não enviada: %s", job.clip_id, type(exc).__name__)
+        return False
 
 
 def _fps_do_anel(ring: Ring) -> int:
@@ -71,27 +87,28 @@ def _safe_mark_failed(queue: JobQueue, clip_id: str, reason: str) -> None:
 def process_job(job: ClipJob, ring: Ring, queue: JobQueue, uploader: Uploader,
                 fps: float | None = None, seconds: float = 30.0, retries: int = 3, max_age: float = 120.0,
                 clock=time.time, mux=h264_to_mp4, min_duration: float = 1.0,
-                max_stale: float = 30.0) -> bool:
+                max_stale: float = 30.0, capa=extrair_capa) -> bool:
     """Corta, converte e envia. Devolve True se o clipe ficou pronto.
 
     Nunca lança: qualquer exceção vira `mark_failed`; se a fila também falhar,
     isso é engolido e registrado no log só com o tipo.
     Com `fps=None`, usa o fps medido do anel (1..60; 15 sem medida).
     Se `mark_ready` devolver False (recusa definitiva: o reaper já deu o pedido como
-    falho ou o servidor rejeitou a chave), o objeto enviado é apagado para não ficar órfão.
+    falho ou o servidor rejeitou a chave), o objeto enviado (e a capa, se enviada) é apagado para não ficar órfão.
+    A capa (`capa(mp4) -> JPEG`) é opcional: falhar em gerar ou enviar só loga.
     Se `mark_ready` LANÇAR, o objeto NÃO é apagado: o banco pode ter gravado 'pronto'
     antes de a conexão cair; segue-se para `mark_failed` e a varredura do backend limpa.
     """
     try:
         return _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
-                        clock, mux, min_duration, max_stale)
+                        clock, mux, min_duration, max_stale, capa)
     except Exception as exc:
         _safe_mark_failed(queue, job.clip_id, "erro interno (%s)" % type(exc).__name__)
         return False
 
 
 def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
-             clock, mux, min_duration, max_stale) -> bool:
+             clock, mux, min_duration, max_stale, capa) -> bool:
     if clock() - job.pressed_at > max_age:
         _safe_mark_failed(queue, job.clip_id, "pedido antigo demais")
         return False
@@ -134,10 +151,14 @@ def _process(job, ring, queue, uploader, fps, seconds, retries, max_age,
             attempts, "tentativa" if attempts == 1 else "tentativas", type(erro).__name__))
         return False
 
+    capa_enviada = _enviar_capa(uploader, job, mp4, capa)
+
     # se lançar, não apaga (resultado ambíguo); o handler geral marca falhou
     aceito = queue.mark_ready(job.clip_id, key, len(mp4), cut.duration,
                               cut.partial or cut.has_gap)
     if not aceito:
         _apagar_orfao(uploader, key, job.clip_id)
+        if capa_enviada:
+            _apagar_orfao(uploader, chave_da_capa(job), job.clip_id)
         return False
     return True
