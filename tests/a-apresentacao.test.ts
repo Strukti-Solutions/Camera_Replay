@@ -6,11 +6,12 @@ import {
   textoDia,
   textoLances,
   tituloReserva,
-} from "../app/q/[slug]/apresentacao";
+  tituloReservaNaQuadra,
+} from "../app/a/[slug]/apresentacao";
 
 // 17/10/2026, 17:00 em São Paulo.
 const agora = new Date("2026-10-17T20:00:00Z");
-const SLUG = "demo-quadra-padel-0001";
+const SLUG = "demo-arena-beira-mar-01";
 const RESERVA = "0b8f4a52-3c1e-4d7a-9f00-1a2b3c4d5e6f";
 
 test("dia da reserva: hoje, ontem ou dd/mm, no dia civil de São Paulo", () => {
@@ -26,20 +27,26 @@ test("título da reserva com o dia", () => {
   );
 });
 
+test("título da reserva com o nome da quadra, para a lista da arena", () => {
+  expect(
+    tituloReservaNaQuadra(new Date("2026-10-17T11:00:00Z"), new Date("2026-10-17T13:00:00Z"), "Quadra 2"),
+  ).toBe("Reserva 8h–10h · Quadra 2");
+});
+
 test("quantidade de lances no singular e no plural", () => {
   expect(textoLances(1)).toBe("1 lance");
   expect(textoLances(4)).toBe("4 lances");
 });
 
 test("depois de entrar: volta para a reserva pedida só se r for uuid", () => {
-  expect(destinoAposEntrar(SLUG, RESERVA)).toBe(`/q/${SLUG}/r/${RESERVA}`);
-  expect(destinoAposEntrar(SLUG, RESERVA.toUpperCase())).toBe(`/q/${SLUG}/r/${RESERVA.toUpperCase()}`);
-  expect(destinoAposEntrar(SLUG, null)).toBe(`/q/${SLUG}`);
-  expect(destinoAposEntrar(SLUG, "")).toBe(`/q/${SLUG}`);
-  expect(destinoAposEntrar(SLUG, "https://evil.example/x")).toBe(`/q/${SLUG}`);
-  expect(destinoAposEntrar(SLUG, "//evil.example")).toBe(`/q/${SLUG}`);
-  expect(destinoAposEntrar(SLUG, `${RESERVA}/../../x`)).toBe(`/q/${SLUG}`);
-  expect(destinoAposEntrar(SLUG, ` ${RESERVA}`)).toBe(`/q/${SLUG}`);
+  expect(destinoAposEntrar(SLUG, RESERVA)).toBe(`/a/${SLUG}/r/${RESERVA}`);
+  expect(destinoAposEntrar(SLUG, RESERVA.toUpperCase())).toBe(`/a/${SLUG}/r/${RESERVA.toUpperCase()}`);
+  expect(destinoAposEntrar(SLUG, null)).toBe(`/a/${SLUG}`);
+  expect(destinoAposEntrar(SLUG, "")).toBe(`/a/${SLUG}`);
+  expect(destinoAposEntrar(SLUG, "https://evil.example/x")).toBe(`/a/${SLUG}`);
+  expect(destinoAposEntrar(SLUG, "//evil.example")).toBe(`/a/${SLUG}`);
+  expect(destinoAposEntrar(SLUG, `${RESERVA}/../../x`)).toBe(`/a/${SLUG}`);
+  expect(destinoAposEntrar(SLUG, ` ${RESERVA}`)).toBe(`/a/${SLUG}`);
 });
 
 test("depois de entrar: slug malformado nunca vira caminho", () => {

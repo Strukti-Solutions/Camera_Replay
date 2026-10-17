@@ -42,6 +42,14 @@ export async function slugDaArenaDaQuadra(db: Db, slugQuadra: string): Promise<s
   return q.rows[0]?.slug ?? null;
 }
 
+// Slug da arena da sessão do dono, para o QR geral do painel. Id fora do formato
+// uuid não toca o banco.
+export async function slugDaArena(db: Db, arenaId: string): Promise<string | null> {
+  if (!ehUuid(arenaId)) return null;
+  const q = await db.query<{ slug: string }>("select slug from arenas where id = $1", [arenaId]);
+  return q.rows[0]?.slug ?? null;
+}
+
 const LIMITE_CADASTRO = 5; // tentativas de cadastro por IP na janela
 const JANELA_CADASTRO_MIN = 60;
 

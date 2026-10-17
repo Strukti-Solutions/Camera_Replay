@@ -103,3 +103,9 @@ export function textoData(d: Date): string {
   const p = emSP(d);
   return `${p.day}/${p.month}/${p.year}`;
 }
+
+// URL do QR da arena, sem barra no fim do APP_URL. O slug é codificado para que
+// o QR nunca carregue nada além de um caminho dentro de /a/.
+export function urlDaArena(appUrl: string, slug: string): string {
+  return `${appUrl.replace(/\/+$/, "")}/a/${encodeURIComponent(slug)}`;
+}

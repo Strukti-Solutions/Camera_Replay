@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { ErroPainel } from "../app/lib/painel";
-import { mensagemDoErro, textoCamera, textoVistoHa } from "../app/painel/apresentacao";
+import { mensagemDoErro, textoCamera, textoVistoHa, urlDaArena } from "../app/painel/apresentacao";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -153,4 +153,11 @@ function contraste(a: string, b: string): number {
 
 test("iniciais brancas têm contraste AA (≥ 4,5:1) com toda cor da paleta", () => {
   for (const cor of PALETA_AVATAR) expect(contraste(cor, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+});
+
+test("URL do QR da arena: sem barra dobrada e o slug só como caminho em /a/", () => {
+  const slug = "Ab3_-xY9Ab3_-xY9Ab3_-x";
+  expect(urlDaArena("https://replay.exemplo", slug)).toBe(`https://replay.exemplo/a/${slug}`);
+  expect(urlDaArena("https://replay.exemplo//", slug)).toBe(`https://replay.exemplo/a/${slug}`);
+  expect(urlDaArena("https://replay.exemplo", "../x?y#z")).toBe("https://replay.exemplo/a/..%2Fx%3Fy%23z");
 });

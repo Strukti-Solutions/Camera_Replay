@@ -796,7 +796,7 @@ video {
   text-align: center;
 }
 
-.folha-qr h2 {
+.folha-qr h3 {
   margin: 0 0 12px;
   font-family: var(--fonte-titulo);
   font-size: 1.75rem;
@@ -846,13 +846,20 @@ video {
     max-width: none;
   }
 
+  /* No painel a folha fica numa seção: sem o fio e o respiro dela no papel. */
+  .secao-qr {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
   .folha-qr {
     border: 0;
     padding: 0;
     break-inside: avoid;
   }
 
-  .folha-qr h2 {
+  .folha-qr h3 {
     font-size: 2.25rem;
   }
 

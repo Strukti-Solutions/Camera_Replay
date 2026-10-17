@@ -5,7 +5,7 @@ import { criarReserva, definirAlunosDaReserva } from "../app/lib/reservas";
 import { atribuirClipe } from "../app/lib/painel";
 import { entrar, validarSessao } from "../app/lib/sessao";
 import {
-  arenaDoSlug, cadastrarAluno, entrarAluno, lancesAvulsosDoAluno, lancesDaReserva, quadraDoSlugPublica, reservasDoAluno, sairAluno, slugDaArenaDaQuadra, validarSessaoAluno,
+  arenaDoSlug, cadastrarAluno, entrarAluno, lancesAvulsosDoAluno, lancesDaReserva, quadraDoSlugPublica, reservasDoAluno, sairAluno, slugDaArena, slugDaArenaDaQuadra, validarSessaoAluno,
 } from "../app/lib/acesso-aluno";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -352,4 +352,15 @@ test("conta feita pelo cadastro vem marcada criadoPeloAluno; a do dono não", as
   const lista = await listarAlunos(db, s.a.id);
   const por = Object.fromEntries(lista.map((x) => [x.email, x.criadoPeloAluno]));
   expect(por).toEqual({ "ana@x.com": false, "beto@x.com": false, "caio@x.com": true });
+});
+
+test("slugDaArena devolve o slug da arena do painel; id inválido não consulta o banco", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  expect(await slugDaArena(db, s.a.id)).toBe(s.a.slug);
+  expect(await slugDaArena(db, s.b.id)).toBe(s.b.slug);
+  expect(await slugDaArena(db, "0b8f4a52-3c1e-4d7a-9f00-1a2b3c4d5e6f")).toBeNull();
+  const espiao = vi.spyOn(db, "query");
+  for (const ruim of ["", "x", "1 or 1=1", 42 as unknown as string]) expect(await slugDaArena(db, ruim)).toBeNull();
+  expect(espiao).not.toHaveBeenCalled();
 });

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import QRCode from "qrcode";
+import { slugDaArena } from "@/app/lib/acesso-aluno";
 import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { textoCamera } from "./apresentacao";
+import { textoCamera, urlDaArena } from "./apresentacao";
+import { ImprimirQr } from "./imprimir-qr";
 import { FormularioNovaQuadra } from "./nova-quadra";
 import { exigirSessao } from "./sessao-atual";
 
@@ -17,16 +20,20 @@ export default async function PaginaPainel() {
   // A página confere a sessão por conta própria: o layout não roda de novo
   // em toda navegação do cliente.
   const sessao = await exigirSessao();
-  const quadras = await listarQuadras(poolCompartilhado(), sessao.arenaId);
+  const db = poolCompartilhado();
+  const [quadras, slug] = await Promise.all([
+    listarQuadras(db, sessao.arenaId),
+    slugDaArena(db, sessao.arenaId),
+  ]);
 
   return (
     <main className="miolo painel">
-      <h1>Quadras</h1>
+      <h1 className="nao-imprimir">Quadras</h1>
 
       {quadras.length === 0 ? (
-        <p className="painel-vazio">Nenhuma quadra cadastrada.</p>
+        <p className="painel-vazio nao-imprimir">Nenhuma quadra cadastrada.</p>
       ) : (
-        <ul className="cartoes">
+        <ul className="cartoes nao-imprimir">
           {quadras.map((q) => (
             <li key={q.id} className="cartao">
               <h2>
@@ -51,9 +58,60 @@ export default async function PaginaPainel() {
         </ul>
       )}
 
-      <section className="secao">
+      <QrDaArena arena={sessao.arenaNome} slug={slug} />
+
+      <section className="secao nao-imprimir">
         <FormularioNovaQuadra />
       </section>
     </main>
+  );
+}
+
+// Um QR só para a arena inteira: abre a área do aluno, onde ele entra com a
+// conta que o dono cadastrou. Ao imprimir, só a folha aparece.
+async function QrDaArena({ arena, slug }: { arena: string; slug: string | null }) {
+  const appUrl = process.env.APP_URL?.trim();
+  const titulo = (
+    <h2 id="titulo-qr" className="nao-imprimir">
+      QR da arena
+    </h2>
+  );
+
+  if (!appUrl || !slug) {
+    return (
+      <section className="secao secao-qr" aria-labelledby="titulo-qr">
+        {titulo}
+        <p role="alert">Configure APP_URL para gerar o QR.</p>
+      </section>
+    );
+  }
+
+  const url = urlDaArena(appUrl, slug);
+  // Saída da biblioteca para uma URL montada aqui (não é texto do usuário
+  // solto): por isso é seguro inserir o SVG como HTML.
+  const svg = await QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2 });
+
+  return (
+    <section className="secao secao-qr" aria-labelledby="titulo-qr">
+      {titulo}
+      <p className="nao-imprimir">
+        <ImprimirQr />
+      </p>
+      <div className="folha-qr">
+        <p className="folha-quadra">{arena}</p>
+        <h3>Quadra com gravação de vídeo</h3>
+        <p>
+          Aperte o botão da quadra para salvar os últimos 30 segundos. Aponte a câmera do celular para o
+          código e entre com o e-mail e a senha que a arena cadastrou para ver os seus lances.
+        </p>
+        <div
+          className="qr-codigo"
+          role="img"
+          aria-label={`QR code que abre ${url}`}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+        <p className="folha-url">{url}</p>
+      </div>
+    </section>
   );
 }

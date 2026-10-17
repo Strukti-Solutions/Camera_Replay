@@ -9,7 +9,7 @@ import {
   limitar,
   poseDoCartao,
   usaLoop,
-} from "../app/q/[slug]/coverflow";
+} from "../app/a/[slug]/coverflow";
 
 test("índice do centro: cartão inteiro mais próximo, dobrado no anel", () => {
   expect(indiceEm(0, 5)).toBe(0);

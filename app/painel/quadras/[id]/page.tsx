@@ -10,7 +10,7 @@ import { criarR2, lerConfigR2 } from "@/app/lib/r2";
 import { textoCamera, textoData, textoReserva, textoVistoHa } from "@/app/painel/apresentacao";
 import { EditarAlunos } from "@/app/painel/escolha-alunos";
 import { exigirSessao } from "@/app/painel/sessao-atual";
-import { VideoClipe } from "@/app/q/[slug]/video-clipe";
+import { VideoClipe } from "@/app/a/[slug]/video-clipe";
 import { apagarClipeAction, atribuirClipeAction, revogarBotaoAction } from "./actions";
 import { Confirmar, FormularioCamera, FormularioCredenciais, NovoBotao } from "./formularios";
 
@@ -56,9 +56,6 @@ export default async function PaginaQuadra({ params }: Props) {
         <a className="botao" href={`/q/${encodeURIComponent(quadra.slug)}`}>
           Página pública
         </a>
-        <Link className="botao" href={`/painel/quadras/${quadra.id}/qr`}>
-          QR para imprimir
-        </Link>
       </p>
 
       <section className="secao" aria-labelledby="titulo-camera">
