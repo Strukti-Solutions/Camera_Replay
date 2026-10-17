@@ -100,7 +100,7 @@ export async function listarReservas(
               where cam.quadra_id = r.quadra_id
                 and cam.arena_id = r.arena_id
                 and c.arena_id = r.arena_id
-                and c.status in ('pronto', 'parcial')
+                and c.status in ('pronto', 'parcial') and c.chave_r2 is not null
                 and c.expira_em > now()
                 and c.recebido_em >= r.inicio and c.recebido_em < r.fim)::int as lances,
             (select json_agg(json_build_object('id', a.id, 'nome', a.nome) order by a.nome, a.id)

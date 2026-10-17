@@ -322,7 +322,9 @@ export async function atribuirClipe(
 ): Promise<boolean> {
   if (!ehUuid(arenaId) || !ehUuid(clipeId)) return false;
   const candidatos = Array.isArray(alunoIds) ? [...new Set(alunoIds.filter(ehUuid))] : [];
-  // Um só comando: tira quem saiu e põe quem entrou, atomicamente.
+  // Um só comando, com a linha do clipe travada (for update): tira quem saiu e põe quem
+  // entrou. Dívida conhecida: duas chamadas simultâneas para o mesmo clipe podem terminar
+  // com a união das duas listas.
   const r = await db.query(
     `with c as (
        select id, arena_id from clipes where id = $1 and arena_id = $2 for update

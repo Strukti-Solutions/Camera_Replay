@@ -45,4 +45,6 @@ npm run dev                                      # http://localhost:3000
 
 Para automatizar, a senha pode vir pelo stdin (uma linha). Nem `migrar` nem `criar-dono` imprimem a `DATABASE_URL` ou a senha.
 
+Alunos e reservas: o dono cadastra alunos e reservas no painel; os jogadores abrem o QR da quadra e entram com o e-mail e a senha do aluno.
+
 A limpeza de clipes expirados roda por cron da Vercel (`vercel.json`, diário às 07:00 UTC, 4h em Brasília), chamando `/api/cron/limpeza` com `Authorization: Bearer <CRON_SECRET>`.

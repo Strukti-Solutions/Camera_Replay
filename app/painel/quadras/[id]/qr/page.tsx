@@ -65,8 +65,8 @@ export default async function PaginaQr({ params }: Props) {
         <p className="folha-quadra">{quadra.nome}</p>
         <h2 id="folha-titulo">Quadra com gravação de vídeo</h2>
         <p>
-          Aperte o botão da quadra para salvar os últimos 30 segundos. Aponte a câmera do celular
-          para o código e assista aos seus lances.
+          Aperte o botão da quadra para salvar os últimos 30 segundos. Alunos com reserva apontam a
+          câmera do celular para o código e entram com e-mail e senha para ver os lances.
         </p>
         <div
           className="qr-codigo"

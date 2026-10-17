@@ -21,16 +21,17 @@ async function cenario(db: Db) {
 
 async function clipeEm(
   db: Db, arenaId: string, quadraId: string, quando: Date,
-  o: { status?: string; expiraEmSeg?: number } = {},
+  o: { status?: string; expiraEmSeg?: number; semChave?: boolean } = {},
 ) {
   const cam = await criarCamera(db, arenaId, quadraId);
   const bt = await criarBotao(db, arenaId, quadraId, cam.id);
   const ap = await db.query<{ id: string }>(
     "insert into apertos (arena_id, botao_id) values ($1,$2) returning id", [arenaId, bt.id]);
   await db.query(
-    `insert into clipes (arena_id, aperto_id, camera_id, status, recebido_em, expira_em)
-     values ($1,$2,$3,$4,$5, now() + make_interval(secs => $6))`,
-    [arenaId, ap.rows[0].id, cam.id, o.status ?? "pronto", quando, o.expiraEmSeg ?? 3600]);
+    `insert into clipes (arena_id, aperto_id, camera_id, status, recebido_em, expira_em, chave_r2)
+     values ($1,$2,$3,$4,$5, now() + make_interval(secs => $6), $7)`,
+    [arenaId, ap.rows[0].id, cam.id, o.status ?? "pronto", quando, o.expiraEmSeg ?? 3600,
+      o.semChave ? null : `clipes/${arenaId}/${ap.rows[0].id}.mp4`]);
 }
 
 const fotoArena = async (db: Db, arenaId: string) => {
@@ -128,12 +129,28 @@ test("lances: só pronto/parcial, não expirado, na janela semiaberta [início, 
   await clipeEm(db, s.a.id, s.qa.id, h(9), { status: "pendente" });          // não
   await clipeEm(db, s.a.id, s.qa.id, h(9), { status: "falhou" });            // não
   await clipeEm(db, s.a.id, s.qa.id, h(9), { expiraEmSeg: -10 });            // expirado
+  await clipeEm(db, s.a.id, s.qa.id, h(9), { semChave: true });             // sem objeto no R2
   await clipeEm(db, s.a.id, s.qa.id, h(7, 59));                              // antes
   await clipeEm(db, s.a.id, s.qa.id, h(10, 1));                              // depois
   await clipeEm(db, s.a.id, q2.id, h(9));                                    // outra quadra
   await clipeEm(db, s.b.id, s.qb.id, h(9));                                  // outra arena
   const l = await listarReservas(db, s.a.id, {});
   expect(l[0].lances).toBe(2);
+});
+
+test("desde: exclui reserva que terminou há 31 dias e mantém a de 29 dias e a futura", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const dia = 24 * 60 * 60 * 1000, hora = 60 * 60 * 1000, agora = Date.now();
+  const base = { quadraId: s.qa.id, alunoIds: [s.alA.id] };
+  const em = (fimMs: number) => ({ inicio: new Date(fimMs - hora), fim: new Date(fimMs) });
+  await criarReserva(db, s.a.id, { ...base, ...em(agora - 31 * dia) });
+  await criarReserva(db, s.a.id, { ...base, ...em(agora - 29 * dia) });
+  await criarReserva(db, s.a.id, { ...base, ...em(agora + 2 * dia) });
+  const desde = new Date(agora - 30 * dia);
+  const l = await listarReservas(db, s.a.id, { desde });
+  expect(l.map((x) => x.fim.getTime())).toEqual([agora + 2 * dia, agora - 29 * dia]);
+  expect(await listarReservas(db, s.a.id, {})).toHaveLength(3);
 });
 
 test("definirAlunosDaReserva troca a lista; exige ao menos um aluno da arena", async () => {

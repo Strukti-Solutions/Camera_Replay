@@ -1,31 +1,25 @@
-# Onde paramos — 16/10/2026
+# Onde paramos — 17/10/2026
 
 ## Feito
-- Spec do SaaS de replay: `docs/superpowers/specs/2026-10-16-replay-saas-design.md`.
-- Plano 1, worker de captura: `docs/superpowers/plans/2026-10-16-worker-captura.md`. As 8 tarefas foram implementadas com TDD e revisadas uma a uma, depois passaram por uma revisão final da branch e por uma rodada de QA. Resultado: `cd worker && py -m pytest -q` dá 104 passed e 3 skipped (os testes do mux, sem ffmpeg).
-- Dívida e bloqueios de produção do worker: `docs/divida-worker.md`.
-- Plano 2, backend: `docs/superpowers/plans/2026-10-16-backend.md`, na branch `feat/backend`. As tarefas 1 a 10 (com 3b e 5b) foram implementadas com TDD e aprovadas pela revisão, uma a uma. Resultado: `npm test` dá 106 passed e `npm run typecheck` passa.
-  - Schema com isolamento por arena via FKs compostas; câmera presa à quadra (`0003_camera_fixa.sql`).
-  - `registrar_aperto` com dedupe de 5 s e rota `POST /api/botao/aperto`.
-  - Fila do worker em SQL: `pegar_clipes` (com `arena_id`), `marcar_pronto` (valida a chave, SQLSTATE 22023), `marcar_falhou`, `expirar_presos`.
-  - Cliente R2, limpeza de expirados com rota de cron, lista pública da quadra e cifra das credenciais (AES-256-GCM, formato v1).
-- Decisões do dono registradas no spec: `arena_id` no contrato da fila; câmera não muda de quadra (reconfiguração manual por nós).
-- `main` criada localmente a partir de `feat/worker-captura`. **Nenhum push foi feito.**
-- Plano 3, worker em produção: `docs/superpowers/plans/2026-10-16-worker-producao.md`, Tarefas 1 a 7 feitas na branch `feat/worker-producao`, **sem push**. O worker roda 24 h (`py -m replay_worker.main`): fila do Postgres, envio ao R2 com SigV4, credenciais decifradas, supervisor com câmeras do banco e status, e Dockerfile (`worker/Dockerfile`). O build da imagem não foi verificado: o Docker Desktop estava parado.
-- Plano 4, web: `docs/superpowers/plans/` (plano web), na branch `feat/web`, **sem push**. Site do jogador (`/q/<slug>`), painel do dono (login, quadras, câmera, botões, clipes) e página do QR para imprimir com o aviso de gravação (`/painel/quadras/<id>/qr`). Conferido no navegador (preview local, Postgres no Docker): login com erro mantendo o e-mail; criar quadra; cadastrar câmera (gravada cifrada, credenciais nunca voltam à tela); novo botão com o token mostrado uma única vez; `POST /api/botao/aperto` responde 202 e o clipe aparece como "Na fila" no painel; revogar botão; página do jogador em largura de celular com a lista de clipes.
+- Planos 1 a 3 (worker de captura, backend, worker em produção) já integrados na `main`, antes desta rodada.
+- Plano web (`docs/superpowers/plans/2026-10-17-web.md`) concluído na `feat/web`, **sem push**:
+  - Painel do dono: login (com limite de tentativas por conta), quadras, câmera com credenciais cifradas, botões com token mostrado uma única vez, clipes e QR para imprimir.
+  - Alunos e reservas (migrações 0005 e 0006).
+  - Página do jogador `/q/<slug>`: lista as reservas (só primeiros nomes, com cadeado), login do aluno e carrossel coverflow por reserva; "meus lances avulsos"; capa `.jpg` por clipe gerada pelo worker e link de download assinado.
+  - `npm test` com 245 passando; typecheck e build ok.
+- Conferido em preview ao vivo (Postgres local no Docker): login do dono mantém o e-mail após erro; quadra, câmera, botão, aperto 202 e revogação; contagem de lances do aluno com `[inicio, fim)`; login do aluno abre a própria reserva; reserva de outro mostra "Esta reserva não é sua."; o dono atribui um clipe e o aluno o vê em "Meus lances avulsos".
+- Bancada com câmera real (uma câmera, a que o dono liberou; as outras duas ficaram de fora a pedido): relay online, 10 fps, 0,14 Mbps, keyframe a cada ~4 s, anel de 0,7 MB em 40 s, clipe de 31,6 s, MP4 1080p decodifica sem erro, capa gerada. Valores no quadro de `docs/validacao-camera.md`. Testes do worker com ffmpeg real (Docker): 182 passed; integração com Postgres passou.
 
-## Pendências do backend (detalhe no "Ao terminar" do plano 2)
-- Deploy: `vercel.json` com `crons` para `/api/cron/limpeza`, `maxDuration`, `max` do pool ou URL de pooler, variáveis `CRON_SECRET`, `R2_*`, `CAMERA_CRED_KEY`. A `0002` fica congelada antes do primeiro deploy.
-- Testes de concorrência real (dedupe e `SKIP LOCKED`) contra Postgres de verdade; o PGlite tem conexão única.
-- Flake do PGlite (`Aborted()` no `close()` sob carga), raro.
-- Achados menores da última revisão, ainda sem tarefa: `clipes.camera_id` pode ser trocado direto no banco (incluir na regra da câmera fixa); no fluxo manual, a câmera antiga continua ativa com o mesmo `sn` (definir se é apagada ou se o worker ignora `sn` duplicado); o banco não tem teto de 64 para o slug.
-- Commits do backend: parte usa `Co-Authored-By: Claude Sonnet 5.5` (modelo que rodou o agente), parte `Opus 5.5`. Decidir se padroniza antes do push.
+## Pendências
+- Medir ainda: latência do relay (`RELAY_LAG_S`), sessão longa e concorrência com o app iCSee.
+- O dono aprovar: textos de interface escritos além dos briefs, o aviso da folha do QR e a decisão de que só aluno com reserva vê clipes.
+- Antes do deploy: smoke test do link de download no R2 (`response-content-disposition`); variáveis na Vercel (`DATABASE_URL`, `R2_*`, `CAMERA_CRED_KEY`, `CRON_SECRET`, `APP_URL`); `x-real-ip` na Vercel; `npm run migrar` no banco de produção; TLS e DNS rebinding em `xm/`; escolher o host do worker.
+- Dívida conhecida: `docs/divida-worker.md`; corrida de sobreposição de reservas (constraint de exclusão com `btree_gist` depois); `atribuirClipe` concorrente pode juntar as duas listas.
 
 ## Próximos passos
-1. Push de `main`, `feat/worker-captura` e `feat/backend` para `origin` (Strukti-Solutions/Camera_Replay), com o ok do dono.
-2. Validar na câmera real, seguindo `docs/validacao-camera.md`. Precisa do `worker/cameras.json` (formato de `cameras.example.json`) com as credenciais e do ffmpeg (`winget install Gyan.FFmpeg`). É o maior risco em aberto.
-3. Loop de produção do worker: feito (ver o Plano 3 em "Feito"). Pendente: validar na câmera real e medir `RELAY_LAG_S`; resolver TLS e DNS rebinding em `xm/`; escolher o host, publicar a imagem e fazer o deploy; verificar o build do Docker.
-4. Plano 4, Web: feito (ver "Feito"). Pendente: o dono aprovar os textos e o aviso de gravação da folha do QR e a decisão de criar contas por script; deploy na Vercel com `APP_URL` e demais variáveis (com o ok do dono); validação na câmera real; TLS e DNS rebinding do `xm/`.
+1. Push de `main`, `feat/backend`, `feat/worker-producao` e `feat/web` para `origin`, com o ok do dono.
+2. Fechar as medições pendentes na câmera real.
+3. Deploy (Vercel e host do worker) depois da lista "Antes do deploy".
 
 ## Time no Maestri (workspace "goToguether", terminais com `--dir C:\Codes\Camera_Replay`)
 - Vigia (Revisor Replay, Opus), Lupa (QA Replay), Prancheta (Backlog Replay, dona da nota `backlog-replay`), Trilho (Dev Captura, standby).

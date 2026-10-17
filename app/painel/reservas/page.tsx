@@ -23,8 +23,10 @@ export default async function PaginaReservas() {
   // A página confere a sessão por conta própria e usa só o arenaId dela.
   const sessao = await exigirSessao();
   const db = poolCompartilhado();
+  // Últimos 30 dias e as futuras: reserva antiga sai da lista (a função filtra fim >= desde).
+  const desde = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [reservas, quadras, alunosArena] = await Promise.all([
-    listarReservas(db, sessao.arenaId),
+    listarReservas(db, sessao.arenaId, { desde }),
     listarQuadras(db, sessao.arenaId),
     listarAlunos(db, sessao.arenaId),
   ]);
