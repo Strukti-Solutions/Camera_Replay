@@ -13,7 +13,7 @@ SaaS de replay para quadras: o jogador aperta um botão e os últimos 30 s da c�
 |---|---|---|
 | `captura` | worker Python: anel, corte, relay, reconexão | `worker/` |
 | `backend` | schema Postgres, API do botão, fila, R2, limpeza | `app/api`, `app/lib`, `db/` |
-| `web` | site do jogador (`/q/<slug>`) e painel do dono | `app/` (páginas e componentes) |
+| `web` | área do aluno (`/a/<slug-da-arena>`), painel do dono e painel do super admin | `app/` (páginas e componentes) |
 | `revisao` | revisa cada entrega e confere segurança | somente leitura |
 
 Cada agente só mexe na própria pasta. Mudança de contrato entre frentes (tabela, formato de fila, API) passa pelo spec antes.

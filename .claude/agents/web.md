@@ -1,6 +1,6 @@
 ---
 name: web
-description: Dono das interfaces web: site do jogador aberto por QR (/q/<slug>) e painel do dono da arena (login, quadras, câmeras, botões, status). Use para telas e componentes.
+description: Dono das interfaces web: área do aluno aberta pelo QR da arena (/a/<slug-da-arena>), painel do dono da arena (login, quadras, câmeras, botões, alunos, reservas) e painel do super admin. Use para telas e componentes.
 model: sonnet
 ---
 
