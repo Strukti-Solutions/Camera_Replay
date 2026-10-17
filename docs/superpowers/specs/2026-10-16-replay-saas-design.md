@@ -15,7 +15,7 @@ O jogador aperta um botão na beira da quadra. O sistema salva os **últimos 30 
 | Onde roda o buffer de 30 s | **Na nuvem**, num worker 24 h que puxa o vídeo de cada câmera pelo relay do fabricante. |
 | Estrutura do buffer | **Anel de H.264 em memória** por câmera (~40 s), cortado com `ffmpeg -c copy`. |
 | Botão | **ESP32 no Wi-Fi da arena**, com HTTPS POST e token por dispositivo. |
-| Acesso do jogador | **QR por quadra, sem cadastro e sem login.** Clipes expiram (padrão 7 dias). |
+| Acesso do jogador | **QR por quadra.** A página pública lista as reservas (horário, primeiro nome, nº de lances); o **aluno** entra com e-mail e senha para ver os lances da reserva dele. Clipes expiram (padrão 7 dias). Ver "Reservas e alunos". |
 | Cliente pagante | Dono da arena. Multi-arena desde o início, com painel e cobrança. |
 | Cobrança | Provedor **a decidir** (Asaas ou Stripe). Fica atrás de uma interface. Último subprojeto. |
 | Repositório | **Repo novo e separado** (nome sugerido: `strukti-replay`). O site da Strukti só linka para ele. |
@@ -29,7 +29,7 @@ O jogador aperta um botão na beira da quadra. O sistema salva os **últimos 30 
 3. **Banda e custo 24 h por câmera.** Medir o bitrate real do stream principal antes de escolher o host.
 4. **Tempo do vídeo.** O H.264 cru não tem timestamp. Usar a hora de chegada e o fps declarado, e validar na câmera real.
 5. **Sem cliente nem quadra instalada** (`CLAUDE.md`). A cobrança automática é o item de menor evidência de necessidade. Por isso fica por último.
-6. **Privacidade.** Quem tem o QR vê todos os lances recentes da quadra. O `slug` é longo e aleatório. A quadra precisa de aviso de gravação.
+6. **Privacidade.** Quem tem o QR vê só a lista de reservas (horário e primeiro nome); os lances exigem login do aluno. O `slug` é longo e aleatório. A quadra precisa de aviso de gravação.
 
 ## Arquitetura
 
@@ -79,7 +79,7 @@ Toda tabela filha carrega `arena_id` e toda consulta filtra por ele (isolamento 
 2. O worker consulta a fila a cada ~1 s e pega o clipe da câmera que ele atende.
 3. Ele corta o anel do keyframe anterior a `recebido_em − 30 s` até `recebido_em` e gera o MP4 com `ffmpeg -c copy`. O clipe tem de 30 a ~32 s.
 4. Envia o MP4 ao R2 e marca o clipe como `pronto`, com tamanho e duração.
-5. O jogador abre `/q/<slug>` e vê os lances `prontos` e não expirados. O player usa URL assinada curta.
+5. O jogador abre `/q/<slug>` e vê a lista de reservas recentes da quadra; o aluno entra com e-mail e senha e vê os lances `prontos`/`parcial` não expirados da reserva dele. O player usa URL assinada curta.
 6. Um job de limpeza apaga, no R2 e no banco, os clipes expirados.
 
 ### Contrato da fila
@@ -120,6 +120,28 @@ Migração `0005_painel.sql`. O painel é a única parte com login.
 - Conta de dono criada por nós (`npm run criar-dono`); papel `equipe` tem o mesmo acesso de `dono` na v1.
 - `APP_URL`: URL pública do site, sem barra no fim, usada no QR.
 - Toda consulta do painel filtra por `arena_id` vindo da sessão. Id de outra arena se comporta como inexistente.
+
+## Reservas e alunos
+
+Migração `0006_reservas.sql`. O dono cadastra alunos e reservas; o aluno vê os lances das reservas dele.
+
+**Tabelas novas** (todas com `arena_id` e FKs compostas `(…, arena_id)`)
+
+- `alunos (id, arena_id, nome, email, senha_hash, criado_em)`, `unique (arena_id, email)` e `unique (id, arena_id)`. O mesmo e-mail em outra arena é outra conta.
+- `reservas (id, arena_id, quadra_id, inicio, fim, criado_em)`, `check (fim > inicio and fim - inicio <= interval '12 hours')`, `unique (id, arena_id)`, FK `(quadra_id, arena_id)` para `quadras`.
+- `reserva_alunos (reserva_id, aluno_id, arena_id)`, pk `(reserva_id, aluno_id)`, FKs compostas com `on delete cascade`.
+- `clipe_alunos (clipe_id, aluno_id, arena_id)`, pk `(clipe_id, aluno_id)`: atribuição explícita de um lance a um aluno; FKs compostas com `on delete cascade`.
+- `sessoes_aluno`: no molde de `sessoes`, com FK `(aluno_id, arena_id)` para `alunos` e `on delete cascade`.
+
+**Regras**
+
+- Reservas da mesma quadra não se sobrepõem (`inicio < outro.fim and fim > outro.inicio`); reservas encostadas (fim = início do próximo) são aceitas. Duração máxima de 12 horas. Toda reserva tem pelo menos um aluno.
+- E-mail do aluno é normalizado (trim, minúsculas). Senha com 8 ou mais caracteres, guardada com o mesmo scrypt do dono. Redefinir a senha apaga as sessões do aluno. Remover o aluno o tira das reservas e das atribuições.
+- Acesso do aluno a um lance: o lance está `pronto`/`parcial`, não expirado e (a) `recebido_em` está em `[inicio, fim]` de uma reserva da quadra da câmera do lance com o aluno nela, ou (b) há atribuição explícita do lance ao aluno. Tudo filtrado pela arena da quadra do QR.
+- Sessão do aluno separada da do dono: cookie `replay_aluno` (HttpOnly, SameSite Lax, 7 dias), presa à arena. Limite de tentativas igual ao do dono (reusa `tentativas_login`).
+- Lista pública: nunca mostra e-mail nem sobrenome; reserva sem lance pronto não aparece. Lance fora de qualquer reserva só o dono vê, e ele pode atribuí-lo a alunos.
+- Contagem de lances de uma reserva: clipes de câmeras da quadra da reserva, `pronto`/`parcial`, não expirados, com `recebido_em` entre `inicio` e `fim` inclusive.
+- As funções de `alunos.ts` e `reservas.ts` recebem o `arena_id` da sessão, validam uuid (malformado = inexistente) e nunca devolvem `senha_hash`.
 
 ## Interface do buffer
 
@@ -168,7 +190,7 @@ Ordem inicial: o agente de Captura valida a câmera real (maior risco) enquanto 
 
 ## Fora do escopo da v1
 
-Contas de jogador, alerta de câmera offline, cobrança automática, firmware, estacionamento inteligente.
+Contas de jogador além dos alunos cadastrados pelo dono, alerta de câmera offline, cobrança automática, firmware, estacionamento inteligente.
 
 ## Pendências
 
