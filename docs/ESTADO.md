@@ -12,6 +12,7 @@
 - Decisões do dono registradas no spec: `arena_id` no contrato da fila; câmera não muda de quadra (reconfiguração manual por nós).
 - `main` criada localmente a partir de `feat/worker-captura`. **Nenhum push foi feito.**
 - Plano 3, worker em produção: `docs/superpowers/plans/2026-10-16-worker-producao.md`, Tarefas 1 a 7 feitas na branch `feat/worker-producao`, **sem push**. O worker roda 24 h (`py -m replay_worker.main`): fila do Postgres, envio ao R2 com SigV4, credenciais decifradas, supervisor com câmeras do banco e status, e Dockerfile (`worker/Dockerfile`). O build da imagem não foi verificado: o Docker Desktop estava parado.
+- Plano 4, web: `docs/superpowers/plans/` (plano web), na branch `feat/web`, **sem push**. Site do jogador (`/q/<slug>`), painel do dono (login, quadras, câmera, botões, clipes) e página do QR para imprimir com o aviso de gravação (`/painel/quadras/<id>/qr`). Conferido no navegador (preview local, Postgres no Docker): login com erro mantendo o e-mail; criar quadra; cadastrar câmera (gravada cifrada, credenciais nunca voltam à tela); novo botão com o token mostrado uma única vez; `POST /api/botao/aperto` responde 202 e o clipe aparece como "Na fila" no painel; revogar botão; página do jogador em largura de celular com a lista de clipes.
 
 ## Pendências do backend (detalhe no "Ao terminar" do plano 2)
 - Deploy: `vercel.json` com `crons` para `/api/cron/limpeza`, `maxDuration`, `max` do pool ou URL de pooler, variáveis `CRON_SECRET`, `R2_*`, `CAMERA_CRED_KEY`. A `0002` fica congelada antes do primeiro deploy.
@@ -24,7 +25,7 @@
 1. Push de `main`, `feat/worker-captura` e `feat/backend` para `origin` (Strukti-Solutions/Camera_Replay), com o ok do dono.
 2. Validar na câmera real, seguindo `docs/validacao-camera.md`. Precisa do `worker/cameras.json` (formato de `cameras.example.json`) com as credenciais e do ffmpeg (`winget install Gyan.FFmpeg`). É o maior risco em aberto.
 3. Loop de produção do worker: feito (ver o Plano 3 em "Feito"). Pendente: validar na câmera real e medir `RELAY_LAG_S`; resolver TLS e DNS rebinding em `xm/`; escolher o host, publicar a imagem e fazer o deploy; verificar o build do Docker.
-4. Plano 4, Web: site do jogador (`/q/<slug>`, usa `clipesDaQuadra`) e painel do dono (sem troca de câmera de quadra).
+4. Plano 4, Web: feito (ver "Feito"). Pendente: o dono aprovar os textos e o aviso de gravação da folha do QR e a decisão de criar contas por script; deploy na Vercel com `APP_URL` e demais variáveis (com o ok do dono); validação na câmera real; TLS e DNS rebinding do `xm/`.
 
 ## Time no Maestri (workspace "goToguether", terminais com `--dir C:\Codes\Camera_Replay`)
 - Vigia (Revisor Replay, Opus), Lupa (QA Replay), Prancheta (Backlog Replay, dona da nota `backlog-replay`), Trilho (Dev Captura, standby).

@@ -560,3 +560,87 @@ video {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Folha do QR para imprimir ---------- */
+
+.folha-qr {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 24px var(--gutter);
+  text-align: center;
+}
+
+.folha-qr h2 {
+  margin: 0 0 12px;
+  font-family: var(--fonte-titulo);
+  font-size: 1.75rem;
+  line-height: 1.15;
+}
+
+.folha-qr p {
+  margin: 0 0 12px;
+}
+
+.folha-quadra {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.qr-codigo {
+  width: min(100%, 20rem);
+  margin: 16px auto;
+}
+
+.qr-codigo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.folha-url {
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+/* Impressão: só a folha, em preto sobre branco, mesmo no modo escuro. */
+@media print {
+  .faixa,
+  .nao-imprimir {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .painel {
+    padding: 0;
+    max-width: none;
+  }
+
+  .folha-qr {
+    border: 0;
+    padding: 0;
+    break-inside: avoid;
+  }
+
+  .folha-qr h2 {
+    font-size: 2.25rem;
+  }
+
+  .folha-qr p {
+    font-size: 1.25rem;
+  }
+
+  .folha-qr .folha-url {
+    font-size: 1rem;
+  }
+
+  .qr-codigo {
+    width: 14cm;
+  }
+}
