@@ -120,3 +120,23 @@ test("a cada entrada apaga sessões vencidas e tentativas com mais de 1 dia", as
   expect((await db.query("select 1 from sessoes")).rows).toHaveLength(1);
   expect((await db.query("select 1 from tentativas_login")).rows).toHaveLength(0);
 });
+
+test("tentativas concorrentes não furam o limite: no máximo 5 conferem a senha", async () => {
+  const { db } = await preparar();
+  const rs = await Promise.all(
+    Array.from({ length: 10 }, () => entrar(db, "dono@x.com", "errada", "1.1.1.1")),
+  );
+  // No máximo 5 conferem a senha; o resto é bloqueado (pode ser menos de 5 se todas
+  // inserirem antes de contar, o que é o lado seguro).
+  const conferidas = rs.filter((r) => !r.ok && r.motivo === "credenciais").length;
+  const bloqueadas = rs.filter((r) => !r.ok && r.motivo === "bloqueado").length;
+  expect(conferidas).toBeLessThanOrEqual(5);
+  expect(conferidas + bloqueadas).toBe(10);
+});
+
+test("tentativa bloqueada não deixa linha em tentativas_login", async () => {
+  const { db } = await preparar();
+  await falhas(db, "dono@x.com", "2.2.2.2", 5);
+  expect(await entrar(db, "dono@x.com", SENHA, "3.3.3.3")).toEqual({ ok: false, motivo: "bloqueado" });
+  expect((await db.query("select 1 from tentativas_login")).rows).toHaveLength(5);
+});

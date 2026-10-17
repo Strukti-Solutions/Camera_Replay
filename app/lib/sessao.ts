@@ -30,16 +30,28 @@ export async function entrar(db: Db, email: string, senha: string, ip: string): 
   await db.query("delete from sessoes where expira_em < now()");
   await db.query("delete from tentativas_login where em < now() - interval '1 day'");
 
-  // O bloqueio vem antes de conferir a senha.
+  // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
+  // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
+  const ins = await db.query<{ id: string }>(
+    "insert into tentativas_login (email, ip) values ($1, $2) returning id",
+    [emailNorm, ip],
+  );
+  const idTentativa = ins.rows[0].id;
+
+  // A contagem inclui a própria tentativa, por isso o bloqueio é com ">".
   const falhas = await db.query<{ por_email: number; por_ip: number }>(
     `select count(*) filter (where email = $1)::int as por_email,
             count(*) filter (where ip = $2)::int as por_ip
        from tentativas_login
-      where em > now() - make_interval(mins => $3)`,
+      where em > now() - make_interval(mins => $3) and (email = $1 or ip = $2)`,
     [emailNorm, ip, JANELA_MIN],
   );
   const { por_email, por_ip } = falhas.rows[0];
-  if (por_email >= LIMITE_EMAIL || por_ip >= LIMITE_IP) return { ok: false, motivo: "bloqueado" };
+  if (por_email > LIMITE_EMAIL || por_ip > LIMITE_IP) {
+    // Tentativa bloqueada não prolonga o bloqueio.
+    await db.query("delete from tentativas_login where id = $1", [idTentativa]);
+    return { ok: false, motivo: "bloqueado" };
+  }
 
   const u = await db.query<{ id: string; arena_id: string; senha_hash: string }>(
     "select id, arena_id, senha_hash from usuarios where email = $1",
@@ -47,11 +59,9 @@ export async function entrar(db: Db, email: string, senha: string, ip: string): 
   );
   const usuario = u.rows[0];
   const certa = await conferirSenha(senha, usuario ? usuario.senha_hash : await obterHashFalso());
-  if (!usuario || !certa) {
-    await db.query("insert into tentativas_login (email, ip) values ($1, $2)", [emailNorm, ip]);
-    return { ok: false, motivo: "credenciais" };
-  }
+  if (!usuario || !certa) return { ok: false, motivo: "credenciais" };
 
+  // Apaga as falhas do e-mail (inclui a linha desta tentativa).
   await db.query("delete from tentativas_login where email = $1", [emailNorm]);
   const token = novoToken();
   const r = await db.query<{ expira_em: Date }>(
