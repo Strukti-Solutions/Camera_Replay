@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
-import { ErroR2 } from "../app/lib/r2";
+import { ErroR2, chaveDoClipe } from "../app/lib/r2";
 import { criarHandlerLimpeza, limparExpirados } from "../app/lib/limpeza";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -19,7 +19,7 @@ async function montar(db: Db) {
 async function clipe(
   db: Db,
   c: Awaited<ReturnType<typeof montar>>,
-  o: { expiraEmSeg: number; status?: string; chave?: string | null; idadeSeg?: number },
+  o: { expiraEmSeg: number; status?: string; chave?: string | null | "valida"; idadeSeg?: number },
 ): Promise<string> {
   const a = await db.query<{ id: string }>(
     `insert into apertos (arena_id, botao_id, recebido_em)
@@ -32,7 +32,12 @@ async function clipe(
        from apertos where id = $1 returning id`,
     [a.rows[0].id, c.camera.id, o.status ?? "pronto", o.chave ?? null, o.expiraEmSeg],
   );
-  return r.rows[0].id;
+  const id = r.rows[0].id;
+  // "valida": a chave que o worker grava (clipes/<arena>/<clipe>.mp4).
+  if (o.chave === "valida") {
+    await db.query("update clipes set chave_r2 = $2 where id = $1", [id, chaveDoClipe(c.arena.id, id)]);
+  }
+  return id;
 }
 
 const ids = async (db: Db) =>
@@ -48,13 +53,13 @@ const r2Falso = (falhaEm: string[] = []) => {
 test("apaga no R2 e no banco só os expirados", async () => {
   const db = await novoBanco();
   const a = await montar(db);
-  await clipe(db, a, { expiraEmSeg: -60, chave: "clipes/x/velho.mp4" });
-  const novo = await clipe(db, a, { expiraEmSeg: 3600, chave: "clipes/x/novo.mp4" });
+  const velho = await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
+  const novo = await clipe(db, a, { expiraEmSeg: 3600, chave: "valida" });
   const r2 = r2Falso();
   const res = await limparExpirados(db, r2);
   expect(res).toEqual({ apagados: 1, erros: 0, presos: 0 });
   expect(r2.apagar).toHaveBeenCalledTimes(1);
-  expect(r2.apagar).toHaveBeenCalledWith("clipes/x/velho.mp4");
+  expect(r2.apagar).toHaveBeenCalledWith(chaveDoClipe(a.arena.id, velho));
   expect(await ids(db)).toEqual([novo]);
 });
 
@@ -71,10 +76,10 @@ test("clipe expirado sem chave_r2 (falhou) é apagado sem chamar o R2", async ()
 test("erro no R2 mantém a linha e segue para os outros; a próxima rodada tenta de novo", async () => {
   const db = await novoBanco();
   const a = await montar(db);
-  const primeiro = await clipe(db, a, { expiraEmSeg: -120, chave: "clipes/x/1.mp4" });
-  await clipe(db, a, { expiraEmSeg: -60, chave: "clipes/x/2.mp4" });
+  const primeiro = await clipe(db, a, { expiraEmSeg: -120, chave: "valida" });
+  await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
   vi.spyOn(console, "error").mockImplementation(() => {});
-  const r2 = r2Falso(["clipes/x/1.mp4"]);
+  const r2 = r2Falso([chaveDoClipe(a.arena.id, primeiro)]);
   expect(await limparExpirados(db, r2)).toEqual({ apagados: 1, erros: 1, presos: 0 });
   expect(await ids(db)).toEqual([primeiro]);
   // R2 volta: a rodada seguinte apaga o que sobrou.
@@ -85,8 +90,8 @@ test("erro no R2 mantém a linha e segue para os outros; a próxima rodada tenta
 test("falha ao apagar a linha conta como erro e não interrompe a rodada", async () => {
   const db = await novoBanco();
   const a = await montar(db);
-  await clipe(db, a, { expiraEmSeg: -120, chave: "clipes/x/1.mp4" });
-  await clipe(db, a, { expiraEmSeg: -60, chave: "clipes/x/2.mp4" });
+  await clipe(db, a, { expiraEmSeg: -120, chave: "valida" });
+  await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
   vi.spyOn(console, "error").mockImplementation(() => {});
   let deletes = 0;
   const envolto: Db = {
@@ -103,10 +108,44 @@ test("falha ao apagar a linha conta como erro e não interrompe a rodada", async
 test("respeita o limite por rodada", async () => {
   const db = await novoBanco();
   const a = await montar(db);
-  for (let i = 0; i < 3; i++) await clipe(db, a, { expiraEmSeg: -60 - i, chave: `clipes/x/${i}.mp4` });
-  const res = await limparExpirados(db, r2Falso(), 2);
+  // Inseridos do menos antigo para o mais antigo, para a ordem de inserção não ajudar.
+  const recente = await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
+  const meio = await clipe(db, a, { expiraEmSeg: -120, chave: "valida" });
+  const antigo = await clipe(db, a, { expiraEmSeg: -180, chave: "valida" });
+  const r2 = r2Falso();
+  const res = await limparExpirados(db, r2, 2);
   expect(res.apagados).toBe(2);
-  expect(await ids(db)).toHaveLength(1);
+  // Sobra o de expira_em mais recente: os apagados são os mais antigos.
+  expect(await ids(db)).toEqual([recente]);
+  expect(r2.apagar.mock.calls.map((c) => c[0]).sort()).toEqual(
+    [chaveDoClipe(a.arena.id, meio), chaveDoClipe(a.arena.id, antigo)].sort(),
+  );
+});
+
+test("chave_r2 diferente de chaveDoClipe conta como erro e não apaga nada (nem R2 nem linha)", async () => {
+  const db = await novoBanco();
+  const a = await montar(db);
+  const b = await montar(db);
+  const alvo = await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
+  const adulterados = [
+    await clipe(db, a, { expiraEmSeg: -61, chave: "clipes/x/qualquer.mp4" }),
+    await clipe(db, a, { expiraEmSeg: -62, chave: "valida" }),
+    await clipe(db, a, { expiraEmSeg: -63, chave: "valida" }),
+  ];
+  // Chave de outro clipe da mesma arena e chave que aponta para outra arena.
+  await db.query("update clipes set chave_r2 = $2 where id = $1", [adulterados[1], chaveDoClipe(a.arena.id, alvo)]);
+  await db.query("update clipes set chave_r2 = $2 where id = $1", [adulterados[2], chaveDoClipe(b.arena.id, adulterados[2])]);
+  const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+  const r2 = r2Falso();
+  const res = await limparExpirados(db, r2);
+  expect(res).toEqual({ apagados: 1, erros: 3, presos: 0 });
+  expect(r2.apagar).toHaveBeenCalledTimes(1);
+  expect(r2.apagar).toHaveBeenCalledWith(chaveDoClipe(a.arena.id, alvo));
+  expect((await ids(db)).sort()).toEqual([...adulterados].sort());
+  const log = JSON.stringify(erro.mock.calls);
+  for (const id of adulterados) expect(log).toContain(id);
+  expect(log).not.toContain("qualquer.mp4");
+  expect(log).not.toContain(b.arena.id);
 });
 
 test("também roda o reaper e devolve presos", async () => {
@@ -129,9 +168,9 @@ async function rota(o: { segredo?: string; comR2?: boolean } = {}) {
   const segredo = "segredo" in o ? o.segredo : SEGREDO;
   const db = await novoBanco();
   const a = await montar(db);
-  await clipe(db, a, { expiraEmSeg: -60, chave: "clipes/x/1.mp4" });
+  const id = await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
   const r2 = r2Falso();
-  return { db, r2, handler: criarHandlerLimpeza(db, o.comR2 === false ? null : r2, segredo) };
+  return { db, r2, chave: chaveDoClipe(a.arena.id, id), handler: criarHandlerLimpeza(db, o.comR2 === false ? null : r2, segredo) };
 }
 
 test("rota: 401 sem Bearer, com segredo errado ou de tamanho diferente; nada é apagado", async () => {
@@ -160,12 +199,12 @@ test("rota: 401 sem Bearer, com segredo errado ou de tamanho diferente; nada é 
 });
 
 test("rota: 200 com o segredo certo devolve o resultado em JSON", async () => {
-  const { db, r2, handler } = await rota();
+  const { db, r2, chave, handler } = await rota();
   const r = await handler(get(`Bearer ${SEGREDO}`));
   expect(r.status).toBe(200);
   expect(r.headers.get("cache-control")).toBe("no-store");
   expect(await r.json()).toEqual({ apagados: 1, erros: 0, presos: 0 });
-  expect(r2.apagar).toHaveBeenCalledWith("clipes/x/1.mp4");
+  expect(r2.apagar).toHaveBeenCalledWith(chave);
   expect(await ids(db)).toEqual([]);
 });
 

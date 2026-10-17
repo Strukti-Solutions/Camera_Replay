@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Db } from "./db";
+import { chaveDoClipe } from "./r2";
 
 export type ApagadorR2 = { apagar(chave: string): Promise<void> };
 export type ResultadoLimpeza = { apagados: number; erros: number; presos: number };
@@ -38,6 +39,11 @@ export async function limparExpirados(
   let erros = 0;
   for (const c of rows) {
     try {
+      // Só apaga o objeto que o worker gravaria para este clipe. Uma chave de
+      // outro clipe ou de outra arena (linha adulterada ou bug) não é apagada.
+      if (c.chave_r2 && c.chave_r2 !== chaveDoClipe(c.arena_id, c.id)) {
+        throw new Error("chave_r2 diverge de chaveDoClipe");
+      }
       if (c.chave_r2) await r2.apagar(c.chave_r2);
       await db.query("delete from clipes where id = $1 and arena_id = $2", [c.id, c.arena_id]);
       apagados++;
