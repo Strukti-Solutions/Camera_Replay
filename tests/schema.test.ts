@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { cpSync, mkdtempSync, readdirSync } from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { migrar } from "../db/migrar";
@@ -265,30 +265,34 @@ test("dias_retencao: padrão 3, aceita 1 a 3 e recusa 0 e 4", async () => {
 test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem aumentar os menores", async () => {
   // Banco parado na 0006, com dados no formato antigo.
   const pasta = mkdtempSync(join(tmpdir(), "mig-"));
-  const todas = join(__dirname, "..", "db", "migrations");
-  for (const f of readdirSync(todas).filter((x) => x < "0007")) cpSync(join(todas, f), join(pasta, f));
-  const db = await novoBanco(pasta);
+  try {
+    const todas = join(__dirname, "..", "db", "migrations");
+    for (const f of readdirSync(todas).filter((x) => x < "0007")) cpSync(join(todas, f), join(pasta, f));
+    const db = await novoBanco(pasta);
 
-  const a = await criarArena(db);
-  await db.query("update arenas set dias_retencao = 7 where id = $1", [a.id]);
-  const b = await criarArena(db);
-  await db.query("update arenas set dias_retencao = 2 where id = $1", [b.id]);
-  const q = await criarQuadra(db, a.id);
-  const c = await criarCamera(db, a.id, q.id);
-  const bt = await criarBotao(db, a.id, q.id, c.id);
-  const inserir = async (dias: number) => (await db.query<{ id: string }>(
-    `insert into clipes (arena_id, aperto_id, camera_id, recebido_em, expira_em)
-     values ($1, $2, $3, now(), now() + make_interval(days => $4)) returning id`,
-    [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
-  const sete = await inserir(7), um = await inserir(1);
+    const a = await criarArena(db);
+    await db.query("update arenas set dias_retencao = 7 where id = $1", [a.id]);
+    const b = await criarArena(db);
+    await db.query("update arenas set dias_retencao = 2 where id = $1", [b.id]);
+    const q = await criarQuadra(db, a.id);
+    const c = await criarCamera(db, a.id, q.id);
+    const bt = await criarBotao(db, a.id, q.id, c.id);
+    const inserir = async (dias: number) => (await db.query<{ id: string }>(
+      `insert into clipes (arena_id, aperto_id, camera_id, recebido_em, expira_em)
+       values ($1, $2, $3, now(), now() + make_interval(days => $4)) returning id`,
+      [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
+    const sete = await inserir(7), um = await inserir(1);
 
-  expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql"]);
+    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql"]);
 
-  const ar = await db.query("select id, dias_retencao from arenas");
-  expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
-  const cl = await db.query(
-    "select id, (expira_em = recebido_em + interval '3 days') as tres, (expira_em = recebido_em + interval '1 day') as um from clipes");
-  const por = Object.fromEntries(cl.rows.map((x) => [x.id, x]));
-  expect(por[sete].tres).toBe(true);
-  expect(por[um].um).toBe(true); // prazo menor que 3 dias fica como estava
+    const ar = await db.query("select id, dias_retencao from arenas");
+    expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
+    const cl = await db.query(
+      "select id, (expira_em = recebido_em + interval '3 days') as tres, (expira_em = recebido_em + interval '1 day') as um from clipes");
+    const por = Object.fromEntries(cl.rows.map((x) => [x.id, x]));
+    expect(por[sete].tres).toBe(true);
+    expect(por[um].um).toBe(true); // prazo menor que 3 dias fica como estava
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
 });

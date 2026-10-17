@@ -1121,16 +1121,6 @@ video {
   margin-bottom: 0.25rem;
 }
 
-.entrar-voltar {
-  margin-top: 1.5rem;
-}
-
-.entrar-voltar a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--alvo);
-}
-
 .quadra-publica {
   padding-block: 1.25rem 3rem;
 }
@@ -1153,8 +1143,8 @@ video {
   margin: 0;
 }
 
-/* Modelo de tabela (avatar, nome, status) virado cartão empilhado: no
-   celular cada reserva é uma linha de toque, sem rolagem lateral. */
+/* Cada reserva do aluno é um cartão empilhado: no celular é uma linha de
+   toque, sem rolagem lateral. */
 .reservas {
   list-style: none;
   margin: 0;
@@ -1165,20 +1155,16 @@ video {
 
 .reserva {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "avatares texto acao"
-    "avatares selo acao";
+    "texto acao"
+    "selo acao";
   align-items: center;
   gap: 0.35rem 0.75rem;
   padding: 0.75rem 1rem;
   background: var(--superficie);
   border: 2px solid var(--borda);
   border-radius: var(--raio);
-}
-
-.reserva .avatares {
-  grid-area: avatares;
 }
 
 .reserva-texto {
@@ -1202,26 +1188,4 @@ video {
 
 .reserva-acao {
   grid-area: acao;
-}
-
-.cadeado {
-  display: grid;
-  place-items: center;
-  width: var(--alvo);
-  height: var(--alvo);
-  color: var(--tinta-suave);
-}
-
-.cadeado-link {
-  border: 2px solid var(--borda);
-  border-radius: 50%;
-  color: var(--link);
-}
-
-.cadeado-link:hover {
-  border-color: currentColor;
-}
-
-.cadeado-link:focus-visible {
-  border-radius: 50%;
 }

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
-import { quadraDoSlugPublica, reservasDoAluno, validarSessaoAluno, type SessaoAluno } from "@/app/lib/acesso-aluno";
+import { quadraDoSlugPublica, validarSessaoAluno, type SessaoAluno } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { sessaoDaArena } from "./apresentacao";
 
@@ -15,21 +15,12 @@ export const sessaoDoCookie = cache(async (): Promise<SessaoAluno | null> => {
 });
 
 // Quadra do slug e o aluno logado nela. Sessão de outra arena vale como "não
-// logado". null se o slug não existe. Sem lista pública: só o aluno logado recebe
-// reservas, e são as dele. `primeirosNomes` e `minha` ficam como ponte até a
-// Tarefa 18 trocar a página (que ainda os lê).
+// logado". null se o slug não existe. Não traz reserva nenhuma: a página que
+// precisa das reservas do aluno busca com reservasDoAluno.
 // cache() evita repetir as consultas entre metadata e página no mesmo pedido.
 export const quadraEAluno = cache(async (slug: string) => {
   const sessao = await sessaoDoCookie();
-  const pool = poolCompartilhado();
-  const quadra = await quadraDoSlugPublica(pool, slug);
+  const quadra = await quadraDoSlugPublica(poolCompartilhado(), slug);
   if (!quadra) return null;
-  const aluno = sessaoDaArena(sessao, quadra.arenaId);
-  const dados = aluno ? await reservasDoAluno(pool, slug, aluno.alunoId) : null;
-  return {
-    quadra: quadra.quadra,
-    arenaId: quadra.arenaId,
-    reservas: (dados?.reservas ?? []).map((r) => ({ ...r, primeirosNomes: [] as string[], minha: true })),
-    aluno,
-  };
+  return { quadra: quadra.quadra, arenaId: quadra.arenaId, aluno: sessaoDaArena(sessao, quadra.arenaId) };
 });

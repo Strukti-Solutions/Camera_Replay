@@ -19,7 +19,7 @@ export default async function MeusLances({ params }: Props) {
   const { slug } = await params;
   const dados = await quadraEAluno(slug);
   if (!dados) notFound();
-  if (!dados.aluno) redirect(`/q/${slug}/entrar`);
+  if (!dados.aluno) redirect(`/q/${slug}`);
 
   const { r2, videosDisponiveis } = leitorR2();
   const clipes = await lancesAvulsosDoAluno(poolCompartilhado(), r2, slug, dados.aluno.alunoId);

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   destinoAposEntrar,
+  primeiroNome,
   sessaoDaArena,
   textoDia,
   textoLances,
@@ -51,4 +52,10 @@ test("sessão de outra arena conta como não logado", () => {
   expect(sessaoDaArena(sessao, "arena-1")).toBe(sessao);
   expect(sessaoDaArena(sessao, "arena-2")).toBeNull();
   expect(sessaoDaArena(null, "arena-1")).toBeNull();
+});
+
+test("saudação usa só o primeiro nome do aluno", () => {
+  expect(primeiroNome("Lucas Andrade Souza")).toBe("Lucas");
+  expect(primeiroNome("  Marina   Costa ")).toBe("Marina");
+  expect(primeiroNome("Pedro")).toBe("Pedro");
 });

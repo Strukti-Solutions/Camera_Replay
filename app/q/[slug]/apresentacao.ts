@@ -22,6 +22,11 @@ export function tituloReserva(inicio: Date, fim: Date, agora: Date = new Date())
   return `${textoReserva(inicio, fim)} · ${textoDia(inicio, agora)}`;
 }
 
+// Só a primeira palavra do nome: o celular pode ser de outra pessoa olhando junto.
+export function primeiroNome(nome: string): string {
+  return nome.trim().split(/\s+/)[0];
+}
+
 export function textoLances(n: number): string {
   return n === 1 ? "1 lance" : `${n} lances`;
 }

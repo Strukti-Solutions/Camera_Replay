@@ -174,7 +174,7 @@ test("chave de tentativa por conta: aluno:<arena>:<email>, slug desconhecido usa
 test("criarAluno normaliza tab e espaço não separável do nome", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
-  const novo = await criarAluno(db, s.a.id, { nome: "Caio 	Mota", email: "caio@x.com", senha: SENHA });
+  const novo = await criarAluno(db, s.a.id, { nome: "Caio\u00a0\tMota", email: "caio@x.com", senha: SENHA });
   const n = await db.query<{ nome: string }>("select nome from alunos where id = $1", [novo.id]);
   expect(n.rows[0].nome).toBe("Caio Mota");
 });
