@@ -210,3 +210,53 @@ test("apagarClipe apaga no R2 e depois a linha; recusa em andamento; erro do R2 
   expect(await existe(pronto)).toBe(false);
   expect(await apagarClipe(db, r2, s.a.id, pronto)).toBe(false);
 });
+
+test("id malformado vale como inexistente, sem exceção e sem ir ao banco", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const consulta = vi.spyOn(db, "query");
+  const r2 = r2Apagador();
+  const cred = { authcode: "x", local_user: "y", local_pwd: "z" };
+  for (const ruim of ["abc", "' or 1=1 --"]) {
+    expect(await listarQuadras(db, ruim)).toEqual([]);
+    expect(await detalheQuadra(db, s.a.id, ruim)).toBeNull();
+    expect(await detalheQuadra(db, ruim, s.qa.id)).toBeNull();
+    expect(await cadastrarCamera(db, chave, s.a.id, ruim, dadosCam)).toBeNull();
+    expect(await cadastrarCamera(db, chave, ruim, s.qa.id, dadosCam)).toBeNull();
+    expect(await atualizarCredenciais(db, chave, s.a.id, ruim, cred)).toBe(false);
+    expect(await atualizarCredenciais(db, chave, ruim, s.ca.id, cred)).toBe(false);
+    expect(await criarBotao(db, s.a.id, ruim)).toBeNull();
+    expect(await criarBotao(db, ruim, s.qa.id)).toBeNull();
+    expect(await revogarBotao(db, s.a.id, ruim)).toBe(false);
+    expect(await revogarBotao(db, ruim, s.ba.id)).toBe(false);
+    expect(await clipesDoPainel(db, r2Leitor(), s.a.id, ruim)).toEqual([]);
+    expect(await clipesDoPainel(db, r2Leitor(), ruim, s.qa.id)).toEqual([]);
+    expect(await apagarClipe(db, r2, s.a.id, ruim)).toBe(false);
+    expect(await apagarClipe(db, r2, ruim, s.ba.id)).toBe(false);
+    await expect(criarQuadra(db, ruim, "Q")).rejects.toThrow(ErroPainel);
+  }
+  expect(consulta).not.toHaveBeenCalled();
+  expect(r2.apagar).not.toHaveBeenCalled();
+});
+
+test("apagarClipe: chave_r2 divergente lança sem tocar no R2 e mantém a linha", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const id = await clipe(db, s.a.id, s.ba.id, s.ca.id);
+  await db.query("update clipes set chave_r2 = 'clipes/outra/coisa.mp4' where id = $1", [id]);
+  const r2 = r2Apagador();
+  await expect(apagarClipe(db, r2, s.a.id, id)).rejects.toThrow(ErroPainel);
+  expect(r2.apagar).not.toHaveBeenCalled();
+  expect((await db.query("select 1 from clipes where id = $1", [id])).rows).toHaveLength(1);
+});
+
+test("apagarClipe: falhou sem chave_r2 apaga a linha sem chamar o R2", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const id = await clipe(db, s.a.id, s.ba.id, s.ca.id, { status: "falhou", motivo: "x" });
+  await db.query("update clipes set chave_r2 = null where id = $1", [id]);
+  const r2 = r2Apagador();
+  expect(await apagarClipe(db, r2, s.a.id, id)).toBe(true);
+  expect(r2.apagar).not.toHaveBeenCalled();
+  expect((await db.query("select 1 from clipes where id = $1", [id])).rows).toHaveLength(0);
+});

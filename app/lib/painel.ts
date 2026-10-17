@@ -29,6 +29,11 @@ export type ClipePainel = {
   url: string | null;
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Id malformado nunca vai ao banco (o Postgres erraria com 22P02 e eco da entrada):
+// vale como inexistente.
+const ehUuid = (id: unknown): id is string => typeof id === "string" && UUID.test(id);
+
 // Câmera conta como online se o worker se anunciou nos últimos 60 s.
 const JANELA_ONLINE_SEG = 60;
 const LIMITE_CLIPES = 50;
@@ -69,6 +74,7 @@ export async function listarQuadras(
   db: Db,
   arenaId: string,
 ): Promise<{ id: string; nome: string; slug: string; camera: CameraPainel | null; botoesAtivos: number }[]> {
+  if (!ehUuid(arenaId)) return [];
   const { rows } = await db.query<LinhaCamera & { id: string; nome: string; slug: string; botoes_ativos: number }>(
     `select q.id, q.nome, q.slug, ${COLUNAS_CAMERA},
             (select count(*) from botoes b
@@ -99,6 +105,7 @@ export async function detalheQuadra(
   camera: CameraPainel | null;
   botoes: { id: string; criadoEm: Date; vistoEm: Date | null; revogadoEm: Date | null }[];
 } | null> {
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return null;
   const { rows } = await db.query<LinhaCamera & { id: string; nome: string; slug: string }>(
     `select q.id, q.nome, q.slug, ${COLUNAS_CAMERA}
        from quadras q
@@ -138,6 +145,7 @@ export async function criarQuadra(
   if (limpo.length < 1 || limpo.length > 60) {
     throw new ErroPainel("nome inválido");
   }
+  if (!ehUuid(arenaId)) throw new ErroPainel("arena inválida");
   const slug = novoSlug();
   const r = await db.query<{ id: string }>(
     "insert into quadras (arena_id, nome, slug) values ($1, $2, $3) returning id",
@@ -162,6 +170,7 @@ export async function cadastrarCamera(
   quadraId: string,
   dados: { nome: string; sn: string; authcode: string; local_user: string; local_pwd: string },
 ): Promise<{ id: string } | null> {
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return null;
   const v = esquemaCamera.safeParse(dados);
   // Mensagem fixa: nada do que foi digitado volta no erro.
   if (!v.success) throw new ErroPainel("dados da câmera inválidos");
@@ -192,6 +201,7 @@ export async function atualizarCredenciais(
   cameraId: string,
   dados: { authcode: string; local_user: string; local_pwd: string },
 ): Promise<boolean> {
+  if (!ehUuid(arenaId) || !ehUuid(cameraId)) return false;
   const v = esquemaCredenciais.safeParse(dados);
   if (!v.success) throw new ErroPainel("dados da câmera inválidos");
   const credenciais = cifrarCredenciais(v.data, chave);
@@ -209,6 +219,7 @@ export async function criarBotao(
   arenaId: string,
   quadraId: string,
 ): Promise<{ id: string; token: string } | null> {
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return null;
   const q = await db.query("select 1 from quadras where id = $1 and arena_id = $2", [quadraId, arenaId]);
   if (q.rows.length === 0) return null;
   const c = await db.query<{ id: string }>(
@@ -229,6 +240,7 @@ export async function criarBotao(
 }
 
 export async function revogarBotao(db: Db, arenaId: string, botaoId: string): Promise<boolean> {
+  if (!ehUuid(arenaId) || !ehUuid(botaoId)) return false;
   const r = await db.query(
     `update botoes set revogado_em = now()
       where id = $1 and arena_id = $2 and revogado_em is null returning id`,
@@ -245,6 +257,7 @@ export async function clipesDoPainel(
   arenaId: string,
   quadraId: string,
 ): Promise<ClipePainel[]> {
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return [];
   const { rows } = await db.query<{
     id: string;
     recebido_em: Date;
@@ -287,6 +300,7 @@ export async function apagarClipe(
   arenaId: string,
   clipeId: string,
 ): Promise<boolean> {
+  if (!ehUuid(arenaId) || !ehUuid(clipeId)) return false;
   const { rows } = await db.query<{ status: string; chave_r2: string | null }>(
     "select status, chave_r2 from clipes where id = $1 and arena_id = $2",
     [clipeId, arenaId],
