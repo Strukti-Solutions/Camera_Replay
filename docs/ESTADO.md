@@ -11,6 +11,7 @@
   - Cliente R2, limpeza de expirados com rota de cron, lista pública da quadra e cifra das credenciais (AES-256-GCM, formato v1).
 - Decisões do dono registradas no spec: `arena_id` no contrato da fila; câmera não muda de quadra (reconfiguração manual por nós).
 - `main` criada localmente a partir de `feat/worker-captura`. **Nenhum push foi feito.**
+- Plano 3, worker em produção: `docs/superpowers/plans/` (worker-producao), Tarefas 1 a 7 feitas na branch `feat/worker-producao`, **sem push**. O worker roda 24 h (`py -m replay_worker.main`): fila do Postgres, envio ao R2 com SigV4, credenciais decifradas, supervisor com câmeras do banco e status, e Dockerfile (`worker/Dockerfile`). O build da imagem não foi verificado: o Docker Desktop estava parado.
 
 ## Pendências do backend (detalhe no "Ao terminar" do plano 2)
 - Deploy: `vercel.json` com `crons` para `/api/cron/limpeza`, `maxDuration`, `max` do pool ou URL de pooler, variáveis `CRON_SECRET`, `R2_*`, `CAMERA_CRED_KEY`. A `0002` fica congelada antes do primeiro deploy.
@@ -22,7 +23,7 @@
 ## Próximos passos
 1. Push de `main`, `feat/worker-captura` e `feat/backend` para `origin` (Strukti-Solutions/Camera_Replay), com o ok do dono.
 2. Validar na câmera real, seguindo `docs/validacao-camera.md`. Precisa do `worker/cameras.json` (formato de `cameras.example.json`) com as credenciais e do ffmpeg (`winget install Gyan.FFmpeg`). É o maior risco em aberto.
-3. Loop de produção do worker (dono `captura`): `PgJobQueue` sobre as funções SQL, `R2Uploader`, apagar o objeto no R2 quando `marcar_pronto` devolve `false`, savepoint em volta do `marcar_pronto` (o erro 22023 aborta a transação), decifrar credenciais (`cifra || tag`), latência do relay, fps por câmera, relógio único e Dockerfile.
+3. Loop de produção do worker: feito (ver "Feito"). Pendente: validar na câmera real e medir `RELAY_LAG_S`; resolver TLS e DNS rebinding em `xm/`; escolher o host, publicar a imagem e fazer o deploy; verificar o build do Docker.
 4. Plano 3, Web: site do jogador (`/q/<slug>`, usa `clipesDaQuadra`) e painel do dono (sem troca de câmera de quadra).
 
 ## Time no Maestri (workspace "goToguether", terminais com `--dir C:\Codes\Camera_Replay`)

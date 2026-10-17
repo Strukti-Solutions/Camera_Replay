@@ -6,10 +6,22 @@
 - **DNS rebinding** em `_check_remote`: um host `*.secu100.net` pode resolver para IP privado.
 - **ffmpeg nunca executado de verdade**: instalar e rodar `tests/test_mux.py`.
 - **Validação na câmera real**: ver `docs/validacao-camera.md`.
-- **Latência do relay e fps por câmera** no loop de produção.
-- **Relógio único**: `pressed_at` vem do Postgres e o anel usa `time.time()` do worker. Usar NTP no worker ou `now()` do banco.
+
+## Resolvido no plano worker-producao
+- Relógio único: o worker usa o relógio do banco.
+- Latência do relay e fps por câmera no loop de produção (`RELAY_LAG_S`; falta medir o valor na câmera real).
+- `MemoryQueue` e `LocalDirUploader` deixaram de ser o caminho de produção (fila do Postgres com `SKIP LOCKED` e envio ao R2).
+- Objeto órfão no R2 quando `mark_ready` falha: o worker apaga a chave e marca `falhou`.
 
 ## Dívida (não bloqueia)
+
+### supervisor / fila (main.py, queue)
+- `stop()` e o `refresh` fazem join serial de 5 s por câmera.
+- `psycopg.connect` sem `connect_timeout`.
+- `WORKER_POLL_S <= 0` vira laço ocupado.
+- O sinal de parada não acorda a espera do relay.
+- `_exec` só derruba a conexão em `OperationalError`.
+- O teste de integração do Postgres nunca rodou contra um banco real.
 
 ### h264.py
 - Faltam testes de start code de 4 bytes fora do offset 0, start code truncado no fim e bit proibido no meio.
@@ -45,11 +57,8 @@
 - `RelaySource.close` só captura OSError.
 - `stop` com fluxo mudo leva até 15 s (`read_timeout`).
 
-### clipper.py / local.py
-- `LocalDirUploader` sem proteção a path traversal e sem escrita atômica.
-- `MemoryQueue` sem lock (o claim real precisa ser atômico: `FOR UPDATE SKIP LOCKED`).
+### clipper.py
 - Retry sem backoff nem log por tentativa.
-- `mark_ready` falhando após o upload deixa objeto órfão no R2 (lifecycle do bucket).
 
 ### smoke.py
 - `--wait` atrasa até 5 s.
