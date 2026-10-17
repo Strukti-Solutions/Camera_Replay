@@ -1,12 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
@@ -14,6 +14,7 @@ import {
 import {
   PERSPECTIVA,
   VAO,
+  alvoAposMudanca,
   alvoMaisCurto,
   arremesso,
   deslocamento,
@@ -37,13 +38,6 @@ export type LanceDoCarrossel = {
   download: string;
 };
 
-// Só desenha no navegador. Sem JavaScript quem aparece é a lista do
-// <noscript>; assim a página nunca mostra cartões empilhados sem posição.
-const nadaAssinar = () => () => {};
-function useNoNavegador() {
-  return useSyncExternalStore(nadaAssinar, () => true, () => false);
-}
-
 function prefereMenosMovimento() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -61,7 +55,7 @@ type Arraste = {
 export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
   const total = lances.length;
   const loop = usaLoop(total);
-  const noNavegador = useNoNavegador();
+  const router = useRouter();
 
   const cartoesRef = useRef<(HTMLDivElement | null)[]>([]);
   const botoesRef = useRef<(HTMLButtonElement | null)[]>([]);
@@ -79,7 +73,18 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
 
   const [selecionado, setSelecionado] = useState(0);
   const [abertoId, setAbertoId] = useState<string | null>(null);
+  // Vem do servidor só com o cartão do centro à mostra (rede lenta ou JS
+  // quebrado ainda mostram capa e legenda); a montagem libera os demais.
+  const [pronto, setPronto] = useState(false);
+  // Capas que falharam, pela URL: um link renovado é tentado de novo.
   const [semCapa, setSemCapa] = useState<ReadonlySet<string>>(new Set());
+  // Mesma trava do VideoClipe: um refresh por expiração, sem laço. Só solta
+  // quando volta a carregar a capa de um lance que tinha falhado (expiração
+  // recuperada); capa que nunca existiu não solta e não gera novo refresh.
+  const capaTravada = useRef(false);
+  const lancesQueFalharam = useRef(new Set<string>());
+  // Lance do centro pelo id: um lance novo no topo não troca o que está no centro.
+  const idDoCentro = useRef<string | undefined>(undefined);
 
   cartoesRef.current.length = total;
   botoesRef.current.length = total;
@@ -203,6 +208,18 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
     botoesRef.current[novo]?.focus({ preventScroll: true });
   };
 
+  const capaFalhou = (id: string, capa: string) => {
+    setSemCapa((s) => new Set(s).add(capa));
+    lancesQueFalharam.current.add(id);
+    if (capaTravada.current) return;
+    capaTravada.current = true;
+    router.refresh();
+  };
+
+  const capaCarregou = (id: string) => {
+    if (lancesQueFalharam.current.delete(id)) capaTravada.current = false;
+  };
+
   const tocarCartao = (indice: number, id: string, e: MouseEvent<HTMLButtonElement>) => {
     // detail 0 = clique vindo do teclado (Enter/Espaço), nunca de arraste.
     if (e.detail !== 0 && moveuRef.current) {
@@ -216,7 +233,6 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
   // A largura do cartão define passo, recuo e perspectiva: mede só quando a
   // caixa muda de fato.
   useLayoutEffect(() => {
-    if (!noNavegador) return;
     const medir = () => {
       const cartao = cartoesRef.current[0];
       if (!cartao) return;
@@ -224,19 +240,41 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
       pintar();
     };
     medir();
+    // Pintou antes de liberar: a troca de classe acontece antes do navegador
+    // desenhar, sem salto.
+    setPronto(true);
     const observador = new ResizeObserver(medir);
     if (cartoesRef.current[0]?.parentElement) observador.observe(cartoesRef.current[0].parentElement);
     return () => observador.disconnect();
-  }, [noNavegador, pintar]);
+  }, [pintar]);
 
-  // Lista mudou (Atualizar lista ou renovação de link): mantém o centro válido.
+  // A capa do centro vem no HTML e pode ter falhado antes da hidratação, sem
+  // o onError do React por perto.
+  useEffect(() => {
+    const img = cartoesRef.current[0]?.querySelector("img");
+    if (img && img.complete && img.naturalWidth === 0 && lances[0]) {
+      capaFalhou(lances[0].id, lances[0].capa);
+    }
+    // Só na montagem.
+  }, []);
+
+  // Lista mudou (Atualizar lista ou renovação de link): o mesmo lance continua
+  // no centro; se ele sumiu, fica o índice mais próximo válido.
   useEffect(() => {
     if (!total) return;
-    const alvo = limitar(Math.round(alvoRef.current), total, loop);
+    const indice = lances.findIndex((l) => l.id === idDoCentro.current);
+    const alvo = alvoAposMudanca(indice, alvoRef.current, total, loop);
+    parar();
     posRef.current = alvoRef.current = alvo;
     setSelecionado(indiceEm(alvo, total));
     pintar();
-  }, [total, loop, pintar]);
+  }, [lances, total, loop, pintar]);
+
+  // Depois do efeito acima: guarda o id do lance que está no centro agora.
+  useEffect(() => {
+    idDoCentro.current = lances[selecionado]?.id;
+    // Só quando o centro muda; com a lista nova quem acerta o índice é o efeito acima.
+  }, [selecionado]);
 
   useEffect(() => () => parar(), []);
 
@@ -258,13 +296,13 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
     botoesRef.current[indice >= 0 ? indice : selecionado]?.focus({ preventScroll: true });
   };
 
-  if (!noNavegador || total === 0) return null;
+  if (total === 0) return null;
 
   const atual = lances[Math.min(selecionado, total - 1)];
   const comSetas = total > 1;
 
   return (
-    <section className="carrossel" aria-roledescription="carrossel" aria-label="Lances">
+    <section className={pronto ? "carrossel" : "carrossel carrossel-esperando"} aria-roledescription="carrossel" aria-label="Lances">
       <div className="carrossel-palco">
         <div
           className="carrossel-quadro"
@@ -278,7 +316,7 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
           <div className="carrossel-trilho">
             {lances.map((lance, i) => {
               const rotulo = `Lance de ${lance.horario}`;
-              const falhou = !lance.capa || semCapa.has(lance.id);
+              const falhou = !lance.capa || semCapa.has(lance.capa);
               return (
                 <div
                   key={lance.id}
@@ -303,16 +341,17 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
                         <span className="so-leitor">{rotulo}</span>
                       </span>
                     ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={lance.capa}
                         alt={rotulo}
                         width={640}
                         height={360}
-                        loading="lazy"
+                        // O do centro vem no HTML e aparece antes do JS.
+                        loading={i === 0 ? "eager" : "lazy"}
                         decoding="async"
                         draggable={false}
-                        onError={() => setSemCapa((s) => new Set(s).add(lance.id))}
+                        onLoad={() => capaCarregou(lance.id)}
+                        onError={() => capaFalhou(lance.id, lance.capa)}
                       />
                     )}
                   </button>
@@ -322,7 +361,7 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
           </div>
         </div>
 
-        {comSetas && (
+        {comSetas && pronto && (
           <>
             <button
               type="button"

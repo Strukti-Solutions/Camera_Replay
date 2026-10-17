@@ -322,6 +322,13 @@ video {
   will-change: transform;
 }
 
+/* HTML do servidor, antes do JavaScript: só o cartão do centro (já no
+   lugar pelo translateX acima). display: none também segura o download
+   das capas lazy dos outros até o carrossel montar. */
+.carrossel-esperando .cartao-lance:not(:first-child) {
+  display: none;
+}
+
 .cartao-lance > button {
   display: block;
   width: 100%;

@@ -72,3 +72,12 @@ export function poseDoCartao(desloc: number, largura: number, total: number, loo
     camada: 100 - Math.round(distancia),
   };
 }
+
+// Alvo depois que a lista mudou. "indice" é a nova posição do lance que
+// estava no centro (-1 se ele sumiu): ele continua no centro; se sumiu,
+// fica o cartão inteiro mais próximo do alvo atual.
+export function alvoAposMudanca(indice: number, alvoAtual: number, total: number, loop: boolean): number {
+  return indice >= 0
+    ? limitar(alvoMaisCurto(indice, alvoAtual, total, loop), total, loop)
+    : limitar(Math.round(alvoAtual), total, loop);
+}

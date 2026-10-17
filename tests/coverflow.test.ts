@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  alvoAposMudanca,
   alvoMaisCurto,
   arremesso,
   deslocamento,
@@ -94,4 +95,18 @@ test("giro nunca passa de 82 graus", () => {
 test("com loop, cartão na emenda do anel some antes de pular de lado", () => {
   expect(poseDoCartao(2.5, 300, 5, true).opacidade).toBe(0);
   expect(poseDoCartao(2.5, 300, 5, false).opacidade).toBeGreaterThan(0);
+});
+
+test("lista nova: o mesmo lance continua no centro", () => {
+  // Lance que estava no índice 2 agora está no 3 (chegou um novo no topo).
+  expect(alvoAposMudanca(3, 2, 6, true)).toBe(3);
+  // Com loop, a partir de um alvo já dado várias voltas, sem desenrolar.
+  expect(alvoAposMudanca(0, 9, 5, true)).toBe(10);
+  expect(alvoAposMudanca(2, 1, 3, false)).toBe(2);
+});
+
+test("lista nova sem o lance do centro: fica o índice válido mais próximo", () => {
+  expect(alvoAposMudanca(-1, 4, 3, false)).toBe(2);
+  expect(alvoAposMudanca(-1, 1.6, 3, false)).toBe(2);
+  expect(alvoAposMudanca(-1, 7, 5, true)).toBe(7);
 });
