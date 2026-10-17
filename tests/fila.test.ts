@@ -175,11 +175,23 @@ test("marcar_pronto lança com prefixo, extensão ou sufixo errados", async () =
     "/" + certa,
     "k",
     "",
+    certa.toUpperCase().replace("CLIPES/", "clipes/").replace(".MP4", ".mp4"), // só o uuid em maiúsculas
+    certa.toUpperCase(),
+    null,
   ];
   for (const k of erradas) {
     await expect(db.query("select marcar_pronto($1, $2, 1, 1, false)", [id, k])).rejects.toThrow(/chave/i);
   }
   expect((await estado(db, id)).status).toBe("processando");
+});
+
+test("marcar_pronto com chave errada lança com SQLSTATE 22023 (invalid_parameter_value)", async () => {
+  const db = await novoBanco();
+  const a = await montar(db);
+  const id = await clipeCom(db, a, 5, "processando");
+  const erro = await db.query("select marcar_pronto($1, 'k', 1, 1, false)", [id]).catch((e) => e);
+  expect(erro).toBeInstanceOf(Error);
+  expect(erro.code).toBe("22023");
 });
 
 test("marcar_pronto com chave errada lança mesmo se o clipe já não está em processando", async () => {

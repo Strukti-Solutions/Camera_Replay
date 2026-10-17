@@ -86,7 +86,7 @@ O app e o worker usam estas funções SQL. Não há outro caminho entre os dois.
 
 - `registrar_aperto(token_hash text) → (clipe_id uuid, duplicado bool)`. Não retorna linha se o token é inválido ou foi revogado. Aperto duplo (< 5 s no mesmo botão) retorna o clipe existente com `duplicado = true`.
 - `pegar_clipes(camera_id uuid, limite int) → setof (clipe_id uuid, camera_id uuid, arena_id uuid, recebido_em timestamptz)`. Passa os clipes `pendente` para `processando`, com `FOR UPDATE SKIP LOCKED`, e devolve em ordem de `recebido_em` (o mais antigo primeiro). O `arena_id` vem do banco para o worker montar a chave no R2 sem depender da configuração local.
-- `marcar_pronto(clipe_id, chave text, tamanho bigint, duracao real, parcial bool) → bool`. Só age sobre `processando`. Grava `pronto`, ou `parcial` se `parcial = true`. A chave tem de ser exatamente `clipes/<arena_id do clipe>/<clipe_id>.mp4`. Outra chave lança erro em vez de devolver `false`, porque é bug do worker e não pode ser confundida com "o reaper chegou antes".
+- `marcar_pronto(clipe_id, chave text, tamanho bigint, duracao real, parcial bool) → bool`. Só age sobre `processando`. Grava `pronto`, ou `parcial` se `parcial = true`. A chave tem de ser exatamente `clipes/<arena_id do clipe>/<clipe_id>.mp4`. Outra chave lança erro (SQLSTATE `22023`, `invalid_parameter_value`) em vez de devolver `false`, porque é bug do worker e não pode ser confundida com "o reaper chegou antes".
 - `marcar_falhou(clipe_id, motivo text) → bool`. Só age sobre `processando`.
 - `expirar_presos() → int`. Marca como `falhou` os clipes presos em `pendente` ou `processando` há mais de 2 minutos desde `recebido_em` e retorna quantos foram.
 

@@ -1,4 +1,5 @@
-import { expect, test, vi } from "vitest";
+import { createHash, createHmac } from "node:crypto";
+import { afterEach, expect, test, vi } from "vitest";
 import { ErroR2, VALIDADE_LEITURA_S, chaveDoClipe, criarR2, lerConfigR2 } from "../app/lib/r2";
 
 const config = {
@@ -7,6 +8,8 @@ const config = {
   secretAccessKey: "segredo-super-secreto",
   bucket: "replays",
 };
+
+afterEach(() => vi.useRealTimers());
 
 const resposta = (status: number) => async () => new Response(null, { status });
 
@@ -17,6 +20,41 @@ test("urlLeitura vale 15 min, é assinada e aponta para o host e bucket certos",
   expect(url.pathname).toBe("/replays/clipes/a/b.mp4");
   expect(url.searchParams.get("X-Amz-Expires")).toBe("900");
   expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
+});
+
+// SigV4 de URL pré-assinada calculado à mão com node:crypto, independente do aws4fetch.
+const hmac = (k: string | Buffer, s: string) => createHmac("sha256", k).update(s).digest();
+const pct = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+
+function assinaturaEsperada(url: URL, segredo: string, regiao: string, metodo: string): string {
+  const data = url.searchParams.get("X-Amz-Date")!;
+  const dia = data.slice(0, 8);
+  const consulta = [...url.searchParams]
+    .filter(([k]) => k !== "X-Amz-Signature")
+    .map(([k, v]) => [pct(k), pct(v)])
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map((p) => p.join("="))
+    .join("&");
+  const caminho = url.pathname; // já codificado uma vez (S3 não codifica de novo)
+  const canonica = [metodo, caminho, consulta, `host:${url.host}\n`, "host", "UNSIGNED-PAYLOAD"].join("\n");
+  const escopo = `${dia}/${regiao}/s3/aws4_request`;
+  const aSerAssinado = ["AWS4-HMAC-SHA256", data, escopo, createHash("sha256").update(canonica).digest("hex")].join("\n");
+  const chave = hmac(hmac(hmac(hmac("AWS4" + segredo, dia), regiao), "s3"), "aws4_request");
+  return createHmac("sha256", chave).update(aSerAssinado).digest("hex");
+}
+
+test("urlLeitura: vetor fixo de SigV4 (credencial, headers assinados e assinatura)", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-16T12:34:56Z"));
+  for (const chave of ["clipes/a/b.mp4", "clipes/a b/c#d+e.mp4"]) {
+    const url = new URL(await criarR2(config).urlLeitura(chave));
+    expect(url.searchParams.get("X-Amz-Date")).toBe("20261016T123456Z");
+    expect(url.searchParams.get("X-Amz-Credential")).toBe("AKIAEXEMPLO/20261016/auto/s3/aws4_request");
+    expect(url.searchParams.get("X-Amz-SignedHeaders")).toBe("host");
+    expect(url.searchParams.get("X-Amz-Signature")).toBe(
+      assinaturaEsperada(url, config.secretAccessKey, "auto", "GET"),
+    );
+  }
 });
 
 test("urlLeitura não vaza o segredo e codifica cada segmento", async () => {
@@ -32,6 +70,10 @@ test("apagar faz DELETE e aceita 204 e 404", async () => {
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.method).toBe("DELETE");
     expect(new URL(url).pathname).toBe("/replays/clipes/a/b.mp4");
+    expect(init.cache).toBe("no-store");
+    const auth = new Headers(init.headers).get("authorization") ?? "";
+    expect(auth).toMatch(/^AWS4-HMAC-SHA256 /);
+    expect(auth).toMatch(/Credential=AKIAEXEMPLO\/\d{8}\/auto\/s3\/aws4_request/);
   }
 });
 

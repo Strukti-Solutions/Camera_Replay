@@ -92,7 +92,8 @@ begin
     return false;
   end if;
   if p_chave is distinct from 'clipes/' || v_arena || '/' || p_clipe_id || '.mp4' then
-    raise exception 'chave invalida para o clipe %: esperado clipes/<arena_id>/<clipe_id>.mp4', p_clipe_id;
+    raise exception 'chave invalida para o clipe %: esperado clipes/<arena_id>/<clipe_id>.mp4', p_clipe_id
+      using errcode = '22023';
   end if;
 
   update clipes
