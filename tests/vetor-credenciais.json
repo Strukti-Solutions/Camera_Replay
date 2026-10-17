@@ -1,5 +1,5 @@
 {
-  "formato": "v1:<iv>:<tag>:<cifra>, AES-256-GCM, partes em base64",
+  "formato": "v1:<iv>:<tag>:<cifra>, AES-256-GCM, partes em base64. A cifra NÃO inclui a tag: a tag (16 bytes) vem separada; na cryptography do Python, decifrar cifra||tag",
   "chave_base64": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
   "iv_base64": "AgICAgICAgICAgIC",
   "credenciais": {

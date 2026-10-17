@@ -10,14 +10,17 @@ export type ClipePublico = {
 
 export type LeitorR2 = { urlLeitura(chave: string): Promise<string> };
 
-const SLUG_VALIDO = /^[A-Za-z0-9_-]{20,}$/;
+const SLUG_VALIDO = /^[A-Za-z0-9_-]{20,64}$/;
 const LIMITE = 50;
 
 // Lista pública da quadra, aberta por /q/<slug>. O slug é o único acesso.
 // Devolve null para slug malformado (sem tocar no banco) ou desconhecido.
 // Clipes não têm quadra_id: a ligação é pela câmera, e a consulta filtra por
-// quadra_id e arena_id. Nunca expõe motivo, chave_r2, camera_id nem dados da
-// arena; só o id do clipe, que a página usa como chave de lista.
+// quadra_id e arena_id. Não devolve motivo, chave_r2, camera_id nem campos da
+// arena; só o id do clipe, que a página usa como chave de lista. Atenção: o
+// arena_id aparece dentro da URL assinada (clipes/<arena_id>/<clipe_id>.mp4),
+// inerente ao formato da chave; sem a assinatura não há acesso. Qualquer
+// endpoint futuro que receba o id do clipe precisa revalidar quadra e arena.
 export async function clipesDaQuadra(
   db: Db,
   r2: LeitorR2,

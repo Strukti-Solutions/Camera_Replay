@@ -60,3 +60,46 @@ test("slug curto é recusado", async () => {
     "insert into quadras (arena_id, nome, slug) values ($1, 'Q', 'abc')", [a.id],
   )).rejects.toThrow(/check/i);
 });
+
+test("migrar registra a 0003_camera_fixa", async () => {
+  const db = await novoBanco();
+  const r = await db.query<{ nome: string }>("select nome from schema_migrations");
+  expect(r.rows.map((x) => x.nome)).toContain("0003_camera_fixa.sql");
+});
+
+test("câmera não pode ser movida para outra quadra (mesma arena)", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const q1 = await criarQuadra(db, a.id), q2 = await criarQuadra(db, a.id);
+  const c = await criarCamera(db, a.id, q1.id);
+  await expect(db.query("update cameras set quadra_id = $2 where id = $1", [c.id, q2.id]))
+    .rejects.toMatchObject({ code: "23514", message: expect.stringMatching(/quadra_id/) });
+  const r = await db.query<{ quadra_id: string }>("select quadra_id from cameras where id = $1", [c.id]);
+  expect(r.rows[0].quadra_id).toBe(q1.id);
+});
+
+test("câmera não pode mudar de arena", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db), b = await criarArena(db);
+  const q = await criarQuadra(db, a.id);
+  const c = await criarCamera(db, a.id, q.id);
+  await expect(db.query("update cameras set arena_id = $2 where id = $1", [c.id, b.id]))
+    .rejects.toMatchObject({ code: "23514", message: expect.stringMatching(/arena_id/) });
+});
+
+test("câmera continua editável: nome, status, visto_em e credenciais", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const q = await criarQuadra(db, a.id);
+  const c = await criarCamera(db, a.id, q.id);
+  await db.query(
+    "update cameras set nome = 'Nova', status = 'online', visto_em = now(), credenciais = 'v1:a:b:c' where id = $1",
+    [c.id],
+  );
+  const r = await db.query<{ nome: string; status: string; visto_em: Date | null; credenciais: string }>(
+    "select nome, status, visto_em, credenciais from cameras where id = $1", [c.id]);
+  expect(r.rows[0]).toMatchObject({ nome: "Nova", status: "online", credenciais: "v1:a:b:c" });
+  expect(r.rows[0].visto_em).not.toBeNull();
+  // update que repete os mesmos quadra_id e arena_id também passa
+  await db.query("update cameras set quadra_id = quadra_id, arena_id = arena_id where id = $1", [c.id]);
+});

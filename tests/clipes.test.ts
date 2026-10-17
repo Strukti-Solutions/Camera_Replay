@@ -92,7 +92,7 @@ test("quadra sem clipes devolve lista vazia; slug inexistente devolve null", asy
 
 test("slug malformado devolve null sem consultar o banco", async () => {
   const db = { query: vi.fn(() => Promise.reject(new Error("não devia consultar"))) } as unknown as Db;
-  const ruins = ["../x", "", "curto", "a".repeat(19), `${"a".repeat(20)}/..`, `${"a".repeat(20)} `, `${"a".repeat(20)}\n`, `${"a".repeat(20)}%`, "é".repeat(22)];
+  const ruins = ["../x", "", "curto", "a".repeat(19), `${"a".repeat(20)}/..`, `${"a".repeat(20)} `, `${"a".repeat(20)}\n`, `${"a".repeat(20)}%`, "é".repeat(22), "a".repeat(65)];
   for (const slug of ruins) {
     expect(await clipesDaQuadra(db, r2Falso(), slug)).toBeNull();
   }

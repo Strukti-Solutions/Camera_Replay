@@ -67,7 +67,9 @@ O aperto grava o **instante do servidor** (`recebido_em`), não o do ESP32.
 
 Toda tabela filha carrega `arena_id` e toda consulta filtra por ele (isolamento entre arenas).
 
-`cameras.credenciais` é um texto no formato `v1:<iv>:<tag>:<cifra>`, com cada parte em base64. A cifra é AES-256-GCM sobre o JSON `{"authcode","local_user","local_pwd"}`.
+**Câmera presa à quadra.** No piloto, cada quadra tem uma câmera e um botão ligados entre si. `cameras.quadra_id` não muda depois de criada: o banco recusa o UPDATE. A página da quadra acha os clipes pela quadra da câmera, então mover uma câmera levaria os lances antigos para o QR de outra quadra. Para mudar a câmera de lugar, a gente reconfigura à mão: cria uma câmera nova na quadra certa e religa o botão. O painel do dono não oferece essa troca.
+
+`cameras.credenciais` é um texto no formato `v1:<iv>:<tag>:<cifra>`, com cada parte em base64. A cifra é AES-256-GCM sobre o JSON `{"authcode","local_user","local_pwd"}`. A `<cifra>` não inclui a tag (na `cryptography` do Python, decifre `cifra || tag`). A chave vem de `CAMERA_CRED_KEY`: base64 canônico de exatamente 32 bytes, compartilhado entre o app e o worker.
 
 `clipes.motivo` guarda a causa quando o status é `falhou`. `clipes.iniciado_em` guarda o instante em que o worker pegou o clipe (status `processando`).
 
