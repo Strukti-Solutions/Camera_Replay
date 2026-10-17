@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { listarAlunos } from "@/app/lib/alunos";
 import type { LeitorR2 } from "@/app/lib/clipes";
 import { formatarDuracao, formatarHorario, textoStatus } from "@/app/lib/formato";
 import { clipesDoPainel, detalheQuadra } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
-import { textoCamera, textoVistoHa } from "@/app/painel/apresentacao";
+import { textoCamera, textoData, textoReserva, textoVistoHa } from "@/app/painel/apresentacao";
+import { EditarAlunos } from "@/app/painel/escolha-alunos";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import { VideoClipe } from "@/app/q/[slug]/video-clipe";
-import { apagarClipeAction, revogarBotaoAction } from "./actions";
+import { apagarClipeAction, atribuirClipeAction, revogarBotaoAction } from "./actions";
 import { Confirmar, FormularioCamera, FormularioCredenciais, NovoBotao } from "./formularios";
 
 // URLs assinadas valem 15 min e o status da câmera muda a cada minuto.
@@ -35,7 +37,11 @@ export default async function PaginaQuadra({ params }: Props) {
   if (!quadra) notFound();
 
   const config = lerConfigR2();
-  const clipes = await clipesDoPainel(db, config ? criarR2(config) : semR2, sessao.arenaId, quadra.id);
+  const [clipes, alunosArena] = await Promise.all([
+    clipesDoPainel(db, config ? criarR2(config) : semR2, sessao.arenaId, quadra.id),
+    listarAlunos(db, sessao.arenaId),
+  ]);
+  const alunos = alunosArena.map((a) => ({ id: a.id, nome: a.nome }));
   const agora = new Date();
   const { camera } = quadra;
 
@@ -155,8 +161,37 @@ export default async function PaginaQuadra({ params }: Props) {
                       <span className={`selo-status selo-${c.status}`}>{textoStatus(c.status)}</span>
                     </p>
                   </div>
+                  <p className="lance-reserva">
+                    {c.reserva ? (
+                      <span>
+                        {textoReserva(c.reserva.inicio, c.reserva.fim)}{" "}
+                        <span className="suave">{textoData(c.reserva.inicio)}</span>
+                      </span>
+                    ) : (
+                      <span className="selo-neutro">Sem reserva</span>
+                    )}
+                  </p>
+                  {c.alunos.length > 0 && (
+                    <p className="lance-alunos">
+                      <span className="suave">Atribuído a:</span> {c.alunos.map((a) => a.nome).join(", ")}
+                    </p>
+                  )}
                   {c.status === "falhou" && c.motivo && <p className="motivo">Motivo: {c.motivo}</p>}
                   {c.url && <VideoClipe url={c.url} rotulo={`Clipe de ${horario}`} />}
+                  {/* Só lance que o aluno consegue assistir vale ser atribuído. */}
+                  {(c.status === "pronto" || c.status === "parcial") && alunos.length > 0 && (
+                    <EditarAlunos
+                      acao={atribuirClipeAction}
+                      campo="clipeId"
+                      valor={c.id}
+                      alunos={alunos}
+                      marcados={c.alunos.map((a) => a.id)}
+                      rotulo="Atribuir a alunos"
+                      legenda="Alunos que veem este lance"
+                      salvar="Salvar atribuição"
+                      salvo="Atribuição salva."
+                    />
+                  )}
                   {c.status !== "pendente" && c.status !== "processando" && (
                     <Confirmar
                       acao={apagarClipeAction}

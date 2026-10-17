@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { lerChave } from "@/app/lib/cripto";
 import {
   apagarClipe,
+  atribuirClipe,
   atualizarCredenciais,
   cadastrarCamera,
   criarBotao,
@@ -12,6 +13,7 @@ import {
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
 import { mensagemDoErro } from "@/app/painel/apresentacao";
+import type { EstadoAlunos } from "@/app/painel/escolha-alunos";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 
 // Server Actions são endpoints públicos: cada uma confere a sessão e usa só o
@@ -129,4 +131,19 @@ export async function apagarClipeAction(_estado: EstadoConfirmar, form: FormData
   }
   revalidar();
   return { erro: null };
+}
+
+// Troca os alunos a quem o lance foi atribuído. Nenhuma caixa marcada
+// retira a atribuição de todos.
+export async function atribuirClipeAction(_estado: EstadoAlunos, form: FormData): Promise<EstadoAlunos> {
+  const sessao = await exigirSessao();
+  const alunoIds = form.getAll("alunoIds").filter((v): v is string => typeof v === "string");
+  try {
+    const ok = await atribuirClipe(poolCompartilhado(), sessao.arenaId, campo(form, "clipeId"), alunoIds);
+    if (!ok) return { erro: "Clipe não encontrado.", ok: false };
+  } catch (e) {
+    return { erro: mensagemDoErro(e, "atribuir clipe"), ok: false };
+  }
+  revalidar();
+  return { erro: null, ok: true };
 }

@@ -868,3 +868,242 @@ video {
     width: 14cm;
   }
 }
+
+/* ---------- Painel: navegação, tabelas, alunos e reservas ---------- */
+
+:root {
+  /* Linha sob o ponteiro nas tabelas e caixas de alunos. */
+  --realce: #e6eef6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --realce: #1a3550;
+  }
+}
+
+.painel-nav {
+  flex-basis: 100%;
+}
+
+.painel-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.painel-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  padding: 0.5rem 1rem;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  color: var(--sobre-quadra);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.painel-nav a:hover {
+  border-color: currentColor;
+}
+
+/* Seção atual: a linha branca da quadra vira o fundo (contraste > 4,5:1). */
+.painel-nav a[aria-current="page"] {
+  background: var(--linha);
+  border-color: var(--linha);
+  color: var(--quadra);
+}
+
+/* Tabela: a rolagem é do invólucro, que também leva a borda arredondada. */
+.tabela-rolagem {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--superficie);
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.tabela {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9375rem;
+}
+
+.tabela th,
+.tabela td {
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+}
+
+.tabela thead tr {
+  border-bottom: 2px solid var(--borda);
+}
+
+.tabela th {
+  color: var(--tinta-suave);
+  font-weight: 600;
+}
+
+.tabela tbody tr {
+  border-bottom: 1px solid var(--borda);
+  transition: background-color 150ms;
+}
+
+.tabela tbody tr:last-child {
+  border-bottom: 0;
+}
+
+.tabela tbody tr:hover {
+  background: var(--realce);
+}
+
+.tabela .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.num-tab {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Avatar + nome + e-mail: todo avatar tem a mesma caixa, então os nomes
+   começam alinhados e a coluna se lê como coluna. */
+.pessoa {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pessoa-texto {
+  min-width: 0;
+}
+
+.pessoa-nome {
+  font-weight: 600;
+}
+
+.pessoa-email {
+  color: var(--tinta-suave);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+
+/* Iniciais brancas sobre cores com contraste ≥ 4,5:1 (ver avatar-cor.ts). */
+.avatar text {
+  font-family: var(--fonte);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Avatares sobrepostos, separados por um contorno da cor da superfície. */
+.avatares {
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatares .avatar + .avatar {
+  margin-left: -8px;
+}
+
+.avatares .avatar path {
+  stroke: var(--superficie);
+  stroke-width: 4;
+}
+
+.selo-neutro {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  color: var(--tinta-suave);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.acoes-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.acoes-linha .confirmar {
+  margin-top: 0;
+}
+
+/* Caixas de alunos: a linha inteira (rótulo) é o alvo de toque. */
+.caixas-alunos {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.caixas-alunos legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.caixas-alunos ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.caixas-alunos label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--alvo);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--raio);
+  cursor: pointer;
+}
+
+.caixas-alunos label:hover {
+  background: var(--realce);
+}
+
+.caixas-alunos input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--link);
+}
+
+.campos-lado {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.campo select {
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+}
+
+.lance-reserva,
+.lance-alunos {
+  margin-bottom: 0.5rem;
+}

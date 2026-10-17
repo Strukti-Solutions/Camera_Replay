@@ -1,4 +1,5 @@
 import { sairAction } from "@/app/entrar/actions";
+import { NavegacaoPainel } from "./navegacao";
 import { exigirSessao } from "./sessao-atual";
 
 // Tudo sob /painel exige sessão; o redirecionamento acontece aqui.
@@ -16,6 +17,7 @@ export default async function LayoutPainel({ children }: { children: React.React
               Sair
             </button>
           </form>
+          <NavegacaoPainel />
         </div>
       </header>
       {children}
