@@ -22,7 +22,7 @@ def load_cameras(path: str) -> dict[str, CameraCreds]:
                     if not item.get(k) or (isinstance(item[k], str) and not item[k].strip())]
         if faltando:
             raise ValueError("câmera %s sem os campos: %s"
-                             % (item.get("sn", "?"), ", ".join(faltando)))
+                             % (sn.strip(), ", ".join(faltando)))
         for k in _OBRIGATORIOS:
             if not isinstance(item[k], str):
                 raise ValueError("cameras.json: item %d com %s inválido" % (i, k))

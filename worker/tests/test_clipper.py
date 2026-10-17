@@ -173,8 +173,8 @@ def test_camera_offline_no_aperto_falha_sem_enviar():
 def test_max_stale_na_fronteira_e_inclusivo():
     # último quadro do anel em t=59; defasagem de exatamente 30 s ainda é aceita
     q = FakeQueue()
-    run(anel_cheio(), q, FakeUploader(), j=job(89.0), clock=lambda: 90.0)
-    assert not any("offline" in motivo for _, motivo in q.failed)
+    assert run(anel_cheio(), q, FakeUploader(), j=job(89.0), clock=lambda: 90.0)
+    assert q.ready and q.failed == []
 
 
 def test_max_stale_acima_do_limite_marca_offline():
