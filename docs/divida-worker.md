@@ -43,7 +43,6 @@
 - Sessão curta em laço reconecta a cada 1 s.
 - `FileSource.chunks` antes de `open` / fps <= 0.
 - `RelaySource.close` só captura OSError.
-- SN não-hasheável vira TypeError.
 - `stop` com fluxo mudo leva até 15 s (`read_timeout`).
 
 ### clipper.py / local.py
