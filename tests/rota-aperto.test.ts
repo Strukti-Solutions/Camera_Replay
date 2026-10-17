@@ -108,7 +108,9 @@ test("falha do banco: 500 sem vazar a mensagem", async () => {
   expect(r.headers.get("cache-control")).toBe("no-store");
 });
 
-test("token válido com espaços em volta é aceito (trim)", async () => {
+// Headers já remove espaços das pontas do valor, então o .trim() do handler não é
+// exercitado aqui; o que se cobre é o \s+ entre "Bearer" e o token.
+test("espaços extras entre Bearer e o token são aceitos (\s+)", async () => {
   const { handler, botao } = await cenario();
   const t = botao.token;
   expect((await handler(post(`  Bearer ${t}  `))).status).toBe(202);

@@ -150,6 +150,18 @@ test("expirar_presos marca só os com mais de 2 min (pendente e processando) e d
   expect((await db.query("select expirar_presos() as n")).rows[0].n).toBe(0);
 });
 
+test("expirar_presos não toca em clipe com ~110 s (fixa os 2 min pelos dois lados)", async () => {
+  const db = await novoBanco();
+  const a = await montar(db);
+  const pend = await clipeCom(db, a, 110, "pendente");
+  const proc = await clipeCom(db, a, 110, "processando");
+  const velho = await clipeCom(db, a, 130, "pendente");
+  expect((await db.query("select expirar_presos() as n")).rows[0].n).toBe(1);
+  expect((await estado(db, pend)).status).toBe("pendente");
+  expect((await estado(db, proc)).status).toBe("processando");
+  expect((await estado(db, velho)).status).toBe("falhou");
+});
+
 test("expirar_presos conta de recebido_em, não de iniciado_em", async () => {
   const db = await novoBanco();
   const a = await montar(db);

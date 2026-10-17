@@ -50,21 +50,27 @@ $$;
 
 -- Reserva clipes pendentes de uma câmera para o worker. SKIP LOCKED faz dois
 -- workers (ou duas chamadas concorrentes) nunca pegarem o mesmo clipe.
--- O update casa também por arena_id, herdado da linha escolhida.
+-- O isolamento entre arenas não vem daqui: vem da FK composta
+-- (camera_id, arena_id) -> cameras, que amarra cada clipe à arena da câmera.
+-- O RETURNING de UPDATE ... FROM não garante ordem, por isso o select final
+-- ordena por recebido_em (mais antigo primeiro).
 create or replace function pegar_clipes(p_camera_id uuid, p_limite int default 10)
 returns table (clipe_id uuid, camera_id uuid, recebido_em timestamptz)
 language sql as $$
-  update clipes c
-     set status = 'processando', iniciado_em = now()
-    from (
-      select id, arena_id from clipes
-       where camera_id = p_camera_id and status = 'pendente'
-       order by recebido_em
-       limit p_limite
-       for update skip locked
-    ) s
-   where c.id = s.id and c.arena_id = s.arena_id
-  returning c.id, c.camera_id, c.recebido_em;
+  with u as (
+    update clipes c
+       set status = 'processando', iniciado_em = now()
+      from (
+        select id from clipes
+         where camera_id = p_camera_id and status = 'pendente'
+         order by recebido_em
+         limit p_limite
+         for update skip locked
+      ) s
+     where c.id = s.id
+    returning c.id, c.camera_id, c.recebido_em
+  )
+  select u.id, u.camera_id, u.recebido_em from u order by u.recebido_em;
 $$;
 
 -- Só age sobre 'processando': um clipe que o reaper já marcou 'falhou' não ressuscita.
