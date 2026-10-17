@@ -47,3 +47,67 @@ begin
     returning id, false;
 end;
 $$;
+
+-- Reserva clipes pendentes de uma câmera para o worker. SKIP LOCKED faz dois
+-- workers (ou duas chamadas concorrentes) nunca pegarem o mesmo clipe.
+-- O update casa também por arena_id, herdado da linha escolhida.
+create or replace function pegar_clipes(p_camera_id uuid, p_limite int default 10)
+returns table (clipe_id uuid, camera_id uuid, recebido_em timestamptz)
+language sql as $$
+  update clipes c
+     set status = 'processando', iniciado_em = now()
+    from (
+      select id, arena_id from clipes
+       where camera_id = p_camera_id and status = 'pendente'
+       order by recebido_em
+       limit p_limite
+       for update skip locked
+    ) s
+   where c.id = s.id and c.arena_id = s.arena_id
+  returning c.id, c.camera_id, c.recebido_em;
+$$;
+
+-- Só age sobre 'processando': um clipe que o reaper já marcou 'falhou' não ressuscita.
+create or replace function marcar_pronto(
+  p_clipe_id uuid, p_chave text, p_tamanho bigint, p_duracao real, p_parcial boolean)
+returns boolean
+language plpgsql as $$
+declare
+  v_n int;
+begin
+  update clipes
+     set status = case when p_parcial then 'parcial' else 'pronto' end,
+         chave_r2 = p_chave, tamanho = p_tamanho, duracao = p_duracao
+   where id = p_clipe_id and status = 'processando';
+  get diagnostics v_n = row_count;
+  return v_n > 0;
+end;
+$$;
+
+create or replace function marcar_falhou(p_clipe_id uuid, p_motivo text)
+returns boolean
+language plpgsql as $$
+declare
+  v_n int;
+begin
+  update clipes set status = 'falhou', motivo = p_motivo
+   where id = p_clipe_id and status = 'processando';
+  get diagnostics v_n = row_count;
+  return v_n > 0;
+end;
+$$;
+
+-- Reaper: pendente ou processando há mais de 2 min desde recebido_em vira falhou.
+create or replace function expirar_presos()
+returns integer
+language plpgsql as $$
+declare
+  v_n int;
+begin
+  update clipes set status = 'falhou', motivo = 'tempo esgotado'
+   where status in ('pendente', 'processando')
+     and recebido_em < now() - interval '2 minutes';
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
