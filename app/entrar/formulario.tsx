@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { entrarAction, type EstadoEntrar } from "./actions";
 
-const inicial: EstadoEntrar = { erro: null };
+const inicial: EstadoEntrar = { erro: null, email: "" };
 
 export function FormularioEntrar() {
   const [estado, acao, pendente] = useActionState(entrarAction, inicial);
@@ -11,7 +11,7 @@ export function FormularioEntrar() {
     <form action={acao} className="formulario">
       <div className="campo">
         <label htmlFor="email">E-mail</label>
-        <input id="email" name="email" type="email" autoComplete="email" required />
+        <input id="email" name="email" type="email" autoComplete="email" defaultValue={estado.email} required />
       </div>
       <div className="campo">
         <label htmlFor="senha">Senha</label>

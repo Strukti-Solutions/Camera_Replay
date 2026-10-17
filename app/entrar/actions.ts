@@ -7,16 +7,17 @@ import { DURACAO_SESSAO_S, entrar, sair } from "@/app/lib/sessao";
 import { COOKIE_SESSAO } from "@/app/painel/sessao-atual";
 import { ipDoCliente } from "./ip";
 
-export type EstadoEntrar = { erro: string | null };
+export type EstadoEntrar = { erro: string | null; email: string };
 
 export async function entrarAction(_estado: EstadoEntrar, form: FormData): Promise<EstadoEntrar> {
-  const email = String(form.get("email") ?? "");
+  const email = String(form.get("email") ?? "").trim();
   const senha = String(form.get("senha") ?? "");
   const ip = ipDoCliente(await headers());
 
   const r = await entrar(poolCompartilhado(), email, senha, ip);
   if (!r.ok) {
     return {
+      email,
       erro:
         r.motivo === "bloqueado"
           ? "Muitas tentativas. Espere 15 minutos e tente de novo."
