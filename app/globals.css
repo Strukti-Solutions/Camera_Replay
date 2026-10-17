@@ -242,3 +242,11 @@ video {
   font-family: var(--fonte-titulo);
   font-size: 1.75rem;
 }
+
+/* Aviso sob o player quando o vídeo não carrega nem depois de renovar o link.
+   Fica sempre no DOM (vazio) para a região viva ser anunciada ao mudar. */
+.lance-erro {
+  margin-top: 0.5rem;
+  color: var(--perigo);
+  font-weight: 600;
+}
