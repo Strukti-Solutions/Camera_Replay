@@ -9,13 +9,11 @@ from collections.abc import Iterator
 
 MSG_VIDEO = 1412   # dados de vídeo neste firmware
 MAX_RAW = 8 * 1024 * 1024   # teto do bruto acumulado sem marcador XM
+MAX_PAYLOAD = 4 * 1024 * 1024   # teto do payload NetIP; acima disso o cabeçalho é lixo
 
 
 class StreamDesyncError(RuntimeError):
     """O fluxo de vídeo não traz marcadores XM: fora de sincronia."""
-
-
-MAX_PAYLOAD = 4 * 1024 * 1024   # teto do payload NetIP; acima disso o cabeçalho é lixo
 
 
 def netip(js, sid=0, msgid=0, seq=0, chn=0) -> bytes:

@@ -1,3 +1,6 @@
+import pytest
+
+from replay_worker.xm import wire
 from replay_worker.xm.wire import (NetIPReader, dewrap, find_last_marker, netip,
                                    video_chunks)
 from tests.helpers import nal
@@ -76,8 +79,6 @@ def test_netip_lixo_com_ff_antes_de_pacote_valido():
 
 
 def test_video_chunks_sem_marcador_nao_acumula_sem_teto(monkeypatch):
-    import pytest
-    from replay_worker.xm import wire
     monkeypatch.setattr(wire, "MAX_RAW", 1000)
     reader = FakeReader([(1412, b"\x11" * 400)] * 10)
     with pytest.raises(wire.StreamDesyncError):
