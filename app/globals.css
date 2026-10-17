@@ -250,3 +250,62 @@ video {
   color: var(--perigo);
   font-weight: 600;
 }
+
+/* ---------- Entrar e painel ---------- */
+
+.entrar {
+  padding-block: 2.5rem 3rem;
+}
+
+.entrar h1 {
+  font-family: var(--fonte-titulo);
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.formulario {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 24rem;
+}
+
+.campo {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.campo label {
+  font-weight: 600;
+}
+
+.campo input {
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+}
+
+/* Mensagem de erro: a região viva fica sempre no DOM para ser anunciada. */
+.erro-form {
+  color: var(--perigo);
+  font-weight: 600;
+}
+
+.erro-form:empty {
+  display: none;
+}
+
+.botao:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.painel-arena {
+  font-family: var(--fonte-titulo);
+  font-size: 1.5rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
