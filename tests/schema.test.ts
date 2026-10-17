@@ -315,6 +315,10 @@ test("migração 0008 dá slug próprio às arenas existentes; slug é único, o
 
     await expect(db.query("insert into arenas (nome, slug) values ('C', $1)", [r.rows[0].slug])).rejects.toThrow(/unique|duplicate/i);
     await expect(db.query("insert into arenas (nome, slug) values ('C', 'curto')")).rejects.toThrow(/check/i);
+    await expect(db.query("insert into arenas (nome, slug) values ('C', $1)", ['a'.repeat(19) + '!'])).rejects.toThrow(/check/i);
+    await expect(db.query("insert into arenas (nome, slug) values ('C', $1)", ['a'.repeat(65)])).rejects.toThrow(/check/i);
+    const al = await db.query<{ criado_pelo_aluno: boolean }>("select column_default from information_schema.columns where table_name='alunos' and column_name='criado_pelo_aluno'");
+    expect(al.rows).toHaveLength(1);
     await expect(db.query("insert into arenas (nome, slug) values ('C', null)")).rejects.toThrow(/null/i);
     // insert sem slug (fixtures antigas, scripts) ganha um valor válido
     const sem = await db.query<{ slug: string }>("insert into arenas (nome) values ('D') returning slug");

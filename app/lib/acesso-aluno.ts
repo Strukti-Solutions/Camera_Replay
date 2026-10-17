@@ -42,7 +42,7 @@ export async function slugDaArenaDaQuadra(db: Db, slugQuadra: string): Promise<s
   return q.rows[0]?.slug ?? null;
 }
 
-const LIMITE_CADASTRO = 5; // contas novas por IP na janela
+const LIMITE_CADASTRO = 5; // tentativas de cadastro por IP na janela
 const JANELA_CADASTRO_MIN = 60;
 
 async function abrirSessaoAluno(db: Db, arenaId: string, alunoId: string) {
@@ -61,7 +61,9 @@ export type ResultadoCadastro =
 
 // Cadastro do aluno pelo QR da arena: cria a conta e já abre a sessão. A conta
 // nasce sem reserva nem lance: o dono é quem a coloca numa reserva. Limite de 5
-// contas por IP por hora na chave `cadastro:<ip>` (tentativa recusada não conta).
+// tentativas por IP por hora na chave `cadastro:<ip>`: contam inclusive e-mail repetido
+// e dados inválidos; só a tentativa barrada pelo próprio limite não conta. A conta
+// sai marcada `criado_pelo_aluno` (o dono confere a pessoa antes de pô-la numa reserva).
 export async function cadastrarAluno(
   db: Db,
   slugArena: string,
@@ -72,7 +74,7 @@ export async function cadastrarAluno(
   if (!arena) return { ok: false, motivo: "invalido" };
 
   // Registro pessimista, como o login: grava antes de contar, para requisições
-  // concorrentes se enxergarem. Recusada, a própria tentativa sai da contagem.
+  // concorrentes se enxergarem. Barrada pelo limite, a própria tentativa sai da contagem.
   const chave = `cadastro:${ip}`;
   const ins = await db.query<{ id: string }>(
     "insert into tentativas_login (email, ip) values ($1, $2) returning id",
@@ -90,7 +92,7 @@ export async function cadastrarAluno(
 
   let alunoId: string;
   try {
-    alunoId = (await criarAluno(db, arena.id, dados)).id;
+    alunoId = (await criarAluno(db, arena.id, dados, { criadoPeloAluno: true })).id;
   } catch (e) {
     if (!(e instanceof ErroPainel)) throw e;
     return { ok: false, motivo: e.message === "e-mail já cadastrado" ? "existe" : "invalido" };

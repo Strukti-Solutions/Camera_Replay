@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
-import { criarAluno, removerAluno } from "../app/lib/alunos";
+import { criarAluno, listarAlunos, removerAluno } from "../app/lib/alunos";
 import { criarReserva, definirAlunosDaReserva } from "../app/lib/reservas";
 import { atribuirClipe } from "../app/lib/painel";
 import { entrar, validarSessao } from "../app/lib/sessao";
@@ -316,4 +316,40 @@ test("cadastro: o 6º do mesmo IP na hora é recusado; outro IP passa; passada a
   expect((await cadastrarAluno(db, s.a.slug, { nome: "Aluno 6", email: "a6@x.com", senha: SENHA }, "8.8.8.8")).ok).toBe(true);
   await db.query("update tentativas_login set em = now() - interval '61 minutes' where email = 'cadastro:7.7.7.7'");
   expect((await cadastrarAluno(db, s.a.slug, { nome: "Aluno 7", email: "a7@x.com", senha: SENHA }, "7.7.7.7")).ok).toBe(true);
+});
+
+test("5 cadastros do IP não travam o login do dono nem o do aluno vindos desse IP", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  await db.query(
+    "insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'dono@x.com', $2, 'dono')",
+    [s.a.id, await hashSenha(SENHA)]);
+  // 18 tentativas de login falhas do IP (perto do teto de 20) + 5 cadastros passariam de 20 se somassem
+  for (let i = 0; i < 18; i++) await db.query("insert into tentativas_login (email, ip) values ($1, '5.5.5.5')", [`x${i}@x.com`]);
+  for (let i = 1; i <= 5; i++) {
+    expect((await cadastrarAluno(db, s.a.slug, { nome: `Aluno ${i}`, email: `n${i}@x.com`, senha: SENHA }, "5.5.5.5")).ok).toBe(true);
+  }
+  expect((await entrar(db, "dono@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
+  expect((await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
+});
+
+test("o limite de cadastro conta tentativas com e-mail repetido: 5 'existe' e a 6ª dá limite", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  for (let i = 0; i < 5; i++) {
+    expect(await cadastrarAluno(db, s.a.slug, { nome: "Ana", email: "ana@x.com", senha: SENHA }, "6.6.6.6"))
+      .toEqual({ ok: false, motivo: "existe" });
+  }
+  expect(await cadastrarAluno(db, s.a.slug, { nome: "Nova", email: "nova@x.com", senha: SENHA }, "6.6.6.6"))
+    .toEqual({ ok: false, motivo: "limite" });
+});
+
+test("conta feita pelo cadastro vem marcada criadoPeloAluno; a do dono não", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const r = await cadastrarAluno(db, s.a.slug, { nome: "Caio Mota", email: "caio@x.com", senha: SENHA }, "9.9.9.9");
+  expect(r.ok).toBe(true);
+  const lista = await listarAlunos(db, s.a.id);
+  const por = Object.fromEntries(lista.map((x) => [x.email, x.criadoPeloAluno]));
+  expect(por).toEqual({ "ana@x.com": false, "beto@x.com": false, "caio@x.com": true });
 });

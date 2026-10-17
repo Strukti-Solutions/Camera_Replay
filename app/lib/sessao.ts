@@ -27,7 +27,7 @@ export function obterHashFalso(): Promise<string> {
 // Compartilhada pelo login do dono e do aluno: os dois usam tentativas_login.
 // A chave identifica a conta (`dono:<email>` ou `aluno:<arena_id>:<email>`), para
 // que o sucesso numa conta nunca zere o limite de outra com o mesmo e-mail.
-// O limite por IP continua somando todas as chaves.
+// O limite por IP soma todas as chaves de login, menos `cadastro:<ip>` (o cadastro tem limite próprio).
 export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
@@ -40,7 +40,7 @@ export async function registrarTentativa(db: Db, chave: string, ip: string): Pro
   // A contagem inclui a própria tentativa, por isso o bloqueio é com ">".
   const falhas = await db.query<{ por_email: number; por_ip: number }>(
     `select count(*) filter (where email = $1)::int as por_email,
-            count(*) filter (where ip = $2)::int as por_ip
+            count(*) filter (where ip = $2 and email not like 'cadastro:%')::int as por_ip
        from tentativas_login
       where em > now() - make_interval(mins => $3) and (email = $1 or ip = $2)`,
     [chave, ip, JANELA_MIN],
