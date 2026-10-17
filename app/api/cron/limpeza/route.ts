@@ -1,11 +1,8 @@
-import { criarPool, type Db } from "../../../lib/db";
+import { poolCompartilhado } from "../../../lib/pool";
 import { criarHandlerLimpeza } from "../../../lib/limpeza";
 import { criarR2, lerConfigR2 } from "../../../lib/r2";
 
 export const dynamic = "force-dynamic";
-
-let pool: Db | undefined;
-const poolCompartilhado = () => (pool ??= criarPool());
 
 // GET porque o cron da Vercel chama com GET e Authorization: Bearer <CRON_SECRET>.
 // Env lida a cada chamada; o pool só é criado se o segredo estiver configurado.

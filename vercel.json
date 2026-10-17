@@ -1,0 +1,4 @@
+{
+  "crons": [{ "path": "/api/cron/limpeza", "schedule": "0 7 * * *" }],
+  "functions": { "app/api/cron/limpeza/route.ts": { "maxDuration": 60 } }
+}
