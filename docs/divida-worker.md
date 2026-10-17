@@ -11,13 +11,18 @@
 - Relógio único: o worker usa o relógio do banco.
 - Latência do relay e fps por câmera no loop de produção (`RELAY_LAG_S`; falta medir o valor na câmera real).
 - `MemoryQueue` e `LocalDirUploader` deixaram de ser o caminho de produção (fila do Postgres com `SKIP LOCKED` e envio ao R2).
-- Objeto órfão no R2 quando `mark_ready` falha: o worker apaga a chave e marca `falhou`.
+- Objeto órfão no R2: o worker apaga a chave quando `marcar_pronto` devolve False (o reaper já marcou `falhou`; o PgJobQueue também converte recusa definitiva do servidor em False). Quando a chamada lança, o objeto fica e cabe à varredura (ver Dívida).
+- `psycopg.connect` com `connect_timeout`, keepalive e `statement_timeout`.
+- O corte usa `aceite + RELAY_LAG_S`, coerente com o anel que guarda a hora de chegada.
 
 ## Dívida (não bloqueia)
 
 ### supervisor / fila (main.py, queue)
 - `stop()` e o `refresh` fazem join serial de 5 s por câmera.
-- `psycopg.connect` sem `connect_timeout`.
+- Processamento serial entre câmeras: um envio lento atrasa as outras quadras (cortar todos os jobs logo após o claim, ou enviar por câmera).
+- Objeto órfão quando `marcar_pronto` lança por erro de conexão: precisa de varredura do prefixo `clipes/` no backend.
+- Rodar a integração do Postgres e o `test_mux` com ffmpeg antes do deploy.
+- O join de 5 s serial por câmera passa do prazo do `docker stop`.
 - `WORKER_POLL_S <= 0` vira laço ocupado.
 - O sinal de parada não acorda a espera do relay.
 - `_exec` só derruba a conexão em `OperationalError`.
