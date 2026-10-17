@@ -90,7 +90,7 @@ class PgJobQueue:
             raise
 
     def claim_pending(self, camera_id: str) -> list[ClipJob]:
-        linhas = self._exec("select * from pegar_clipes(%s, %s)", (camera_id, self._limite))
+        linhas = self._exec("select * from pegar_clipes(%s::uuid, %s::int)", (camera_id, self._limite))
         return [
             ClipJob(clip_id=str(clipe), camera_id=str(cam), arena_id=str(arena),
                     pressed_at=self._clock_sync.to_local(recebido.timestamp()))
@@ -99,12 +99,12 @@ class PgJobQueue:
 
     def mark_ready(self, clip_id: str, key: str, size: int, duration: float,
                    partial: bool) -> bool:
-        linhas = self._exec("select marcar_pronto(%s, %s, %s, %s, %s)",
+        linhas = self._exec("select marcar_pronto(%s::uuid, %s::text, %s::bigint, %s::real, %s::boolean)",
                             (clip_id, key, size, duration, partial))
         return bool(linhas[0][0]) if linhas else False
 
     def mark_failed(self, clip_id: str, reason: str) -> None:
-        self._exec("select marcar_falhou(%s, %s)", (clip_id, reason))
+        self._exec("select marcar_falhou(%s::uuid, %s::text)", (clip_id, reason))
 
     def listar_cameras(self) -> list[Camera]:
         cameras: list[Camera] = []
@@ -118,7 +118,7 @@ class PgJobQueue:
         return cameras
 
     def marcar_camera(self, camera_id: str, status: str) -> None:
-        self._exec("select marcar_camera(%s, %s)", (camera_id, status))
+        self._exec("select marcar_camera(%s::uuid, %s::text)", (camera_id, status))
 
     def expirar_presos(self) -> int:
         linhas = self._exec("select expirar_presos()")

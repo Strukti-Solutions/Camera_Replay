@@ -97,7 +97,7 @@ def test_claim_pending_converte_relogio_e_ids():
     s.offset = 7.0
     q = PgJobQueue(lambda: conn, s, CHAVE)
     jobs = q.claim_pending("cam-1")
-    assert conn.chamadas == [("select * from pegar_clipes(%s, %s)", ("cam-1", 5))]
+    assert conn.chamadas == [("select * from pegar_clipes(%s::uuid, %s::int)", ("cam-1", 5))]
     assert len(jobs) == 1
     j = jobs[0]
     assert j.clip_id == str(uuid.UUID(int=1))
@@ -111,9 +111,10 @@ def test_mark_ready_e_mark_failed():
     q = PgJobQueue(lambda: conn, _sync_nulo(), CHAVE)
     assert q.mark_ready("c1", "clipes/a/c1.mp4", 123, 29.5, False) is True
     assert q.mark_failed("c1", "motivo") is None
-    assert "marcar_pronto" in conn.chamadas[0][0]
+    assert conn.chamadas[0][0] == (
+        "select marcar_pronto(%s::uuid, %s::text, %s::bigint, %s::real, %s::boolean)")
     assert conn.chamadas[0][1] == ("c1", "clipes/a/c1.mp4", 123, 29.5, False)
-    assert "marcar_falhou" in conn.chamadas[1][0]
+    assert conn.chamadas[1][0] == "select marcar_falhou(%s::uuid, %s::text)"
     assert conn.chamadas[1][1] == ("c1", "motivo")
 
 
@@ -155,13 +156,73 @@ def test_marcar_camera_e_expirar_presos():
     q = PgJobQueue(lambda: conn, _sync_nulo(), CHAVE)
     assert q.marcar_camera("c", "online") is None
     assert q.expirar_presos() == 3
-    assert conn.chamadas[0] == ("select marcar_camera(%s, %s)", ("c", "online"))
+    assert conn.chamadas[0] == ("select marcar_camera(%s::uuid, %s::text)", ("c", "online"))
     assert conn.chamadas[1][0] == "select expirar_presos()"
 
 
+def test_erro_que_nao_e_de_conexao_nao_descarta_a_conexao():
+    conexoes = []
+
+    def connect():
+        c = Conn(erro=psycopg.errors.InvalidParameterValue("chave"))
+        conexoes.append(c)
+        return c
+
+    q = PgJobQueue(connect, _sync_nulo(), CHAVE)
+    for _ in range(2):
+        with pytest.raises(psycopg.Error):
+            q.mark_ready("c", "chave-errada", 1, 1.0, False)
+    assert len(conexoes) == 1 and not conexoes[0].fechada
+
+
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="sem DATABASE_URL")
-def test_integracao_pegar_e_marcar_pronto():
+def test_integracao_fluxo_da_fila():
+    """Contra um Postgres migrado: aperto -> claim_pending -> mark_ready."""
+    import hashlib
+
     url = os.environ["DATABASE_URL"]
-    q = PgJobQueue(lambda: psycopg.connect(url, autocommit=True), ClockSync(lambda: 0.0), CHAVE)
-    cams = q.listar_cameras()
-    assert isinstance(cams, list)
+    sufixo = uuid.uuid4().hex
+    token_hash = hashlib.sha256(f"teste-worker-{sufixo}".encode()).hexdigest()
+    ids: dict[str, str] = {}
+    fx = psycopg.connect(url, autocommit=True)
+    try:
+        ids["arena"] = str(fx.execute(
+            "insert into arenas (nome) values (%s) returning id",
+            (f"teste-worker-{sufixo}",)).fetchone()[0])
+        ids["quadra"] = str(fx.execute(
+            "insert into quadras (arena_id, nome, slug) values (%s, 'q', %s) returning id",
+            (ids["arena"], f"teste-worker-{sufixo}")).fetchone()[0])
+        ids["camera"] = str(fx.execute(
+            "insert into cameras (arena_id, quadra_id, nome, sn, credenciais)"
+            " values (%s, %s, 'c', %s, %s) returning id",
+            (ids["arena"], ids["quadra"], f"SN{sufixo[:8]}", _cifrar())).fetchone()[0])
+        fx.execute(
+            "insert into botoes (arena_id, quadra_id, camera_id, token_hash)"
+            " values (%s, %s, %s, %s)",
+            (ids["arena"], ids["quadra"], ids["camera"], token_hash))
+
+        q = PgJobQueue(lambda: psycopg.connect(url, autocommit=True),
+                       ClockSync(lambda: 0.0), CHAVE)
+        clipe = str(fx.execute("select clipe_id from registrar_aperto(%s)",
+                               (token_hash,)).fetchone()[0])
+        jobs = q.claim_pending(ids["camera"])
+        assert [j.clip_id for j in jobs] == [clipe]
+        assert jobs[0].arena_id == ids["arena"]
+
+        # chave fora do contrato: 22023, e a conexão segue utilizável
+        with pytest.raises(psycopg.Error) as exc:
+            q.mark_ready(clipe, f"clipes/outra/{clipe}.mp4", 10, 1.5, False)
+        assert exc.value.sqlstate == "22023"
+        assert q.expirar_presos() >= 0
+
+        chave = f"clipes/{ids['arena']}/{clipe}.mp4"
+        assert q.mark_ready(clipe, chave, 10, 1.5, False) is True
+    finally:
+        try:
+            if "arena" in ids:
+                a = ids["arena"]
+                for tab in ("clipes", "apertos", "botoes", "cameras", "quadras"):
+                    fx.execute(f"delete from {tab} where arena_id = %s", (a,))
+                fx.execute("delete from arenas where id = %s", (a,))
+        finally:
+            fx.close()
