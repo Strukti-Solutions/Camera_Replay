@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
-import { ErroR2, chaveDoClipe } from "../app/lib/r2";
+import { ErroR2, chaveDaCapa, chaveDoClipe } from "../app/lib/r2";
 import { criarHandlerLimpeza, limparExpirados } from "../app/lib/limpeza";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -58,8 +58,10 @@ test("apaga no R2 e no banco só os expirados", async () => {
   const r2 = r2Falso();
   const res = await limparExpirados(db, r2);
   expect(res).toEqual({ apagados: 1, erros: 0, presos: 0 });
-  expect(r2.apagar).toHaveBeenCalledTimes(1);
-  expect(r2.apagar).toHaveBeenCalledWith(chaveDoClipe(a.arena.id, velho));
+  expect(r2.apagar.mock.calls.map((c) => c[0])).toEqual([
+    chaveDoClipe(a.arena.id, velho),
+    chaveDaCapa(a.arena.id, velho),
+  ]);
   expect(await ids(db)).toEqual([novo]);
 });
 
@@ -118,7 +120,10 @@ test("respeita o limite por rodada", async () => {
   // Sobra o de expira_em mais recente: os apagados são os mais antigos.
   expect(await ids(db)).toEqual([recente]);
   expect(r2.apagar.mock.calls.map((c) => c[0]).sort()).toEqual(
-    [chaveDoClipe(a.arena.id, meio), chaveDoClipe(a.arena.id, antigo)].sort(),
+    [
+      chaveDoClipe(a.arena.id, meio), chaveDaCapa(a.arena.id, meio),
+      chaveDoClipe(a.arena.id, antigo), chaveDaCapa(a.arena.id, antigo),
+    ].sort(),
   );
 });
 
@@ -139,8 +144,10 @@ test("chave_r2 diferente de chaveDoClipe conta como erro e não apaga nada (nem 
   const r2 = r2Falso();
   const res = await limparExpirados(db, r2);
   expect(res).toEqual({ apagados: 1, erros: 3, presos: 0 });
-  expect(r2.apagar).toHaveBeenCalledTimes(1);
-  expect(r2.apagar).toHaveBeenCalledWith(chaveDoClipe(a.arena.id, alvo));
+  expect(r2.apagar.mock.calls.map((c) => c[0])).toEqual([
+    chaveDoClipe(a.arena.id, alvo),
+    chaveDaCapa(a.arena.id, alvo),
+  ]);
   expect((await ids(db)).sort()).toEqual([...adulterados].sort());
   const log = JSON.stringify(erro.mock.calls);
   for (const id of adulterados) expect(log).toContain(id);
@@ -234,4 +241,15 @@ test("route.ts exporta GET e só config permitida do Next", async () => {
   const mod = await import("../app/api/cron/limpeza/route");
   expect(typeof mod.GET).toBe("function");
   expect(Object.keys(mod).sort()).toEqual(["GET", "dynamic"]);
+});
+
+test("falha ao apagar a capa mantém a linha para a próxima rodada", async () => {
+  const db = await novoBanco();
+  const a = await montar(db);
+  const id = await clipe(db, a, { expiraEmSeg: -60, chave: "valida" });
+  const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+  const res = await limparExpirados(db, r2Falso([chaveDaCapa(a.arena.id, id)]));
+  expect(res).toEqual({ apagados: 0, erros: 1, presos: 0 });
+  expect(await ids(db)).toEqual([id]);
+  erro.mockRestore();
 });

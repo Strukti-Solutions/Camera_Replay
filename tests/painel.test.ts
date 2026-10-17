@@ -206,7 +206,10 @@ test("apagarClipe apaga no R2 e depois a linha; recusa em andamento; erro do R2 
   expect(await existe(pronto)).toBe(true);
 
   expect(await apagarClipe(db, r2, s.a.id, pronto)).toBe(true);
-  expect(r2.apagar).toHaveBeenCalledWith(`clipes/${s.a.id}/${pronto}.mp4`);
+  expect(r2.apagar.mock.calls.map((c) => c[0])).toEqual([
+    `clipes/${s.a.id}/${pronto}.mp4`,
+    `clipes/${s.a.id}/${pronto}.jpg`,
+  ]);
   expect(await existe(pronto)).toBe(false);
   expect(await apagarClipe(db, r2, s.a.id, pronto)).toBe(false);
 });

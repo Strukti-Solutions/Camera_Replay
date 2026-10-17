@@ -37,6 +37,14 @@ export function chaveDoClipe(arenaId: string, clipeId: string): string {
   return `clipes/${arenaId}/${clipeId}.mp4`;
 }
 
+// Capa opcional do lance, ao lado do vídeo. O worker a envia antes de marcar_pronto.
+export function chaveDaCapa(arenaId: string, clipeId: string): string {
+  return `clipes/${arenaId}/${clipeId}.jpg`;
+}
+
+// Só letras, números, ponto, sublinhado e hífen: nada que quebre o cabeçalho.
+const saneiaNome = (nome: string) => nome.replace(/[^A-Za-z0-9._-]/g, "_");
+
 export function criarR2(config: ConfigR2, fetcher: typeof fetch = fetch) {
   const client = new AwsClient({
     accessKeyId: config.accessKeyId,
@@ -48,9 +56,16 @@ export function criarR2(config: ConfigR2, fetcher: typeof fetch = fetch) {
   const urlDe = (chave: string) => `${base}/${chave.split("/").map(encodeURIComponent).join("/")}`;
 
   return {
-    // URL assinada de GET, válida por 15 min.
-    async urlLeitura(chave: string): Promise<string> {
+    // URL assinada de GET, válida por 15 min. Com baixarComo, o R2 responde com
+    // Content-Disposition: attachment; o parâmetro entra antes da assinatura.
+    async urlLeitura(chave: string, opcoes?: { baixarComo?: string }): Promise<string> {
       const url = new URL(urlDe(chave));
+      if (opcoes?.baixarComo) {
+        url.searchParams.set(
+          "response-content-disposition",
+          `attachment; filename="${saneiaNome(opcoes.baixarComo)}"`,
+        );
+      }
       url.searchParams.set("X-Amz-Expires", String(VALIDADE_LEITURA_S));
       const assinada = await client.sign(url.toString(), {
         method: "GET",

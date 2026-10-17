@@ -4,7 +4,12 @@ import { clipesDaQuadra } from "../app/lib/clipes";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
 
-const r2Falso = () => ({ urlLeitura: vi.fn(async (chave: string) => `https://r2.exemplo/${chave}?assinado`) });
+const r2Falso = () => ({
+  urlLeitura: vi.fn(
+    async (chave: string, o?: { baixarComo?: string }) =>
+      `https://r2.exemplo/${chave}?assinado${o?.baixarComo ? `&baixarComo=${o.baixarComo}` : ""}`,
+  ),
+});
 
 async function montar(db: Db, arenaId?: string) {
   const arena = arenaId ? { id: arenaId } : await criarArena(db);
@@ -78,9 +83,25 @@ test("URL assinada vem do r2.urlLeitura com a chave do clipe", async () => {
   const id = await clipe(db, a);
   const r2 = r2Falso();
   const r = await clipesDaQuadra(db, r2, a.quadra.slug);
-  expect(r2.urlLeitura).toHaveBeenCalledTimes(1);
   expect(r2.urlLeitura).toHaveBeenCalledWith(`clipes/${a.arena.id}/${id}.mp4`);
   expect(r?.clipes[0].url).toBe(`https://r2.exemplo/clipes/${a.arena.id}/${id}.mp4?assinado`);
+});
+
+test("capa é a URL assinada da .jpg e download leva o nome lance-AAAA-MM-DD-HHhMM.mp4 em America/Sao_Paulo", async () => {
+  const db = await novoBanco();
+  const a = await montar(db);
+  const id = await clipe(db, a);
+  await db.query("update clipes set recebido_em = '2026-10-17T17:32:00Z' where id = $1", [id]);
+  const r2 = r2Falso();
+  const c = (await clipesDaQuadra(db, r2, a.quadra.slug))!.clipes[0];
+  expect(c.capa).toBe(`https://r2.exemplo/clipes/${a.arena.id}/${id}.jpg?assinado`);
+  expect(c.capa).toMatch(/\.jpg\?/);
+  expect(c.download).toBe(
+    `https://r2.exemplo/clipes/${a.arena.id}/${id}.mp4?assinado&baixarComo=lance-2026-10-17-14h32.mp4`,
+  );
+  expect(r2.urlLeitura).toHaveBeenCalledWith(`clipes/${a.arena.id}/${id}.mp4`, {
+    baixarComo: "lance-2026-10-17-14h32.mp4",
+  });
 });
 
 test("quadra sem clipes devolve lista vazia; slug inexistente devolve null", async () => {
@@ -105,8 +126,8 @@ test("nada de dado interno: o resultado só tem os campos públicos", async () =
   await clipe(db, a);
   const r = (await clipesDaQuadra(db, r2Falso(), a.quadra.slug))!;
   expect(Object.keys(r).sort()).toEqual(["clipes", "quadra"]);
-  expect(Object.keys(r.clipes[0]).sort()).toEqual(["duracao", "id", "parcial", "recebidoEm", "url"]);
-  const publico = { ...r, clipes: r.clipes.map(({ url: _url, ...resto }) => resto) };
+  expect(Object.keys(r.clipes[0]).sort()).toEqual(["capa", "download", "duracao", "id", "parcial", "recebidoEm", "url"]);
+  const publico = { ...r, clipes: r.clipes.map(({ url: _url, capa: _capa, download: _download, ...resto }) => resto) };
   const texto = JSON.stringify(publico);
   for (const proibido of ["chave_r2", "motivo", "camera_id", "arena_id", a.arena.id, a.camera.id, a.quadra.id]) {
     expect(texto).not.toContain(proibido);

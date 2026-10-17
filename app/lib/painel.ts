@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Db } from "./db";
 import { cifrarCredenciais } from "./cripto";
 import { novoSlug, novoToken, hashToken } from "./segredos";
-import { chaveDoClipe } from "./r2";
+import { chaveDaCapa, chaveDoClipe } from "./r2";
 import type { LeitorR2 } from "./clipes";
 import type { ApagadorR2 } from "./limpeza";
 
@@ -312,6 +312,7 @@ export async function apagarClipe(
   if (c.chave_r2) {
     if (c.chave_r2 !== chaveDoClipe(arenaId, clipeId)) throw new ErroPainel("chave do clipe inconsistente");
     await r2.apagar(c.chave_r2);
+    await r2.apagar(chaveDaCapa(arenaId, clipeId));
   }
   // Repete o filtro de status: se o clipe voltou a andamento no meio, não apaga.
   const d = await db.query(

@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { chaveDaCapa } from "./r2";
 
 export type ClipePublico = {
   id: string;
@@ -6,9 +7,27 @@ export type ClipePublico = {
   duracao: number;
   parcial: boolean;
   url: string;
+  capa: string; // URL assinada da .jpg; pode não existir no R2 (a página cai num fundo neutro)
+  download: string; // URL assinada do .mp4 com Content-Disposition: attachment
 };
 
-export type LeitorR2 = { urlLeitura(chave: string): Promise<string> };
+export type LeitorR2 = {
+  urlLeitura(chave: string, opcoes?: { baixarComo?: string }): Promise<string>;
+};
+
+// lance-AAAA-MM-DD-HHhMM.mp4 no horário de Brasília.
+function nomeDoDownload(quando: Date): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    })
+      .formatToParts(quando)
+      .map((x) => [x.type, x.value]),
+  );
+  return `lance-${p.year}-${p.month}-${p.day}-${p.hour}h${p.minute}.mp4`;
+}
 
 const SLUG_VALIDO = /^[A-Za-z0-9_-]{20,64}$/;
 const LIMITE = 50;
@@ -63,6 +82,8 @@ export async function clipesDaQuadra(
       duracao: Number(c.duracao ?? 0),
       parcial: c.status === "parcial",
       url: await r2.urlLeitura(c.chave_r2),
+      capa: await r2.urlLeitura(chaveDaCapa(quadra.arena_id, c.id)),
+      download: await r2.urlLeitura(c.chave_r2, { baixarComo: nomeDoDownload(c.recebido_em) }),
     })),
   );
   return { quadra: quadra.nome, clipes };

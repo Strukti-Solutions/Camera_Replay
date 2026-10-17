@@ -1,6 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { afterEach, expect, test, vi } from "vitest";
-import { ErroR2, VALIDADE_LEITURA_S, chaveDoClipe, criarR2, lerConfigR2 } from "../app/lib/r2";
+import { ErroR2, VALIDADE_LEITURA_S, chaveDaCapa, chaveDoClipe, criarR2, lerConfigR2 } from "../app/lib/r2";
 
 const config = {
   accountId: "conta123",
@@ -131,4 +131,30 @@ test("lerConfigR2 devolve null se faltar qualquer variável", () => {
 
 test("chaveDoClipe monta clipes/<arena>/<clipe>.mp4", () => {
   expect(chaveDoClipe("a", "b")).toBe("clipes/a/b.mp4");
+});
+
+test("chaveDaCapa: mesma pasta do vídeo, extensão .jpg", () => {
+  expect(chaveDaCapa("arena1", "clipe1")).toBe("clipes/arena1/clipe1.jpg");
+  expect(chaveDaCapa("arena1", "clipe1").replace(/\.jpg$/, ".mp4")).toBe(chaveDoClipe("arena1", "clipe1"));
+});
+
+test("urlLeitura sem baixarComo não leva response-content-disposition", async () => {
+  const url = new URL(await criarR2(config).urlLeitura("clipes/a/b.mp4"));
+  expect(url.searchParams.has("response-content-disposition")).toBe(false);
+});
+
+test("urlLeitura com baixarComo assina response-content-disposition attachment", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-17T12:00:00Z"));
+  const url = new URL(await criarR2(config).urlLeitura("clipes/a/b.mp4", { baixarComo: "lance-2026-10-17-14h32.mp4" }));
+  expect(url.searchParams.get("response-content-disposition")).toBe('attachment; filename="lance-2026-10-17-14h32.mp4"');
+  // O parâmetro entra na assinatura: o auxiliar independente confere.
+  expect(url.searchParams.get("X-Amz-Signature")).toBe(assinaturaEsperada(url, config.secretAccessKey, "auto", "GET"));
+});
+
+test("baixarComo com caracteres fora de [A-Za-z0-9._-] é saneado", async () => {
+  const url = new URL(await criarR2(config).urlLeitura("clipes/a/b.mp4", { baixarComo: 'a"b\r\nc d/é;.mp4' }));
+  const cd = url.searchParams.get("response-content-disposition")!;
+  expect(cd).toMatch(/^attachment; filename="[A-Za-z0-9._-]+"$/);
+  expect(cd).not.toMatch(/[\r\n]/);
 });
