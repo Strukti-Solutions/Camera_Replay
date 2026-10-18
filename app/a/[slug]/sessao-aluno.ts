@@ -15,12 +15,18 @@ export const sessaoDoCookie = cache(async (): Promise<SessaoAluno | null> => {
 });
 
 // Arena do slug e o aluno logado nela. Sessão de outra arena vale como "não
-// logado". null se o slug não existe. Não traz reserva nenhuma: a página que
+// logado"; arena suspensa nunca tem aluno logado (validarSessaoAluno já recusa,
+// e aqui fica a segunda trava). null se o slug não existe. Não traz reserva nenhuma: a página que
 // precisa das reservas do aluno busca com reservasDoAluno.
 // cache() evita repetir as consultas entre metadata e página no mesmo pedido.
 export const arenaEAluno = cache(async (slug: string) => {
   const arena = await arenaDoSlug(poolCompartilhado(), slug);
   if (!arena) return null;
   const sessao = await sessaoDoCookie();
-  return { arena: arena.nome, arenaId: arena.arenaId, aluno: sessaoDaArena(sessao, arena.arenaId) };
+  return {
+    arena: arena.nome,
+    arenaId: arena.arenaId,
+    ativa: arena.ativa,
+    aluno: arena.ativa ? sessaoDaArena(sessao, arena.arenaId) : null,
+  };
 });

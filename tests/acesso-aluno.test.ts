@@ -238,10 +238,12 @@ test("reservasDoAluno: mais nova primeiro, janela de retenção da arena e slug 
   expect(await reservasDoAluno(db, "../x", s.ana.id)).toBeNull();
 });
 
-test("arenaDoSlug devolve id e nome; slug malformado não consulta o banco", async () => {
+test("arenaDoSlug devolve id, nome e se a arena está ativa; slug malformado não consulta o banco", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
-  expect(await arenaDoSlug(db, s.a.slug)).toEqual({ arenaId: s.a.id, nome: "Arena A" });
+  expect(await arenaDoSlug(db, s.a.slug)).toEqual({ arenaId: s.a.id, nome: "Arena A", ativa: true });
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [s.b.id]);
+  expect(await arenaDoSlug(db, s.b.slug)).toEqual({ arenaId: s.b.id, nome: "Arena B", ativa: false });
   expect(await arenaDoSlug(db, "A".repeat(22))).toBeNull();
   const espiao = vi.spyOn(db, "query");
   for (const ruim of ["curto", "../x", "", "a b".repeat(10), 42 as unknown as string]) expect(await arenaDoSlug(db, ruim)).toBeNull();

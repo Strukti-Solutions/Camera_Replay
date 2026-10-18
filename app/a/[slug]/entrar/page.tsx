@@ -29,5 +29,5 @@ export default async function EntrarAluno({ params, searchParams }: Props) {
   // Já logado nesta arena, ou sem reserva para seguir: vai direto para o destino.
   if (dados.aluno || !reserva) redirect(destinoAposEntrar(slug, reserva) ?? "/");
 
-  return <TelaEntrar slug={slug} arena={dados.arena} reserva={reserva} />;
+  return <TelaEntrar slug={slug} arena={dados.arena} reserva={reserva} suspensa={!dados.ativa} />;
 }

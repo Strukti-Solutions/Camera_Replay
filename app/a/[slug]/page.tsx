@@ -31,7 +31,7 @@ export default async function PaginaDaArena({ params }: Props) {
   const dados = await arenaEAluno(slug);
   if (!dados) notFound();
   const { aluno } = dados;
-  if (!aluno) return <TelaEntrar slug={slug} arena={dados.arena} reserva={null} />;
+  if (!aluno) return <TelaEntrar slug={slug} arena={dados.arena} reserva={null} suspensa={!dados.ativa} />;
 
   const pool = poolCompartilhado();
   const [doAluno, avulsosLista] = await Promise.all([

@@ -6,6 +6,7 @@ import { poolCompartilhado } from "@/app/lib/pool";
 import { DURACAO_SESSAO_S, entrar, sair } from "@/app/lib/sessao";
 import { COOKIE_SESSAO } from "@/app/painel/sessao-atual";
 import { ipDoCliente } from "./ip";
+import { mensagemDeEntrar } from "./mensagens";
 
 export type EstadoEntrar = { erro: string | null; email: string };
 
@@ -16,13 +17,7 @@ export async function entrarAction(_estado: EstadoEntrar, form: FormData): Promi
 
   const r = await entrar(poolCompartilhado(), email, senha, ip);
   if (!r.ok) {
-    return {
-      email,
-      erro:
-        r.motivo === "bloqueado"
-          ? "Muitas tentativas. Espere 15 minutos e tente de novo."
-          : "E-mail ou senha incorretos.",
-    };
+    return { email, erro: mensagemDeEntrar(r.motivo) };
   }
 
   (await cookies()).set(COOKIE_SESSAO, r.token, {

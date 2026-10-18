@@ -6,6 +6,7 @@ import { entrarAluno, sairAluno } from "@/app/lib/acesso-aluno";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { DURACAO_SESSAO_S } from "@/app/lib/sessao";
 import { ipDoCliente } from "@/app/entrar/ip";
+import { mensagemDeEntrar } from "@/app/entrar/mensagens";
 import { destinoAposEntrar } from "../apresentacao";
 import { COOKIE_ALUNO } from "../sessao-aluno";
 
@@ -23,13 +24,7 @@ export async function entrarAlunoAction(_estado: EstadoEntrarAluno, form: FormDa
   const r = await entrarAluno(poolCompartilhado(), slug, email, senha, ip);
   const destino = destinoAposEntrar(slug, reserva);
   if (!r.ok || !destino) {
-    return {
-      email,
-      erro:
-        r.ok === false && r.motivo === "bloqueado"
-          ? "Muitas tentativas. Espere 15 minutos e tente de novo."
-          : "E-mail ou senha incorretos.",
-    };
+    return { email, erro: mensagemDeEntrar(r.ok ? "credenciais" : r.motivo) };
   }
 
   (await cookies()).set(COOKIE_ALUNO, r.token, {

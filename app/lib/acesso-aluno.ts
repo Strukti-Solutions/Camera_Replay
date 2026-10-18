@@ -24,9 +24,14 @@ async function arenaPorSlug(db: Db, slug: string): Promise<Arena | null> {
   return q.rows[0] ?? null;
 }
 
-export async function arenaDoSlug(db: Db, slug: string): Promise<{ arenaId: string; nome: string } | null> {
+// "ativa" deixa a página da arena trocar o formulário pelo aviso de arena
+// suspensa; o status cru (e qualquer outro dado da assinatura) não sai daqui.
+export async function arenaDoSlug(
+  db: Db,
+  slug: string,
+): Promise<{ arenaId: string; nome: string; ativa: boolean } | null> {
   const a = await arenaPorSlug(db, slug);
-  return a ? { arenaId: a.id, nome: a.nome } : null;
+  return a ? { arenaId: a.id, nome: a.nome, ativa: a.status === "ativa" } : null;
 }
 
 // Slug da arena a que a quadra pertence, para as rotas antigas /q/<slug-da-quadra>
