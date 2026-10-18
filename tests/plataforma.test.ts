@@ -79,6 +79,30 @@ test("definirStatusArena: true se existe, false para id inexistente/malformado/s
   expect((await db.query("select status_assinatura from arenas")).rows).toEqual([{ status_assinatura: "ativa" }]);
 });
 
+test("definirStatusArena: suspender apaga as sessões de dono e aluno só dessa arena; reativar não as devolve", async () => {
+  const db = await novoBanco();
+  const a = await criarArenaAdmin(db, { arena: "Arena A", email: "a@x.com", senha: "senha-boa-1" });
+  const b = await criarArenaAdmin(db, { arena: "Arena B", email: "b@x.com", senha: "senha-boa-1" });
+  for (const x of [a, b]) {
+    const al = await criarAluno(db, x.arenaId, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
+    await db.query(
+      "insert into sessoes (arena_id, usuario_id, token_hash, expira_em) values ($1, $2, $3, now() + interval '1 day')",
+      [x.arenaId, x.usuarioId, `dono-${x.arenaId}`],
+    );
+    await db.query(
+      "insert into sessoes_aluno (arena_id, aluno_id, token_hash, expira_em) values ($1, $2, $3, now() + interval '1 day')",
+      [x.arenaId, al.id, `aluno-${x.arenaId}`],
+    );
+  }
+  await definirStatusArena(db, a.arenaId, "suspensa");
+  const resta = async (t: string) => (await db.query(`select arena_id from ${t}`)).rows.map((r) => r.arena_id);
+  expect(await resta("sessoes")).toEqual([b.arenaId]);
+  expect(await resta("sessoes_aluno")).toEqual([b.arenaId]);
+  await definirStatusArena(db, a.arenaId, "ativa");
+  expect(await resta("sessoes")).toEqual([b.arenaId]);
+  expect(await resta("sessoes_aluno")).toEqual([b.arenaId]);
+});
+
 test("criarSuperAdmin: senha >= 12, e-mail normalizado e único, hash scrypt", async () => {
   const db = await novoBanco();
   await expect(criarSuperAdmin(db, { email: "a@x.com", senha: "curta-11-ch" })).rejects.toThrow(/senha/);

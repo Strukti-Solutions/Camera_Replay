@@ -4,6 +4,7 @@ import { criarArena } from "./fixtures";
 import { hashSenha } from "../app/lib/senha";
 import { DURACAO_SESSAO_S, entrar, sair, validarSessao } from "../app/lib/sessao";
 import type { Db } from "../app/lib/db";
+import { definirStatusArena } from "../app/lib/plataforma";
 
 const SENHA = "correta-123";
 
@@ -141,19 +142,19 @@ test("tentativa bloqueada não deixa linha em tentativas_login", async () => {
   expect((await db.query("select 1 from tentativas_login")).rows).toHaveLength(5);
 });
 
-test("arena suspensa: dono não entra (motivo suspensa, só com a senha certa) e sessão aberta cai; reativar volta", async () => {
+test("arena suspensa: dono não entra (motivo suspensa, só com a senha certa) e sessão aberta cai e não revive ao reativar", async () => {
   const { db, arena } = await preparar();
   const aberta = await entrar(db, "dono@x.com", SENHA, "1.1.1.1");
   if (!aberta.ok) throw new Error("login falhou");
-  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [arena.id]);
+  await definirStatusArena(db, arena.id, "suspensa");
   expect(await validarSessao(db, aberta.token)).toBeNull();
   expect(await entrar(db, "dono@x.com", SENHA, "1.1.1.1")).toEqual({ ok: false, motivo: "suspensa" });
   // senha errada continua sendo "credenciais": não revela o estado a quem não sabe a senha
   expect(await entrar(db, "dono@x.com", "errada", "1.1.1.1")).toEqual({ ok: false, motivo: "credenciais" });
-  expect((await db.query("select 1 from sessoes")).rows).toHaveLength(1); // nenhuma sessão nova
+  expect((await db.query("select 1 from sessoes")).rows).toHaveLength(0); // a antiga foi apagada e nenhuma nova entrou
 
-  await db.query("update arenas set status_assinatura = 'ativa' where id = $1", [arena.id]);
-  expect(await validarSessao(db, aberta.token)).not.toBeNull();
+  await definirStatusArena(db, arena.id, "ativa");
+  expect(await validarSessao(db, aberta.token)).toBeNull(); // sessão antiga não revive
   expect((await entrar(db, "dono@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
 });
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { MarcaDaFaixa } from "@/app/componentes/marca";
-import { listarArenasPublicas } from "@/app/lib/arenas-publicas";
+import { LIMITE_PUBLICO, listarArenasPublicas } from "@/app/lib/arenas-publicas";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { termoDaBusca } from "./escolha-arena";
 
@@ -47,6 +47,9 @@ export default async function EscolhaDaArena({ searchParams }: Props) {
               </li>
             ))}
           </ul>
+        )}
+        {arenas.length === LIMITE_PUBLICO && (
+          <p className="escolha-vazia">Mostrando as {LIMITE_PUBLICO} primeiras. Use a busca.</p>
         )}
 
         <p className="escolha-dono">

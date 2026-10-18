@@ -2,9 +2,9 @@ import type { Db } from "./db";
 import { criarArenaComDono } from "./donos";
 import { hashSenha } from "./senha";
 
-// Funções de plataforma: as ÚNICAS que cruzam arenas. Só podem ser chamadas por
-// páginas e actions de /admin depois de exigirSuperAdmin(). Nenhuma página de
-// dono ou aluno importa este módulo (tests/isolamento-plataforma.test.ts confere).
+// Funções de administração da plataforma: cruzam arenas. Só app/admin/** (e os CLIs
+// de db/) importam este módulo, e as páginas e actions de /admin chamam depois de
+// exigirSuperAdmin() (tests/isolamento-plataforma.test.ts confere).
 // A lista pública de arenas (só nome e slug) mora em arenas-publicas.ts.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,12 +46,18 @@ export async function criarArenaAdmin(
 }
 
 // true se a arena existe (e agora está no estado pedido); id malformado ou status
-// inválido não tocam o banco. Nada é apagado: reativar devolve tudo.
+// inválido não tocam o banco. Suspender apaga as sessões de dono e de aluno da arena
+// (reativar não revive sessão antiga); o resto fica e volta ao reativar.
 export async function definirStatusArena(db: Db, arenaId: string, status: StatusArena): Promise<boolean> {
   if (typeof arenaId !== "string" || !UUID.test(arenaId)) return false;
   if (status !== "ativa" && status !== "suspensa") return false;
   const r = await db.query("update arenas set status_assinatura = $2 where id = $1 returning id", [arenaId, status]);
-  return r.rows.length > 0;
+  if (r.rows.length === 0) return false;
+  if (status === "suspensa") {
+    await db.query("delete from sessoes where arena_id = $1", [arenaId]);
+    await db.query("delete from sessoes_aluno where arena_id = $1", [arenaId]);
+  }
+  return true;
 }
 
 export async function criarSuperAdmin(db: Db, dados: { email: string; senha: string }): Promise<{ id: string }> {

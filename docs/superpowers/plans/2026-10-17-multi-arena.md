@@ -4,7 +4,7 @@
 
 **Goal:** O Replay vira SaaS de verdade: o aluno escolhe a arena antes de entrar, e a equipe Strukti tem um painel de super admin para criar arenas com o dono, ver todas e suspender ou reativar.
 
-**Architecture:** Os dados já são isolados por `arena_id` em todas as tabelas. Entram: uma tabela `super_admins` com sessão própria (tabela e cookie separados dos de dono e aluno); funções de plataforma em `app/lib/plataforma.ts` que são as únicas a cruzar arenas, e só atrás da sessão de super admin; uma página pública `/` que lista as arenas ativas e leva a `/a/<slug>`; e o estado `arenas.status_assinatura` (já existe) passa a valer: arena `suspensa` não aceita login de dono nem de aluno, some da lista e o botão não grava aperto.
+**Architecture:** Os dados já são isolados por `arena_id` em todas as tabelas. Entram: uma tabela `super_admins` com sessão própria (tabela e cookie separados dos de dono e aluno); a lista pública (só nome e slug das arenas ativas) em `app/lib/arenas-publicas.ts`, fora da guarda, e as funções de administração em `app/lib/plataforma.ts`, que só `app/admin/**` (e os CLIs de `db/`) importam, atrás da sessão de super admin (`tests/isolamento-plataforma.test.ts` confere); uma página pública `/` que lista as arenas ativas e leva a `/a/<slug>`; e o estado `arenas.status_assinatura` (já existe) passa a valer: arena `suspensa` não aceita login de dono nem de aluno, some da lista e o botão não grava aperto.
 
 **Tech Stack:** o mesmo (Next.js 15, Postgres, Vitest + PGlite).
 

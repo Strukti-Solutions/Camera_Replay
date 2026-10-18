@@ -72,7 +72,7 @@ export default async function PaginaAdmin() {
                           acao={suspenderArenaAction}
                           arenaId={a.id}
                           rotulo="Suspender"
-                          pergunta="O dono e os alunos perdem o acesso e o botão para de gravar. Nada é apagado."
+                          pergunta="O dono e os alunos perdem o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 3 dias."
                           confirmar="Confirmar: suspender arena"
                           perigo
                         />

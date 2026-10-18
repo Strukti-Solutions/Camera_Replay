@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
+import { definirStatusArena } from "../app/lib/plataforma";
 import { criarAluno, listarAlunos, removerAluno } from "../app/lib/alunos";
 import { criarReserva, definirAlunosDaReserva } from "../app/lib/reservas";
 import { atribuirClipe } from "../app/lib/painel";
@@ -271,20 +272,20 @@ test("slugDaArena devolve o slug da arena do painel; id inválido não consulta 
   expect(espiao).not.toHaveBeenCalled();
 });
 
-test("arena suspensa: aluno não entra (motivo suspensa, só com a senha certa) e sessão aberta cai; reativar volta", async () => {
+test("arena suspensa: aluno não entra (motivo suspensa, só com a senha certa) e sessão aberta cai e não revive ao reativar", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
   const aberta = await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "1.1.1.1");
   if (!aberta.ok) throw new Error("login falhou");
-  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [s.a.id]);
+  await definirStatusArena(db, s.a.id, "suspensa");
   expect(await validarSessaoAluno(db, aberta.token)).toBeNull();
   expect(await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "1.1.1.1")).toEqual({ ok: false, motivo: "suspensa" });
   expect(await entrarAluno(db, s.a.slug, "ana@x.com", "errada-123", "1.1.1.1")).toEqual({ ok: false, motivo: "credenciais" });
   // a outra arena não é afetada
   expect((await entrarAluno(db, s.b.slug, "ana@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
 
-  await db.query("update arenas set status_assinatura = 'ativa' where id = $1", [s.a.id]);
-  expect(await validarSessaoAluno(db, aberta.token)).not.toBeNull();
+  await definirStatusArena(db, s.a.id, "ativa");
+  expect(await validarSessaoAluno(db, aberta.token)).toBeNull(); // sessão antiga não revive
   expect((await entrarAluno(db, s.a.slug, "ana@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
 });
 

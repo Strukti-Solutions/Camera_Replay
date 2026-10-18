@@ -4,7 +4,7 @@ import type { Db } from "./db";
 // plataforma.ts de propósito: este é o único dado que cruza arenas sem sessão
 // de super admin, e devolve só nome e slug (nada de dono, quadras ou contagens).
 
-const LIMITE_PUBLICO = 50;
+export const LIMITE_PUBLICO = 50;
 
 // Arenas ativas, por nome, até 50. A busca é por trecho do nome, sem curingas
 // (% e _ valem como texto).
