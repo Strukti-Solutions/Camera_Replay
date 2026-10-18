@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export default async function PaginaAlunos() {
   // A página confere a sessão por conta própria e usa só o arenaId dela.
   const sessao = await exigirSessao();
-  const alunos = await listarAlunos(poolCompartilhado(), sessao.arenaId);
+  const { alunos } = await listarAlunos(poolCompartilhado(), sessao.arenaId);
 
   return (
     <main className="miolo painel">

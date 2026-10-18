@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { listarAlunos } from "@/app/lib/alunos";
+import { listarAlunosParaEscolha } from "@/app/lib/alunos";
 import type { LeitorR2 } from "@/app/lib/clipes";
 import { formatarDuracao, formatarHorario, textoStatus } from "@/app/lib/formato";
 import { clipesDoPainel, detalheQuadra } from "@/app/lib/painel";
@@ -39,9 +39,9 @@ export default async function PaginaQuadra({ params }: Props) {
   const config = lerConfigR2();
   const [clipes, alunosArena] = await Promise.all([
     clipesDoPainel(db, config ? criarR2(config) : semR2, sessao.arenaId, quadra.id),
-    listarAlunos(db, sessao.arenaId),
+    listarAlunosParaEscolha(db, sessao.arenaId),
   ]);
-  const alunos = alunosArena.map((a) => ({ id: a.id, nome: a.nome }));
+  const alunos = alunosArena;
   const agora = new Date();
   const { camera } = quadra;
 

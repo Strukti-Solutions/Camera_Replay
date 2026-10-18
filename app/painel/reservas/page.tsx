@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { listarAlunos } from "@/app/lib/alunos";
+import { listarAlunosParaEscolha } from "@/app/lib/alunos";
 import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { listarReservas } from "@/app/lib/reservas";
@@ -28,9 +28,9 @@ export default async function PaginaReservas() {
   const [reservas, quadras, alunosArena] = await Promise.all([
     listarReservas(db, sessao.arenaId, { desde }),
     listarQuadras(db, sessao.arenaId),
-    listarAlunos(db, sessao.arenaId),
+    listarAlunosParaEscolha(db, sessao.arenaId),
   ]);
-  const alunos = alunosArena.map((a) => ({ id: a.id, nome: a.nome }));
+  const alunos = alunosArena;
 
   return (
     <main className="miolo painel">

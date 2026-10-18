@@ -48,24 +48,67 @@ export async function criarAluno(
   }
 }
 
-export async function listarAlunos(db: Db, arenaId: string): Promise<AlunoLista[]> {
-  if (!ehUuid(arenaId)) return [];
+export type PaginaAlunos = { alunos: AlunoLista[]; total: number; pagina: number; paginas: number };
+
+const POR_PAGINA_PADRAO = 10;
+const POR_PAGINA_MAX = 50;
+
+// Lista paginada com busca por nome ou e-mail. A busca usa position(), não LIKE:
+// % e _ digitados valem como texto, e o termo vai sempre parametrizado.
+export async function listarAlunos(
+  db: Db,
+  arenaId: string,
+  opcoes: { busca?: string; pagina?: number; porPagina?: number } = {},
+): Promise<PaginaAlunos> {
+  const vazio: PaginaAlunos = { alunos: [], total: 0, pagina: 1, paginas: 1 };
+  if (!ehUuid(arenaId)) return vazio;
+  const termo = typeof opcoes.busca === "string" ? opcoes.busca.trim().slice(0, 80) : "";
+  const pp = Number.isFinite(opcoes.porPagina)
+    ? Math.min(POR_PAGINA_MAX, Math.max(1, Math.floor(opcoes.porPagina as number)))
+    : POR_PAGINA_PADRAO;
+  const filtro = `a.arena_id = $1
+        and ($2 = '' or position(lower($2) in lower(a.nome)) > 0
+                     or position(lower($2) in lower(a.email)) > 0)`;
+
+  const c = await db.query<{ n: number }>(`select count(*)::int as n from alunos a where ${filtro}`, [arenaId, termo]);
+  const total = Number(c.rows[0].n);
+  const paginas = Math.max(1, Math.ceil(total / pp));
+  const pedida = Number.isFinite(opcoes.pagina) ? Math.floor(opcoes.pagina as number) : 1;
+  const pagina = Math.min(paginas, Math.max(1, pedida));
+  if (total === 0) return vazio;
+
   const { rows } = await db.query<{ id: string; nome: string; email: string; reservas: number; criado_em: Date }>(
     `select a.id, a.nome, a.email, a.criado_em,
             (select count(*) from reserva_alunos ra
               where ra.aluno_id = a.id and ra.arena_id = a.arena_id)::int as reservas
        from alunos a
-      where a.arena_id = $1
-      order by a.nome, a.id`,
+      where ${filtro}
+      order by a.nome, a.id
+      limit $3 offset $4`,
+    [arenaId, termo, pp, (pagina - 1) * pp],
+  );
+  return {
+    alunos: rows.map((r) => ({
+      id: r.id,
+      nome: r.nome,
+      email: r.email,
+      reservas: Number(r.reservas),
+      criadoEm: r.criado_em,
+    })),
+    total,
+    pagina,
+    paginas,
+  };
+}
+
+// Todos os alunos da arena (só id e nome), para os formulários de reserva e atribuição.
+export async function listarAlunosParaEscolha(db: Db, arenaId: string): Promise<{ id: string; nome: string }[]> {
+  if (!ehUuid(arenaId)) return [];
+  const { rows } = await db.query<{ id: string; nome: string }>(
+    "select id, nome from alunos where arena_id = $1 order by nome, id",
     [arenaId],
   );
-  return rows.map((r) => ({
-    id: r.id,
-    nome: r.nome,
-    email: r.email,
-    reservas: Number(r.reservas),
-    criadoEm: r.criado_em,
-  }));
+  return rows.map((r) => ({ id: r.id, nome: r.nome }));
 }
 
 // Troca a senha e derruba as sessões abertas do aluno, num só comando.

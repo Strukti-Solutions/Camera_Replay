@@ -53,7 +53,7 @@ test("criarReserva grava e listarReservas devolve alunos e quadra, sem senha_has
   expect(l[0].inicio).toEqual(h(8));
   expect(l[0].alunos.map((x) => x.nome).sort()).toEqual(["Ana Souza", "Beto Lima"]);
   expect(JSON.stringify(l)).not.toMatch(/senha|scrypt|email/);
-  expect((await listarAlunos(db, s.a.id)).find((x) => x.id === s.alA.id)?.reservas).toBe(1);
+  expect((await listarAlunos(db, s.a.id)).alunos.find((x) => x.id === s.alA.id)?.reservas).toBe(1);
 });
 
 test("sobreposição é recusada e reservas encostadas são aceitas", async () => {
