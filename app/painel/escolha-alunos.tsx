@@ -4,8 +4,8 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/app/componentes/avatar";
 import { paginarEscolha, POR_PAGINA_ESCOLHA, textoSelecionados } from "./escolha-alunos-filtro";
 
-// Escolha de alunos por caixas de marcar, usada na reserva nova, em "Editar
-// alunos" da reserva e em "Atribuir a alunos" do lance. Tudo funciona sem
+// Escolha de alunos por caixas de marcar, usada na reserva nova e nas páginas
+// "Alunos da reserva" e "Atribuir a alunos" do lance. Tudo funciona sem
 // JavaScript: os ids vão no campo repetido "alunoIds" e a lista aparece inteira.
 //
 // Com JavaScript e mais de 10 alunos, entram a busca, as páginas de 10 e a
@@ -164,51 +164,39 @@ function BotaoPagina({ rotulo, ativo, irPara }: { rotulo: string; ativo: boolean
   );
 }
 
-export type EstadoAlunos = { erro: string | null; ok: boolean };
+export type EstadoAlunos = { erro: string | null };
 
-// Formulário recolhido: o <summary> abre a lista, o botão salva. Depois de
-// salvar, o React reinicia o formulário e as caixas voltam a refletir o banco
-// (a página é revalidada pela action).
-export function EditarAlunos({
+// Formulário da página própria de escolha ("Editar alunos" da reserva e
+// "Atribuir a alunos" do lance). A action salva e redireciona para a tela de
+// origem com a mensagem de sucesso; aqui só volta o erro.
+export function FormularioAlunos({
   acao: acaoServidor,
   campo,
   valor,
   alunos,
   marcados,
-  rotulo,
   legenda,
   salvar,
-  salvo,
 }: {
   acao: (estado: EstadoAlunos, form: FormData) => Promise<EstadoAlunos>;
   campo: string;
   valor: string;
   alunos: AlunoEscolha[];
   marcados: string[];
-  rotulo: string;
   legenda: string;
   salvar: string;
-  salvo: string;
 }) {
-  const [estado, acao, pendente] = useActionState(acaoServidor, { erro: null, ok: false });
+  const [estado, acao, pendente] = useActionState(acaoServidor, { erro: null });
   return (
-    <div className="confirmar">
-      <details>
-        <summary className="botao">{rotulo}</summary>
-        <form action={acao} className="confirmar-caixa">
-          <input type="hidden" name={campo} value={valor} />
-          <CaixasAlunos alunos={alunos} marcados={marcados} prefixo={`${campo}-${valor}`} legenda={legenda} />
-          <button type="submit" className="botao botao-cheio" disabled={pendente}>
-            {pendente ? "Salvando…" : salvar}
-          </button>
-        </form>
-      </details>
+    <form action={acao} className="formulario">
+      <input type="hidden" name={campo} value={valor} />
+      <CaixasAlunos alunos={alunos} marcados={marcados} prefixo={campo} legenda={legenda} />
       <p className="erro-form" role="alert">
         {estado.erro}
       </p>
-      <p className="ok-form" role="status">
-        {estado.ok ? salvo : ""}
-      </p>
-    </div>
+      <button type="submit" className="botao botao-cheio" disabled={pendente}>
+        {pendente ? "Salvando…" : salvar}
+      </button>
+    </form>
   );
 }

@@ -6,10 +6,9 @@ import { poolCompartilhado } from "@/app/lib/pool";
 import { listarReservas } from "@/app/lib/reservas";
 import { textoData, textoReserva } from "@/app/painel/apresentacao";
 import { AvataresEmpilhados } from "@/app/componentes/avatar";
-import { EditarAlunos } from "@/app/painel/escolha-alunos";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { exigirSessao } from "@/app/painel/sessao-atual";
-import { definirAlunosAction, removerReservaAction } from "./actions";
+import { removerReservaAction } from "./actions";
 import { FormularioNovaReserva } from "./formulario";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +18,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function PaginaReservas() {
+type Props = { searchParams: Promise<{ ok?: string | string[] }> };
+
+export default async function PaginaReservas({ searchParams }: Props) {
   // A página confere a sessão por conta própria e usa só o arenaId dela.
   const sessao = await exigirSessao();
   const db = poolCompartilhado();
@@ -31,10 +32,16 @@ export default async function PaginaReservas() {
     listarAlunosParaEscolha(db, sessao.arenaId),
   ]);
   const alunos = alunosArena;
+  // ?ok= é só uma chave: o texto mostrado é fixo, nada da URL vai para a tela.
+  const { ok } = await searchParams;
+  const mensagem = ok === "alunos" ? "Alunos da reserva salvos." : "";
 
   return (
     <main className="miolo painel">
       <h1>Reservas</h1>
+      <p className="ok-form" role="status">
+        {mensagem}
+      </p>
 
       {reservas.length === 0 ? (
         <p className="painel-vazio">Nenhuma reserva cadastrada.</p>
@@ -73,19 +80,9 @@ export default async function PaginaReservas() {
                   <td className="num">{r.lances}</td>
                   <td>
                     <div className="acoes-linha">
-                      {alunos.length > 0 && (
-                        <EditarAlunos
-                          acao={definirAlunosAction}
-                          campo="reservaId"
-                          valor={r.id}
-                          alunos={alunos}
-                          marcados={r.alunos.map((a) => a.id)}
-                          rotulo="Editar alunos"
-                          legenda="Alunos da reserva"
-                          salvar="Salvar alunos"
-                          salvo="Alunos da reserva salvos."
-                        />
-                      )}
+                      <Link className="botao" href={`/painel/reservas/${r.id}/alunos`}>
+                        Editar alunos
+                      </Link>
                       <Confirmar
                         acao={removerReservaAction}
                         campo="reservaId"

@@ -375,3 +375,46 @@ export async function apagarClipe(
   );
   return d.rows.length === 1;
 }
+
+export type ClipeParaAtribuir = { id: string; quadraId: string; quadraNome: string; recebidoEm: Date; alunoIds: string[] };
+
+// Lance para a página "Atribuir a alunos": quadra, horário e ids dos alunos
+// atribuídos. Só lance que o aluno consegue assistir (pronto/parcial, não
+// expirado) vale ser atribuído; o resto, outra arena e id malformado (sem ir
+// ao banco) dão null.
+export async function clipeParaAtribuir(
+  db: Db,
+  arenaId: string,
+  clipeId: string,
+): Promise<ClipeParaAtribuir | null> {
+  if (!ehUuid(arenaId) || !ehUuid(clipeId)) return null;
+  const { rows } = await db.query<{
+    id: string;
+    quadra_id: string;
+    quadra_nome: string;
+    recebido_em: Date;
+    aluno_ids: string[] | null;
+  }>(
+    `select c.id, q.id as quadra_id, q.nome as quadra_nome, c.recebido_em,
+            (select array_agg(a.id::text order by a.id)
+               from clipe_alunos ca
+               join alunos a on a.id = ca.aluno_id and a.arena_id = ca.arena_id
+              where ca.clipe_id = c.id and ca.arena_id = c.arena_id) as aluno_ids
+       from clipes c
+       join cameras cam on cam.id = c.camera_id and cam.arena_id = c.arena_id
+       join quadras q on q.id = cam.quadra_id and q.arena_id = c.arena_id
+      where c.id = $1 and c.arena_id = $2
+        and c.status in ('pronto', 'parcial')
+        and c.expira_em > now()`,
+    [clipeId, arenaId],
+  );
+  const c = rows[0];
+  if (!c) return null;
+  return {
+    id: c.id,
+    quadraId: c.quadra_id,
+    quadraNome: c.quadra_nome,
+    recebidoEm: c.recebido_em,
+    alunoIds: c.aluno_ids ?? [],
+  };
+}

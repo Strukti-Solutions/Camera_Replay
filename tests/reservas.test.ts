@@ -1,9 +1,9 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
 import { ErroPainel } from "../app/lib/painel";
 import { criarAluno, listarAlunos, removerAluno } from "../app/lib/alunos";
 import {
-  criarReserva, definirAlunosDaReserva, listarReservas, removerReserva,
+  criarReserva, definirAlunosDaReserva, listarReservas, removerReserva, reservaParaEditar,
 } from "../app/lib/reservas";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -217,4 +217,25 @@ test("remover a reserva não apaga os clipes", async () => {
   await clipeEm(db, s.a.id, s.qa.id, h(9));
   expect(await removerReserva(db, s.a.id, r.id)).toBe(true);
   expect((await db.query("select 1 from clipes")).rows).toHaveLength(1);
+});
+
+test("reservaParaEditar devolve a reserva com quadra e alunos atuais; null para outra arena e id malformado", async () => {
+  const db = await novoBanco();
+  const s = await cenario(db);
+  const r = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.alA.id, s.alA2.id] }))!;
+  const rb = (await criarReserva(db, s.b.id, { quadraId: s.qb.id, inicio: h(8), fim: h(10), alunoIds: [s.alB.id] }))!;
+
+  const e = await reservaParaEditar(db, s.a.id, r.id);
+  expect(e).toEqual({ id: r.id, quadraNome: "Quadra 1", inicio: h(8), fim: h(10), alunoIds: [s.alA.id, s.alA2.id].sort() });
+  expect(e!.alunoIds).toHaveLength(2);
+  await definirAlunosDaReserva(db, s.a.id, r.id, [s.alA2.id]);
+  expect((await reservaParaEditar(db, s.a.id, r.id))!.alunoIds).toEqual([s.alA2.id]);
+
+  expect(await reservaParaEditar(db, s.a.id, rb.id)).toBeNull();
+  const consulta = vi.spyOn(db, "query");
+  for (const ruim of ["abc", "' or 1=1 --"]) {
+    expect(await reservaParaEditar(db, s.a.id, ruim)).toBeNull();
+    expect(await reservaParaEditar(db, ruim, r.id)).toBeNull();
+  }
+  expect(consulta).not.toHaveBeenCalled();
 });

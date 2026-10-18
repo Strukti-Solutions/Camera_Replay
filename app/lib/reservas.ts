@@ -164,3 +164,35 @@ export async function removerReserva(db: Db, arenaId: string, reservaId: string)
   const r = await db.query("delete from reservas where id = $1 and arena_id = $2 returning id", [reservaId, arenaId]);
   return r.rows.length === 1;
 }
+
+export type ReservaParaEditar = { id: string; quadraNome: string; inicio: Date; fim: Date; alunoIds: string[] };
+
+// Reserva para a página "Alunos da reserva": quadra, horário e ids dos alunos
+// atuais. null se a reserva não existe nesta arena (ou id malformado, sem ir ao banco).
+export async function reservaParaEditar(
+  db: Db,
+  arenaId: string,
+  reservaId: string,
+): Promise<ReservaParaEditar | null> {
+  if (!ehUuid(arenaId) || !ehUuid(reservaId)) return null;
+  const { rows } = await db.query<{
+    id: string;
+    quadra_nome: string;
+    inicio: Date;
+    fim: Date;
+    aluno_ids: string[] | null;
+  }>(
+    `select r.id, q.nome as quadra_nome, r.inicio, r.fim,
+            (select array_agg(a.id::text order by a.id)
+               from reserva_alunos ra
+               join alunos a on a.id = ra.aluno_id and a.arena_id = ra.arena_id
+              where ra.reserva_id = r.id and ra.arena_id = r.arena_id) as aluno_ids
+       from reservas r
+       join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
+      where r.id = $1 and r.arena_id = $2`,
+    [reservaId, arenaId],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return { id: r.id, quadraNome: r.quadra_nome, inicio: r.inicio, fim: r.fim, alunoIds: r.aluno_ids ?? [] };
+}

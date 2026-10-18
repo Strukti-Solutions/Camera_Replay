@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarReserva, definirAlunosDaReserva, removerReserva } from "@/app/lib/reservas";
 import { intervaloDaReserva, mensagemDoErro } from "@/app/painel/apresentacao";
@@ -68,16 +69,19 @@ export async function criarReservaAction(estado: EstadoNovaReserva, form: FormDa
   return { ...eco, erro: null, ok: true, inicio: "", fim: "", alunoIds: [] };
 }
 
+// Salva os alunos da reserva (página "Alunos da reserva") e volta para a
+// lista com a mensagem fixa de sucesso (a chave ?ok= não carrega texto).
 export async function definirAlunosAction(_estado: EstadoAlunos, form: FormData): Promise<EstadoAlunos> {
   const sessao = await exigirSessao();
   try {
     const ok = await definirAlunosDaReserva(poolCompartilhado(), sessao.arenaId, campo(form, "reservaId"), alunoIds(form));
-    if (!ok) return { erro: "Reserva não encontrada.", ok: false };
+    if (!ok) return { erro: "Reserva não encontrada." };
   } catch (e) {
-    return { erro: mensagemDoErro(e, "definir alunos da reserva"), ok: false };
+    return { erro: mensagemDoErro(e, "definir alunos da reserva") };
   }
   revalidar();
-  return { erro: null, ok: true };
+  // Fora do try: o redirect do Next funciona lançando uma exceção.
+  redirect("/painel/reservas?ok=alunos");
 }
 
 export type EstadoConfirmar = { erro: string | null };

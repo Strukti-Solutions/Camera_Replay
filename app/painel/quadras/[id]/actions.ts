@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { lerChave } from "@/app/lib/cripto";
 import {
   apagarClipe,
   atribuirClipe,
   atualizarCredenciais,
   cadastrarCamera,
+  clipeParaAtribuir,
   criarBotao,
   revogarBotao,
 } from "@/app/lib/painel";
@@ -133,17 +135,26 @@ export async function apagarClipeAction(_estado: EstadoConfirmar, form: FormData
   return { erro: null };
 }
 
-// Troca os alunos a quem o lance foi atribuído. Nenhuma caixa marcada
-// retira a atribuição de todos.
+// Troca os alunos a quem o lance foi atribuído (página "Atribuir a alunos") e
+// volta para a quadra do lance com a mensagem fixa de sucesso. Nenhuma caixa
+// marcada retira a atribuição de todos. A quadra do redirect vem do banco,
+// nunca do formulário.
 export async function atribuirClipeAction(_estado: EstadoAlunos, form: FormData): Promise<EstadoAlunos> {
   const sessao = await exigirSessao();
   const alunoIds = form.getAll("alunoIds").filter((v): v is string => typeof v === "string");
+  let quadraId: string;
   try {
-    const ok = await atribuirClipe(poolCompartilhado(), sessao.arenaId, campo(form, "clipeId"), alunoIds);
-    if (!ok) return { erro: "Clipe não encontrado.", ok: false };
+    const db = poolCompartilhado();
+    // Só lance assistível (pronto/parcial, não expirado) da arena da sessão.
+    const clipe = await clipeParaAtribuir(db, sessao.arenaId, campo(form, "clipeId"));
+    if (!clipe) return { erro: "Clipe não encontrado." };
+    const ok = await atribuirClipe(db, sessao.arenaId, clipe.id, alunoIds);
+    if (!ok) return { erro: "Clipe não encontrado." };
+    quadraId = clipe.quadraId;
   } catch (e) {
-    return { erro: mensagemDoErro(e, "atribuir clipe"), ok: false };
+    return { erro: mensagemDoErro(e, "atribuir clipe") };
   }
   revalidar();
-  return { erro: null, ok: true };
+  // Fora do try: o redirect do Next funciona lançando uma exceção.
+  redirect(`/painel/quadras/${quadraId}?ok=atribuicao`);
 }

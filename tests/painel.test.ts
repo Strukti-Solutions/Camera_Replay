@@ -5,7 +5,7 @@ import { decifrarCredenciais } from "../app/lib/cripto";
 import { registrarAperto } from "../app/lib/aperto";
 import { hashToken } from "../app/lib/segredos";
 import {
-  ErroPainel, apagarClipe, atribuirClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
+  ErroPainel, apagarClipe, atribuirClipe, atualizarCredenciais, cadastrarCamera, clipeParaAtribuir, clipesDoPainel,
   criarBotao, criarQuadra, detalheQuadra, listarQuadras, revogarBotao,
 } from "../app/lib/painel";
 import { criarAluno } from "../app/lib/alunos";
@@ -317,4 +317,34 @@ test("atribuirClipe com clipe de outra arena ou malformado devolve false e não 
   expect(await atribuirClipe(db, s.a.id, "lixo", [ana.id])).toBe(false);
   expect(await atribuirClipe(db, "lixo", doB, [ana.id])).toBe(false);
   expect((await db.query("select 1 from clipe_alunos")).rows).toHaveLength(0);
+});
+
+test("clipeParaAtribuir devolve o lance com quadra e alunos atuais; null para outra arena, não assistível e id malformado", async () => {
+  const db = await novoBanco();
+  const s = await duasArenas(db);
+  const ana = await criarAluno(db, s.a.id, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
+  const beto = await criarAluno(db, s.a.id, { nome: "Beto", email: "beto@x.com", senha: "senha-boa-1" });
+  const c = await clipe(db, s.a.id, s.ba.id, s.ca.id);
+  const parcial = await clipe(db, s.a.id, s.ba.id, s.ca.id, { status: "parcial" });
+  const falhou = await clipe(db, s.a.id, s.ba.id, s.ca.id, { status: "falhou", motivo: "x" });
+  const expirado = await clipe(db, s.a.id, s.ba.id, s.ca.id, { expiraEmSeg: -60 });
+  const doB = await clipe(db, s.b.id, s.bb.id, s.cb.id);
+  const recebido = (await db.query<{ recebido_em: Date }>("select recebido_em from clipes where id = $1", [c])).rows[0].recebido_em;
+
+  expect(await clipeParaAtribuir(db, s.a.id, c)).toEqual({
+    id: c, quadraId: s.qa.id, quadraNome: "Quadra 1", recebidoEm: recebido, alunoIds: [],
+  });
+  await atribuirClipe(db, s.a.id, c, [ana.id, beto.id]);
+  expect((await clipeParaAtribuir(db, s.a.id, c))!.alunoIds.sort()).toEqual([ana.id, beto.id].sort());
+  expect(await clipeParaAtribuir(db, s.a.id, parcial)).not.toBeNull();
+  expect(await clipeParaAtribuir(db, s.a.id, falhou)).toBeNull();
+  expect(await clipeParaAtribuir(db, s.a.id, expirado)).toBeNull();
+  expect(await clipeParaAtribuir(db, s.a.id, doB)).toBeNull();
+
+  const consulta = vi.spyOn(db, "query");
+  for (const ruim of ["abc", "' or 1=1 --"]) {
+    expect(await clipeParaAtribuir(db, s.a.id, ruim)).toBeNull();
+    expect(await clipeParaAtribuir(db, ruim, c)).toBeNull();
+  }
+  expect(consulta).not.toHaveBeenCalled();
 });
