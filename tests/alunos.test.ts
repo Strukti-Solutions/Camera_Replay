@@ -183,3 +183,11 @@ test("listarAlunosParaEscolha devolve todos por nome, só id e nome", async () =
   expect(Object.keys(l[0]).sort()).toEqual(["id", "nome"]);
   expect(await listarAlunosParaEscolha(db, "x")).toEqual([]);
 });
+
+test("busca com caractere NUL não quebra a consulta (o NUL é descartado)", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  await criarAluno(db, a.id, { nome: "Ana Souza", email: "ana@exemplo.com", senha: "senha-boa-1" });
+  expect((await listarAlunos(db, a.id, { busca: "So\u0000uza" })).alunos.map((x) => x.nome)).toEqual(["Ana Souza"]);
+  expect((await listarAlunos(db, a.id, { busca: "\u0000" })).total).toBe(1);
+});

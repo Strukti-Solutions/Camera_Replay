@@ -121,3 +121,10 @@ test("e-mail de super admin pode coincidir com o de dono (contas separadas)", as
   await db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'x@x.com', $2, 'dono')", [arena.id, await hashSenha("senha-do-dono-1")]);
   await expect(criarSuperAdmin(db, { email: "x@x.com", senha: "senha-bem-longa" })).resolves.toBeTruthy();
 });
+
+test("listarArenasPublicas: busca com caractere NUL não quebra a consulta (o NUL é descartado)", async () => {
+  const db = await novoBanco();
+  await criarArena(db, "Arena Beira Mar");
+  expect((await listarArenasPublicas(db, "Bei\u0000ra")).map((x) => x.nome)).toEqual(["Arena Beira Mar"]);
+  expect(await listarArenasPublicas(db, "\u0000")).toHaveLength(1);
+});

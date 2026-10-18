@@ -7,9 +7,9 @@ import type { Db } from "./db";
 export const LIMITE_PUBLICO = 50;
 
 // Arenas ativas, por nome, até 50. A busca é por trecho do nome, sem curingas
-// (% e _ valem como texto).
+// (% e _ valem como texto). O NUL sai do termo: o Postgres recusa esse caractere.
 export async function listarArenasPublicas(db: Db, busca?: string): Promise<{ nome: string; slug: string }[]> {
-  const termo = typeof busca === "string" ? busca.trim().slice(0, 80) : "";
+  const termo = typeof busca === "string" ? busca.replace(/\u0000/g, "").trim().slice(0, 80) : "";
   const { rows } = await db.query<{ nome: string; slug: string }>(
     `select nome, slug from arenas
       where status_assinatura = 'ativa'

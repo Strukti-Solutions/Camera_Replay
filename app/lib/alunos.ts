@@ -62,7 +62,8 @@ export async function listarAlunos(
 ): Promise<PaginaAlunos> {
   const vazio: PaginaAlunos = { alunos: [], total: 0, pagina: 1, paginas: 1 };
   if (!ehUuid(arenaId)) return vazio;
-  const termo = typeof opcoes.busca === "string" ? opcoes.busca.trim().slice(0, 80) : "";
+  // O NUL sai do termo: o Postgres recusa esse caractere e a página daria erro 500.
+  const termo = typeof opcoes.busca === "string" ? opcoes.busca.replace(/\u0000/g, "").trim().slice(0, 80) : "";
   const pp = Number.isFinite(opcoes.porPagina)
     ? Math.min(POR_PAGINA_MAX, Math.max(1, Math.floor(opcoes.porPagina as number)))
     : POR_PAGINA_PADRAO;

@@ -8,3 +8,8 @@ test("termo da busca vem de ?busca=, aparado e com no máximo 80 caracteres", ()
   expect(termoDaBusca([])).toBe("");
   expect(termoDaBusca("x".repeat(200))).toHaveLength(80);
 });
+
+test("termo da busca descarta o caractere NUL", () => {
+  expect(termoDaBusca("be\u0000ira")).toBe("beira");
+  expect(termoDaBusca("\u0000")).toBe("");
+});
