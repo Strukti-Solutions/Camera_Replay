@@ -177,6 +177,7 @@ export default async function PaginaQuadra({ params, searchParams }: Props) {
                     <p>
                       <Link className="botao" href={`/painel/lances/${c.id}/alunos`}>
                         Atribuir a alunos
+                        <span className="so-leitor"> o lance de {horario}</span>
                       </Link>
                     </p>
                   )}

@@ -82,6 +82,10 @@ export default async function PaginaReservas({ searchParams }: Props) {
                     <div className="acoes-linha">
                       <Link className="botao" href={`/painel/reservas/${r.id}/alunos`}>
                         Editar alunos
+                        <span className="so-leitor">
+                          {" "}
+                          da reserva {textoReserva(r.inicio, r.fim)} · {r.quadraNome}
+                        </span>
                       </Link>
                       <Confirmar
                         acao={removerReservaAction}
