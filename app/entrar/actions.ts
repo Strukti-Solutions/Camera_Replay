@@ -2,11 +2,11 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { caminhoSeguro, destinoDoTipo, entrarUnico } from "@/app/lib/entrar-unico";
-import { DURACAO_SESSAO_JOGADOR_S } from "@/app/lib/jogadores";
+import { caminhoSeguro, destinoDoTipo, entrarUnico, type TipoConta } from "@/app/lib/entrar-unico";
+import { DURACAO_SESSAO_JOGADOR_S, sairJogador } from "@/app/lib/jogadores";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { DURACAO_SESSAO_S, sair } from "@/app/lib/sessao";
-import { CAMINHO_COOKIE_ADMIN, COOKIE_ADMIN, DURACAO_SESSAO_ADMIN_S } from "@/app/lib/sessao-admin";
+import { CAMINHO_COOKIE_ADMIN, COOKIE_ADMIN, DURACAO_SESSAO_ADMIN_S, sairAdmin } from "@/app/lib/sessao-admin";
 import { COOKIE_JOGADOR } from "@/app/jogador/sessao-jogador";
 import { COOKIE_SESSAO } from "@/app/painel/sessao-atual";
 import { ipDoCliente } from "./ip";
@@ -14,6 +14,32 @@ import { mensagemDeEntrar } from "./mensagens";
 
 // O e-mail volta para o campo depois de um erro; a senha nunca.
 export type EstadoEntrar = { erro: string | null; email: string };
+
+type Cookies = Awaited<ReturnType<typeof cookies>>;
+
+// Encerra no navegador as sessões dos tipos que não são o que acabou de entrar
+// (aparelho compartilhado: o cookie de 30 dias do jogador não pode continuar
+// valendo depois que o dono entra, por exemplo). Apaga a linha no banco quando o
+// cookie chega aqui e sempre apaga o cookie. O do admin (path /admin) não é
+// mandado para /entrar: só o cookie é apagado, e a linha vence sozinha em 12 h.
+async function encerrarOutrasSessoes(jar: Cookies, tipo: TipoConta): Promise<void> {
+  const db = poolCompartilhado();
+  if (tipo !== "dono") {
+    const t = jar.get(COOKIE_SESSAO)?.value;
+    if (t) await sair(db, t);
+    jar.delete(COOKIE_SESSAO);
+  }
+  if (tipo !== "jogador") {
+    const t = jar.get(COOKIE_JOGADOR)?.value;
+    if (t) await sairJogador(db, t);
+    jar.delete(COOKIE_JOGADOR);
+  }
+  if (tipo !== "admin") {
+    const t = jar.get(COOKIE_ADMIN)?.value;
+    if (t) await sairAdmin(db, t);
+    jar.delete({ name: COOKIE_ADMIN, path: CAMINHO_COOKIE_ADMIN });
+  }
+}
 
 export async function entrarAction(_estado: EstadoEntrar, form: FormData): Promise<EstadoEntrar> {
   const email = String(form.get("email") ?? "").trim();
@@ -27,6 +53,7 @@ export async function entrarAction(_estado: EstadoEntrar, form: FormData): Promi
 
   const seguro = process.env.NODE_ENV === "production";
   const jar = await cookies();
+  await encerrarOutrasSessoes(jar, r.tipo);
   if (r.tipo === "admin") {
     // Path /admin e SameSite Strict: o cookie do admin só viaja para /admin.
     jar.set(COOKIE_ADMIN, r.token, {

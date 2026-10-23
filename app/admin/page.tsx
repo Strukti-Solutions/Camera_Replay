@@ -22,7 +22,7 @@ export default async function PaginaAdmin() {
 
   return (
     <>
-      <CabecalhoAdmin comSair />
+      <CabecalhoAdmin />
       <main className="miolo painel">
         <h1>Arenas</h1>
 

@@ -20,9 +20,11 @@ export function obterHashFalso(): Promise<string> {
 }
 
 // Registra a tentativa de login e diz se o limite já estourou (true = bloqueado).
-// Usada pelo login único (entrar-unico.ts), com a chave `entrar:<email>`.
-// O limite por IP soma só as chaves do mesmo prefixo (o trecho antes do
-// primeiro ":"); hoje todo login usa `entrar`, então conta todas as contas.
+// Usada pelo login único (entrar-unico.ts), com a chave `<tipo>:<email>`
+// (`jogador`, `dono` ou `admin`; e-mail sem conta usa `jogador`).
+// O limite por IP soma só as chaves do mesmo tipo (o trecho antes do primeiro
+// ":"): gente errando a senha no Wi-Fi da arena não pode travar o login do
+// dono nem o do admin.
 export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.

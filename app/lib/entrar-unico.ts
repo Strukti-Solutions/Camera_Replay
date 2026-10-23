@@ -14,7 +14,7 @@ export type ResultadoEntrarUnico =
   | { ok: true; tipo: TipoConta; token: string; expiraEm: Date }
   | { ok: false; motivo: "credenciais" | "bloqueado" | "suspensa" };
 
-const CAMINHO_MAX = 500;
+const CAMINHO_MAX = 512;
 
 type Conta = { id: string; senhaHash: string; arenaId?: string; arenaAtiva?: boolean };
 
@@ -48,12 +48,16 @@ export async function entrarUnico(db: Db, email: string, senha: string, ip: stri
   // Limpeza oportunista: tentativas com mais de 1 dia.
   await db.query("delete from tentativas_login where em < now() - interval '1 day'");
 
-  // Tentativa registrada antes de conferir a senha (registrarTentativa).
-  const chave = `entrar:${emailNorm}`;
-  if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
-
+  // O tipo vem antes da tentativa porque a chave é `<tipo>:<email>`: o limite
+  // por IP conta cada tipo à parte, e falhas de jogadores no Wi-Fi da arena não
+  // travam o dono nem o admin. E-mail sem conta cai no balde de jogador, para se
+  // comportar igual a um jogador (mesma resposta, mesmo scrypt).
   const t = await db.query<{ tipo: TipoConta }>("select tipo from contas_email where email = $1", [emailNorm]);
   const tipo = t.rows[0]?.tipo;
+  // Tentativa registrada antes de conferir a senha (registrarTentativa).
+  const chave = `${tipo ?? "jogador"}:${emailNorm}`;
+  if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
+
   const conta = tipo ? await buscarConta(db, tipo, emailNorm) : null;
   // E-mail inexistente gasta o mesmo scrypt que um real: o tempo não revela quem tem conta.
   const certa = await conferirSenha(senhaTexto, conta ? conta.senhaHash : await obterHashFalso());
