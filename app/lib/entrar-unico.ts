@@ -56,7 +56,16 @@ export async function entrarUnico(db: Db, email: string, senha: string, ip: stri
   const tipo = t.rows[0]?.tipo;
   // Tentativa registrada antes de conferir a senha (registrarTentativa).
   const chave = `${tipo ?? "jogador"}:${emailNorm}`;
-  if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
+  const limite = await registrarTentativa(db, chave, ip);
+  // O balde do e-mail se comporta igual em qualquer tipo: "bloqueado" não vaza nada.
+  if (limite === "email") return { ok: false, motivo: "bloqueado" };
+  if (limite === "ip") {
+    // O balde do IP é por tipo: um atacante que esgota o de jogador com e-mails
+    // aleatórios veria "bloqueado" só para jogador e saberia quem é dono ou admin.
+    // Por isso a resposta é "credenciais", com o mesmo scrypt (mesmo tempo).
+    await conferirSenha(senhaTexto, await obterHashFalso());
+    return { ok: false, motivo: "credenciais" };
+  }
 
   const conta = tipo ? await buscarConta(db, tipo, emailNorm) : null;
   // E-mail inexistente gasta o mesmo scrypt que um real: o tempo não revela quem tem conta.

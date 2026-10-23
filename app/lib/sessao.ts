@@ -19,13 +19,17 @@ export function obterHashFalso(): Promise<string> {
   return hashFalso;
 }
 
-// Registra a tentativa de login e diz se o limite já estourou (true = bloqueado).
+// Registra a tentativa de login e diz qual limite estourou: "email", "ip" ou
+// null (não bloqueou). Se os dois estouraram, vale "email".
 // Usada pelo login único (entrar-unico.ts), com a chave `<tipo>:<email>`
 // (`jogador`, `dono` ou `admin`; e-mail sem conta usa `jogador`).
 // O limite por IP soma só as chaves do mesmo tipo (o trecho antes do primeiro
 // ":"): gente errando a senha no Wi-Fi da arena não pode travar o login do
-// dono nem o do admin.
-export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
+// dono nem o do admin. Quem chama não pode revelar o bloqueio pelo IP (ver
+// entrar-unico.ts): com baldes por tipo, ele diria de que tipo é a conta.
+export type LimiteEstourado = "email" | "ip";
+
+export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<LimiteEstourado | null> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
   const ins = await db.query<{ id: string }>(
@@ -44,12 +48,13 @@ export async function registrarTentativa(db: Db, chave: string, ip: string): Pro
     [chave, ip, JANELA_MIN, tipo],
   );
   const { por_email, por_ip } = falhas.rows[0];
-  if (por_email > LIMITE_EMAIL || por_ip > LIMITE_IP) {
+  const estourou: LimiteEstourado | null =
+    por_email > LIMITE_EMAIL ? "email" : por_ip > LIMITE_IP ? "ip" : null;
+  if (estourou) {
     // Tentativa bloqueada não prolonga o bloqueio.
     await db.query("delete from tentativas_login where id = $1", [idTentativa]);
-    return true;
   }
-  return false;
+  return estourou;
 }
 
 // Abre a sessão do dono (o login único já conferiu a senha e a arena ativa).

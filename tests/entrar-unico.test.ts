@@ -3,7 +3,7 @@ import { novoBanco } from "./db";
 import { criarArena } from "./fixtures";
 import type { Db } from "../app/lib/db";
 import { hashSenha } from "../app/lib/senha";
-import { validarSessao } from "../app/lib/sessao";
+import { registrarTentativa, validarSessao } from "../app/lib/sessao";
 import { validarSessaoAdmin } from "../app/lib/sessao-admin";
 import { criarContaJogador, validarSessaoJogador } from "../app/lib/jogadores";
 import { definirStatusArena } from "../app/lib/plataforma";
@@ -119,23 +119,43 @@ test("4 falhas do e-mail ainda não bloqueiam; chave <tipo>:<email>, e-mail sem 
   ]);
 });
 
-test("20 falhas de jogadores num IP não bloqueiam o dono nem o admin nesse IP", async () => {
+test("IP esgotado no balde jogador: ninguém recebe bloqueado, e o tipo da conta não vaza", async () => {
   const { db } = await preparar();
-  for (let i = 0; i < 20; i++) await falhas(db, `jogador:u${i}@x.com`, "9.9.9.9", 1);
-  expect((await entrarUnico(db, "dono@x.com", SENHA, "9.9.9.9")).ok).toBe(true);
-  expect((await entrarUnico(db, "admin@x.com", SENHA, "9.9.9.9")).ok).toBe(true);
-  // jogador e e-mail sem conta (mesmo balde) ficam bloqueados nesse IP, não em outro
-  expect(await entrarUnico(db, "jogador@x.com", SENHA, "9.9.9.9")).toEqual({ ok: false, motivo: "bloqueado" });
-  expect(await entrarUnico(db, "naoexiste@x.com", "errada", "9.9.9.9")).toEqual({ ok: false, motivo: "bloqueado" });
+  // atacante esgota o balde jogador: do IP com e-mails aleatórios
+  for (let i = 0; i < 20; i++) await falhas(db, `jogador:aleatorio${i}@x.com`, "9.9.9.9", 1);
+  // e-mail sem conta e jogador (o balde esgotado) recebem "credenciais", não "bloqueado"
+  expect(await entrarUnico(db, "naoexiste@x.com", "errada", "9.9.9.9")).toEqual({ ok: false, motivo: "credenciais" });
+  expect(await entrarUnico(db, "jogador@x.com", SENHA, "9.9.9.9")).toEqual({ ok: false, motivo: "credenciais" });
+  // dono e admin errando a senha também recebem "credenciais": a mesma resposta para todos
+  expect(await entrarUnico(db, "dono@x.com", "errada", "9.9.9.9")).toEqual({ ok: false, motivo: "credenciais" });
+  expect(await entrarUnico(db, "admin@x.com", "errada", "9.9.9.9")).toEqual({ ok: false, motivo: "credenciais" });
+  // dono e admin continuam entrando com a senha certa nesse IP
+  expect(await entrarUnico(db, "dono@x.com", SENHA, "9.9.9.9")).toMatchObject({ ok: true, tipo: "dono" });
+  expect(await entrarUnico(db, "admin@x.com", SENHA, "9.9.9.9")).toMatchObject({ ok: true, tipo: "admin" });
+  // o jogador entra de outro IP
   expect((await entrarUnico(db, "jogador@x.com", SENHA, "8.8.8.8")).ok).toBe(true);
 });
 
-test("20 falhas de donos num IP bloqueiam o dono nesse IP, mas não outro IP", async () => {
+test("IP esgotado no balde dono: o dono recebe credenciais nesse IP, e o jogador entra", async () => {
   const { db } = await preparar();
   for (let i = 0; i < 20; i++) await falhas(db, `dono:u${i}@x.com`, "9.9.9.9", 1);
-  expect(await entrarUnico(db, "dono@x.com", SENHA, "9.9.9.9")).toEqual({ ok: false, motivo: "bloqueado" });
+  expect(await entrarUnico(db, "dono@x.com", SENHA, "9.9.9.9")).toEqual({ ok: false, motivo: "credenciais" });
   expect((await entrarUnico(db, "jogador@x.com", SENHA, "9.9.9.9")).ok).toBe(true);
   expect((await entrarUnico(db, "dono@x.com", SENHA, "8.8.8.8")).ok).toBe(true);
+});
+
+test("registrarTentativa diz qual limite estourou", async () => {
+  const { db } = await preparar();
+  expect(await registrarTentativa(db, "jogador:a@x.com", "1.1.1.1")).toBeNull();
+  // só o IP estourou
+  for (let i = 0; i < 20; i++) await falhas(db, `jogador:u${i}@x.com`, "9.9.9.9", 1);
+  expect(await registrarTentativa(db, "jogador:b@x.com", "9.9.9.9")).toBe("ip");
+  // só o e-mail estourou
+  await falhas(db, "dono:c@x.com", "2.2.2.2", 5);
+  expect(await registrarTentativa(db, "dono:c@x.com", "3.3.3.3")).toBe("email");
+  // os dois estouraram: vale o e-mail
+  await falhas(db, "jogador:d@x.com", "9.9.9.9", 5);
+  expect(await registrarTentativa(db, "jogador:d@x.com", "9.9.9.9")).toBe("email");
 });
 
 test("sucesso apaga só as falhas da própria chave", async () => {
