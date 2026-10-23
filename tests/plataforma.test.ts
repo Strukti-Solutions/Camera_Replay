@@ -106,11 +106,11 @@ test("criarSuperAdmin: senha >= 12, e-mail normalizado e único, hash scrypt", a
   expect((await entrarAdmin(db, "admin@x.com", "senha-bem-longa", "1.1.1.1")).ok).toBe(true);
 });
 
-test("e-mail de super admin pode coincidir com o de dono (contas separadas)", async () => {
+test("e-mail de super admin não pode coincidir com o de dono (um e-mail, uma conta)", async () => {
   const db = await novoBanco();
   const arena = await criarArena(db);
   await db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'x@x.com', $2, 'dono')", [arena.id, await hashSenha("senha-do-dono-1")]);
-  await expect(criarSuperAdmin(db, { email: "x@x.com", senha: "senha-bem-longa" })).resolves.toBeTruthy();
+  await expect(criarSuperAdmin(db, { email: "x@x.com", senha: "senha-bem-longa" })).rejects.toThrow("e-mail já cadastrado");
 });
 
 test("listarArenasPublicas: busca com caractere NUL não quebra a consulta (o NUL é descartado)", async () => {

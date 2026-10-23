@@ -84,10 +84,10 @@ test("sessão de admin não vale como de dono, e vice-versa", async () => {
   expect(await validarSessaoAdmin(db, dono.token)).toBeNull();
 });
 
-test("conta de dono com o e-mail do admin não entra no admin, e vice-versa", async () => {
+test("dono não pode ter o e-mail do admin (um e-mail, uma conta) e o login de um não entra no outro", async () => {
   const db = await preparar();
   const arena = await criarArena(db, "Arena");
-  await db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'admin@strukti.com', $2, 'dono')", [arena.id, await hashSenha("outra-senha-dono")]);
+  await expect(db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'admin@strukti.com', $2, 'dono')", [arena.id, await hashSenha("outra-senha-dono")])).rejects.toThrow();
   expect((await entrarAdmin(db, "admin@strukti.com", "outra-senha-dono", "1.1.1.1")).ok).toBe(false);
   expect((await entrar(db, "admin@strukti.com", SENHA, "1.1.1.1")).ok).toBe(false);
 });
