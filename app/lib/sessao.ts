@@ -25,7 +25,7 @@ export function obterHashFalso(): Promise<string> {
 // (`jogador`, `dono` ou `admin`; e-mail sem conta usa `jogador`).
 // O limite por IP soma só as chaves do mesmo tipo (o trecho antes do primeiro
 // ":"): gente errando a senha no Wi-Fi da arena não pode travar o login do
-// dono nem o do admin. Quem chama não pode revelar o bloqueio pelo IP (ver
+// dono nem o do admin. Quem chama não pode revelar nenhum bloqueio (ver
 // entrar-unico.ts): com baldes por tipo, ele diria de que tipo é a conta.
 export type LimiteEstourado = "email" | "ip";
 

@@ -93,12 +93,22 @@ test("dono de arena suspensa: suspensa só com a senha certa", async () => {
   expect((await entrarUnico(db, "dono@x.com", SENHA, "1.1.1.1")).ok).toBe(true);
 });
 
+async function contar(db: Db, tabela: string): Promise<number> {
+  return (await db.query<{ n: number }>(`select count(*)::int as n from ${tabela}`)).rows[0].n;
+}
+
 test("bloqueia após 5 falhas do e-mail", async () => {
   const { db } = await preparar();
   for (let i = 0; i < 5; i++) {
     expect(await entrarUnico(db, "jogador@x.com", "errada", "2.2.2.2")).toEqual({ ok: false, motivo: "credenciais" });
+    expect(await entrarUnico(db, "dono@x.com", "errada", "2.2.2.2")).toEqual({ ok: false, motivo: "credenciais" });
   }
-  expect(await entrarUnico(db, "jogador@x.com", SENHA, "3.3.3.3")).toEqual({ ok: false, motivo: "bloqueado" });
+  // a 6ª, mesmo com a senha certa, responde "credenciais" e não abre sessão
+  expect(await entrarUnico(db, "jogador@x.com", SENHA, "3.3.3.3")).toEqual({ ok: false, motivo: "credenciais" });
+  expect(await entrarUnico(db, "dono@x.com", SENHA, "3.3.3.3")).toEqual({ ok: false, motivo: "credenciais" });
+  expect(await contar(db, "sessoes_jogador")).toBe(0);
+  expect(await contar(db, "sessoes")).toBe(0);
+  await db.query("delete from tentativas_login where email = 'dono:dono@x.com'");
   // tentativa bloqueada não deixa linha
   expect((await db.query("select 1 from tentativas_login")).rows).toHaveLength(5);
   await db.query("update tentativas_login set em = now() - interval '16 minutes'");
@@ -134,6 +144,16 @@ test("IP esgotado no balde jogador: ninguém recebe bloqueado, e o tipo da conta
   expect(await entrarUnico(db, "admin@x.com", SENHA, "9.9.9.9")).toMatchObject({ ok: true, tipo: "admin" });
   // o jogador entra de outro IP
   expect((await entrarUnico(db, "jogador@x.com", SENHA, "8.8.8.8")).ok).toBe(true);
+});
+
+test("oráculo: com o balde jogador: do IP esgotado, e-mail sem conta e dono recebem respostas idênticas", async () => {
+  const { db } = await preparar();
+  for (let i = 0; i < 20; i++) await falhas(db, `jogador:aleatorio${i}@x.com`, "9.9.9.9", 1);
+  const respostas = [];
+  for (let i = 0; i < 6; i++) respostas.push(await entrarUnico(db, "naoexiste@x.com", "errada", "9.9.9.9"));
+  for (let i = 0; i < 6; i++) respostas.push(await entrarUnico(db, "dono@x.com", "errada", "9.9.9.9"));
+  expect(respostas).toHaveLength(12);
+  for (const r of respostas) expect(r).toEqual({ ok: false, motivo: "credenciais" });
 });
 
 test("IP esgotado no balde dono: o dono recebe credenciais nesse IP, e o jogador entra", async () => {
@@ -172,10 +192,10 @@ test("tentativas concorrentes não furam o limite: no máximo 5 conferem a senha
   const rs = await Promise.all(
     Array.from({ length: 10 }, () => entrarUnico(db, "dono@x.com", "errada", "1.1.1.1")),
   );
-  const conferidas = rs.filter((r) => !r.ok && r.motivo === "credenciais").length;
-  const bloqueadas = rs.filter((r) => !r.ok && r.motivo === "bloqueado").length;
-  expect(conferidas).toBeLessThanOrEqual(5);
-  expect(conferidas + bloqueadas).toBe(10);
+  // Todas respondem "credenciais"; só as que passaram do limite deixam linha
+  // (a bloqueada apaga a sua), então no máximo 5 chegaram a conferir a senha.
+  expect(rs.every((r) => !r.ok && r.motivo === "credenciais")).toBe(true);
+  expect(await contar(db, "tentativas_login")).toBeLessThanOrEqual(5);
 });
 
 test("a cada entrada apaga tentativas com mais de 1 dia", async () => {

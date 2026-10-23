@@ -3,7 +3,6 @@ import { MENSAGEM_ARENA_SUSPENSA, mensagemDeEntrar } from "../app/entrar/mensage
 
 test("cada motivo de recusa do login vira a sua frase", () => {
   expect(mensagemDeEntrar("credenciais")).toBe("E-mail ou senha incorretos.");
-  expect(mensagemDeEntrar("bloqueado")).toBe("Muitas tentativas. Espere 15 minutos e tente de novo.");
   expect(mensagemDeEntrar("suspensa")).toBe("Esta arena está suspensa. Fale com a Strukti.");
   expect(MENSAGEM_ARENA_SUSPENSA).toBe("Esta arena está suspensa. Fale com a Strukti.");
 });
