@@ -14,6 +14,11 @@ import { hashSenha } from "../app/lib/senha";
 
 const SENHA = "senha-boa-1";
 const h = (hora: number, min = 0) => new Date(Date.UTC(2026, 9, 17, hora, min));
+// reservasDoAluno filtra por now() (retenção de 3 dias): nesses testes as horas
+// são de ontem, e não de um dia fixo que vence com o calendário.
+const ontem = new Date(Date.now() - 86_400_000);
+const hOntem = (hora: number, min = 0) =>
+  new Date(Date.UTC(ontem.getUTCFullYear(), ontem.getUTCMonth(), ontem.getUTCDate(), hora, min));
 const r2Falso = () => ({
   urlLeitura: vi.fn(async (k: string, o?: { baixarComo?: string }) =>
     `https://r2.exemplo/${k}?assinado${o?.baixarComo ? `&baixarComo=${o.baixarComo}` : ""}`),
@@ -186,16 +191,16 @@ test("reservasDoAluno: só as reservas do aluno, sem as de outro aluno, sem lanc
   const db = await novoBanco();
   const s = await cenario(db);
   await db.query("update quadras set nome = 'Quadra 2' where id = $1", [s.qa2.id]);
-  const minha = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(8), fim: h(10), alunoIds: [s.ana.id, s.beto.id] }))!;
-  const doBeto = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(11), fim: h(12), alunoIds: [s.beto.id] }))!;
-  const semLance = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(13), fim: h(14), alunoIds: [s.ana.id] }))!;
-  const outraQuadra = (await criarReserva(db, s.a.id, { quadraId: s.qa2.id, inicio: h(15), fim: h(16), alunoIds: [s.ana.id] }))!;
-  const deOutraArena = (await criarReserva(db, s.b.id, { quadraId: s.qb.id, inicio: h(8), fim: h(10), alunoIds: [s.anaB.id] }))!;
-  await clipeEm(db, s.b.id, s.qb.id, (await criarCamera(db, s.b.id, s.qb.id)).id, h(9));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(8, 30));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(9));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(11, 30));
-  await clipeEm(db, s.a.id, s.qa2.id, s.ca2.id, h(15, 30));
+  const minha = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: hOntem(8), fim: hOntem(10), alunoIds: [s.ana.id, s.beto.id] }))!;
+  const doBeto = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: hOntem(11), fim: hOntem(12), alunoIds: [s.beto.id] }))!;
+  const semLance = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: hOntem(13), fim: hOntem(14), alunoIds: [s.ana.id] }))!;
+  const outraQuadra = (await criarReserva(db, s.a.id, { quadraId: s.qa2.id, inicio: hOntem(15), fim: hOntem(16), alunoIds: [s.ana.id] }))!;
+  const deOutraArena = (await criarReserva(db, s.b.id, { quadraId: s.qb.id, inicio: hOntem(8), fim: hOntem(10), alunoIds: [s.anaB.id] }))!;
+  await clipeEm(db, s.b.id, s.qb.id, (await criarCamera(db, s.b.id, s.qb.id)).id, hOntem(9));
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, hOntem(8, 30));
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, hOntem(9));
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, hOntem(11, 30));
+  await clipeEm(db, s.a.id, s.qa2.id, s.ca2.id, hOntem(15, 30));
 
   const p = await reservasDoAluno(db, s.a.slug, s.ana.id);
   expect(p?.arenaId).toBe(s.a.id);
@@ -221,10 +226,10 @@ test("reservasDoAluno: só as reservas do aluno, sem as de outro aluno, sem lanc
 test("reservasDoAluno: mais nova primeiro, janela de retenção da arena e slug inválido/desconhecido", async () => {
   const db = await novoBanco();
   const s = await cenario(db);
-  const antiga = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(1), fim: h(2), alunoIds: [s.ana.id] }))!;
-  const nova = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: h(3), fim: h(4), alunoIds: [s.ana.id] }))!;
-  const clipeAntigo = await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(1, 30));
-  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, h(3, 30));
+  const antiga = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: hOntem(1), fim: hOntem(2), alunoIds: [s.ana.id] }))!;
+  const nova = (await criarReserva(db, s.a.id, { quadraId: s.qa.id, inicio: hOntem(3), fim: hOntem(4), alunoIds: [s.ana.id] }))!;
+  const clipeAntigo = await clipeEm(db, s.a.id, s.qa.id, s.ca.id, hOntem(1, 30));
+  await clipeEm(db, s.a.id, s.qa.id, s.ca.id, hOntem(3, 30));
   expect((await reservasDoAluno(db, s.a.slug, s.ana.id))!.reservas.map((x) => x.id)).toEqual([nova.id, antiga.id]);
 
   // reserva que terminou há mais que dias_retencao (3) não entra
