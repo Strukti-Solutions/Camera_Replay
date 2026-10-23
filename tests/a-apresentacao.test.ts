@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   destinoAposEntrar,
+  destinoVoltarEntrar,
   primeiroNome,
   sessaoDaArena,
   textoDia,
@@ -65,4 +66,14 @@ test("saudação usa só o primeiro nome do aluno", () => {
   expect(primeiroNome("Lucas Andrade Souza")).toBe("Lucas");
   expect(primeiroNome("  Marina   Costa ")).toBe("Marina");
   expect(primeiroNome("Pedro")).toBe("Pedro");
+});
+
+test("destinoVoltarEntrar: sem reserva volta à escolha de arena; com reserva, à página da arena", () => {
+  expect(destinoVoltarEntrar(SLUG, null)).toBe("/");
+  expect(destinoVoltarEntrar(SLUG, "")).toBe("/");
+  expect(destinoVoltarEntrar(SLUG, "nao-e-uuid")).toBe("/");
+  expect(destinoVoltarEntrar(SLUG, RESERVA)).toBe(`/a/${SLUG}`);
+  // Slug fora do formato nunca vira caminho.
+  expect(destinoVoltarEntrar("../admin", RESERVA)).toBe("/");
+  expect(destinoVoltarEntrar("//evil.com", RESERVA)).toBe("/");
 });

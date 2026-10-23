@@ -1278,6 +1278,25 @@ video {
   margin-bottom: 0.25rem;
 }
 
+/* Dica embaixo do título das telas de entrar (o h1 já traz 1,5 rem de margem). */
+.entrar-dica {
+  color: var(--tinta-suave);
+  margin: -1rem 0 1.5rem;
+}
+
+/* "← Voltar" das telas de entrar: alvo de toque de 48 px. */
+.voltar {
+  margin: -1rem 0 1rem;
+}
+
+.voltar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: var(--alvo);
+  font-weight: 600;
+}
+
 .quadra-publica {
   padding-block: 1.25rem 3rem;
 }

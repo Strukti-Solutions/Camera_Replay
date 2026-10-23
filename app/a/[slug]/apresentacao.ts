@@ -44,6 +44,12 @@ export function destinoAposEntrar(slug: string, reserva: string | null | undefin
   return ehUuid(reserva) ? `/a/${slug}/r/${reserva}` : `/a/${slug}`;
 }
 
+// "Voltar" da tela de entrar: a caminho de uma reserva, volta à página da
+// arena; sem reserva (a tela já é a página da arena), à escolha de arena.
+export function destinoVoltarEntrar(slug: string, reserva: string | null | undefined): string {
+  return ehUuid(reserva) && SLUG_VALIDO.test(slug) ? `/a/${slug}` : "/";
+}
+
 // A sessão só vale na arena do slug; de outra arena é "não logado".
 export function sessaoDaArena(sessao: SessaoAluno | null, arenaId: string): SessaoAluno | null {
   return sessao && sessao.arenaId === arenaId ? sessao : null;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { CabecalhoAdmin } from "@/app/admin/cabecalho";
+import { LinkVoltar } from "@/app/componentes/voltar";
 import { sessaoAdminAtual } from "@/app/admin/sessao-admin-atual";
 import { FormularioEntrarAdmin } from "./formulario";
 
@@ -17,7 +18,9 @@ export default async function PaginaEntrarAdmin() {
     <>
       <CabecalhoAdmin comSair={false} />
       <main className="miolo entrar">
-        <h1>Entrar</h1>
+        <LinkVoltar href="/" />
+        <p className="entrar-quadra">Administração Strukti</p>
+        <h1>Entrar como administrador</h1>
         <FormularioEntrarAdmin />
       </main>
     </>

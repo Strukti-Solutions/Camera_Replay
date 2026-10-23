@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { MarcaDaFaixa } from "@/app/componentes/marca";
+import { LinkVoltar } from "@/app/componentes/voltar";
 import { sessaoAtual } from "@/app/painel/sessao-atual";
 import { FormularioEntrar } from "./formulario";
 
@@ -21,7 +22,10 @@ export default async function PaginaEntrar() {
         </div>
       </header>
       <main className="miolo entrar">
-        <h1>Entrar</h1>
+        <LinkVoltar href="/" />
+        <p className="entrar-quadra">Painel do dono</p>
+        <h1>Entrar como dono da arena</h1>
+        <p className="entrar-dica">Acesso de quem administra a arena. Aluno entra pela página da arena.</p>
         <FormularioEntrar />
       </main>
     </>
