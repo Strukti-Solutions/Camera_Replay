@@ -1221,3 +1221,91 @@ video {
   margin-top: 2.5rem;
   font-size: 0.9375rem;
 }
+
+/* ---------- Cabeçalho público e telas do jogador ---------- */
+
+/* Marca à esquerda, atalhos da conta à direita; no celular estreito descem. */
+.faixa .cabecalho-publico {
+  align-items: center;
+}
+
+.faixa .cabecalho-publico .marca {
+  flex-basis: auto;
+  margin-bottom: 0;
+}
+
+.cabecalho-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1.25rem;
+}
+
+.cabecalho-links a,
+.cabecalho-sair {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  font-weight: 600;
+  color: inherit;
+}
+
+.cabecalho-sair {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Caixa de aceite: a caixa e o texto lado a lado, alvo de 48 px. */
+.campo-caixa {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.campo-caixa input {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.75rem;
+}
+
+.campo-caixa label {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+}
+
+.conta-bloco {
+  margin-bottom: 2.5rem;
+}
+
+.conta-bloco h2 {
+  margin-bottom: 1rem;
+}
+
+.conta-bloco > p {
+  margin-bottom: 1rem;
+}
+
+.termos {
+  padding-bottom: 3rem;
+  max-width: 40rem;
+}
+
+.termos h2 {
+  margin: 1.5rem 0 0.5rem;
+}
+
+.termos ul {
+  padding-left: 1.25rem;
+}
+
+.termos-aviso {
+  color: var(--tinta-suave);
+  margin-bottom: 1rem;
+}
