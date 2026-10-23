@@ -42,7 +42,18 @@ Cada fase é entregue, revisada e publicada antes da próxima.
 - **Criar conta** (`/criar-conta`): nome, e-mail, senha (8 ou mais caracteres, como hoje). Só cria jogador; dono e super admin continuam sendo criados pela Strukti.
 - As sessões continuam separadas por tipo (cookie, duração, SameSite), como no spec principal. Muda só a porta de entrada. A sessão do super admin segue mais curta e com SameSite Strict.
 - Continuam valendo o limite de tentativas (por e-mail e por IP), o scrypt e a resposta igual para "e-mail não existe" e "senha errada". O limite por IP passa a valer por tela de entrar, e não mais por tipo de conta.
-- "Esqueci a senha" fica **fora** desta fase **(decisão nossa)**. Exige envio de e-mail, que o sistema ainda não tem; entra como pendência antes de abrir ao público.
+- **Esqueci a senha** **(decisão do dono: entra na fase 1)**, para jogador, dono e super admin:
+  - Na tela de entrar, "Esqueci a senha" pede o e-mail e **sempre responde a mesma coisa** ("Se o e-mail tiver conta, enviamos um link"), para não revelar quem tem conta.
+  - O e-mail traz um link de uso único, válido por **1 hora** **(decisão nossa)**. O banco guarda só o hash do token, como nas sessões. O pedido tem limite por e-mail e por IP.
+  - Trocar a senha pelo link **encerra todas as sessões** da conta e invalida os outros links pendentes.
+  - **Envio de e-mail** por um serviço transacional com plano grátis (Resend ou similar), com remetente num domínio da Strukti **(decisão nossa)**. Exige configurar o DNS do domínio (SPF/DKIM). A chave do serviço fica só nas variáveis de ambiente.
+- **Apagar a conta** **(decisão do dono)**, só para o jogador, em **"Minha conta"**:
+  - Pede a senha de novo e uma confirmação explícita.
+  - Apaga nome, e-mail, senha, CPF e sessões. O e-mail fica livre para uma conta nova.
+  - **Com reserva futura confirmada não dá para apagar:** primeiro ele cancela, se ainda estiver no prazo, ou espera o jogo passar **(decisão nossa)**.
+  - **Reservas passadas continuam na agenda e no financeiro do dono**, sem o nome do jogador ("Conta apagada"). Os lances dessas reservas passam a ser só do dono, como lance sem jogador **(decisão nossa)**.
+  - Dono e super admin não se apagam sozinhos; isso é feito pela Strukti.
+- **"Minha conta"** do jogador: trocar nome e senha (pedindo a senha atual) e apagar a conta.
 - No topo do site público ficam sempre **Entrar** e **Criar conta** e, logado, **Minhas reservas** e **Sair**.
 - O QR da arena (`/a/<slug>`) passa a abrir a **página pública da arena** (fase 3). Até a fase 3, abre `/entrar`.
 - **Termos de uso e política de privacidade:** aceitos na criação da conta (caixa de marcar, obrigatória). A fase 1 usa um **texto provisório, marcado como provisório**, trocado pelo definitivo antes de abrir ao público **(decisão do dono)**. A conta guarda a versão aceita e a data do aceite.
@@ -145,7 +156,6 @@ Cada fase é entregue, revisada e publicada antes da próxima.
 ## Fora do escopo
 
 - Cobrança da mensalidade do dono pelo sistema (fase 5).
-- "Esqueci a senha" e e-mails transacionais (pendência antes de abrir ao público).
 - Avaliações, fotos da arena, chat, convite de amigos para a reserva, divisão do pagamento entre amigos.
 - Reserva recorrente (toda terça às 19h).
 - App nativo.
@@ -164,7 +174,7 @@ Agora **há dados de jogador**: nome, e-mail, CPF e histórico de reservas.
 - Termos de uso e política de privacidade aceitos na criação da conta.
 - CPF só para o pagamento: nunca aparece para o dono nem em logs.
 - O dono vê, das reservas da arena dele, só o nome do jogador.
-- Pedido de exclusão de conta: entra como pendência antes de abrir ao público.
+- O jogador apaga a própria conta em "Minha conta" (fase 1).
 
 ## Deixado para quem constrói
 
@@ -174,7 +184,7 @@ Nomes de tabelas e rotas, desenho das telas dentro da identidade Strukti, como a
 
 - Valor padrão da taxa da Strukti.
 - Texto definitivo dos termos de uso e da política de privacidade.
-- "Esqueci a senha", e-mails e exclusão de conta antes de abrir ao público.
+- Domínio e DNS para o remetente dos e-mails (SPF/DKIM) e conta no serviço de envio.
 - Confirmar na documentação do Asaas: split com subconta, exigência de CPF, página de pagamento hospedada e estorno com split.
 - Conta Asaas da Strukti e subcontas das arenas (abertura e verificação).
 - Trocar a senha do banco do Supabase antes de ter dados reais.
