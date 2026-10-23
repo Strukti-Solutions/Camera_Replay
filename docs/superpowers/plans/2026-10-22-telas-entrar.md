@@ -19,7 +19,7 @@
 - Modify: `app/a/[slug]/entrar/tela.tsx`, `app/a/[slug]/apresentacao.ts` (`destinoVoltarEntrar(slug, reserva)`), `app/entrar/page.tsx`, `app/admin/entrar/page.tsx`, `app/globals.css`
 - Test: `tests/a-apresentacao.test.ts`
 
-- [ ] **Step 1: Teste que falha:** `destinoVoltarEntrar(slug, null)` → `/`; com reserva → `/a/<slug>`; slug é codificado.
+- [ ] **Step 1: Teste que falha:** `destinoVoltarEntrar(slug, null)` → `/`; com reserva → `/a/<slug>`; slug fora do formato vai para `/`.
 - [ ] **Step 2:** implementar e aplicar:
   - Aluno: "Área do aluno · <arena>", título "Entrar como aluno", dica "Use o e-mail e a senha que a arena te passou."; Voltar → `destinoVoltarEntrar`.
   - Dono: "Painel do dono", título "Entrar como dono da arena", dica "Acesso de quem administra a arena. Aluno entra pela página da arena."; Voltar → `/`.

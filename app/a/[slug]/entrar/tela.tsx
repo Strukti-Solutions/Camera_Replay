@@ -5,10 +5,9 @@ import { MENSAGEM_ARENA_SUSPENSA } from "@/app/entrar/mensagens";
 import { FormularioEntrarAluno } from "./formulario";
 
 // Tela de entrar do aluno: diz que é a área do aluno e de qual arena, e pede
-// e-mail e senha. Serve à
-// página da arena sem sessão e a /entrar?r=<reserva>. Não há cadastro pelo aluno:
-// a conta é criada pelo dono no painel. Arena suspensa: só o nome e o aviso, sem
-// formulário.
+// e-mail e senha. Serve à página da arena sem sessão e a /entrar?r=<reserva>.
+// Não há cadastro pelo aluno: a conta é criada pelo dono no painel. Arena
+// suspensa: só o nome e o aviso, sem formulário.
 export function TelaEntrar({
   slug,
   arena,
