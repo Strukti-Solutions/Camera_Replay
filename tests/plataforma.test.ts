@@ -6,7 +6,6 @@ import {
   criarArenaAdmin, criarSuperAdmin, definirStatusArena, listarArenasAdmin,
 } from "../app/lib/plataforma";
 import { listarArenasPublicas } from "../app/lib/arenas-publicas";
-import { criarAluno } from "../app/lib/alunos";
 import { entrarAdmin } from "../app/lib/sessao-admin";
 
 test("migração: status só aceita ativa/suspensa; super admin com e-mail minúsculo e único", async () => {
@@ -57,13 +56,12 @@ test("listarArenasAdmin: contagens por arena, dono, status e sem segredos", asyn
   const b = await criarArenaAdmin(db, { arena: "Arena B", email: "b@x.com", senha: "senha-longa-1" });
   await criarQuadra(db, a.arenaId);
   await criarQuadra(db, a.arenaId);
-  await criarAluno(db, a.arenaId, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
   await definirStatusArena(db, b.arenaId, "suspensa");
   const l = await listarArenasAdmin(db);
   expect(l).toHaveLength(2);
   const la = l.find((x) => x.id === a.arenaId)!, lb = l.find((x) => x.id === b.arenaId)!;
-  expect(la).toMatchObject({ nome: "Arena A", status: "ativa", quadras: 2, alunos: 1, donoEmail: "a@x.com" });
-  expect(lb).toMatchObject({ nome: "Arena B", status: "suspensa", quadras: 0, alunos: 0, donoEmail: "b@x.com" });
+  expect(la).toMatchObject({ nome: "Arena A", status: "ativa", quadras: 2, donoEmail: "a@x.com" });
+  expect(lb).toMatchObject({ nome: "Arena B", status: "suspensa", quadras: 0, donoEmail: "b@x.com" });
   expect(la.criadoEm).toBeInstanceOf(Date);
   expect(JSON.stringify(l)).not.toMatch(/senha|hash|scrypt/);
 });
@@ -79,28 +77,21 @@ test("definirStatusArena: true se existe, false para id inexistente/malformado/s
   expect((await db.query("select status_assinatura from arenas")).rows).toEqual([{ status_assinatura: "ativa" }]);
 });
 
-test("definirStatusArena: suspender apaga as sessões de dono e aluno só dessa arena; reativar não as devolve", async () => {
+test("definirStatusArena: suspender apaga as sessões de dono só dessa arena; reativar não as devolve", async () => {
   const db = await novoBanco();
   const a = await criarArenaAdmin(db, { arena: "Arena A", email: "a@x.com", senha: "senha-boa-1" });
   const b = await criarArenaAdmin(db, { arena: "Arena B", email: "b@x.com", senha: "senha-boa-1" });
   for (const x of [a, b]) {
-    const al = await criarAluno(db, x.arenaId, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
     await db.query(
       "insert into sessoes (arena_id, usuario_id, token_hash, expira_em) values ($1, $2, $3, now() + interval '1 day')",
       [x.arenaId, x.usuarioId, `dono-${x.arenaId}`],
-    );
-    await db.query(
-      "insert into sessoes_aluno (arena_id, aluno_id, token_hash, expira_em) values ($1, $2, $3, now() + interval '1 day')",
-      [x.arenaId, al.id, `aluno-${x.arenaId}`],
     );
   }
   await definirStatusArena(db, a.arenaId, "suspensa");
   const resta = async (t: string) => (await db.query(`select arena_id from ${t}`)).rows.map((r) => r.arena_id);
   expect(await resta("sessoes")).toEqual([b.arenaId]);
-  expect(await resta("sessoes_aluno")).toEqual([b.arenaId]);
   await definirStatusArena(db, a.arenaId, "ativa");
   expect(await resta("sessoes")).toEqual([b.arenaId]);
-  expect(await resta("sessoes_aluno")).toEqual([b.arenaId]);
 });
 
 test("criarSuperAdmin: senha >= 12, e-mail normalizado e único, hash scrypt", async () => {

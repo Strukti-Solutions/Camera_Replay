@@ -163,93 +163,12 @@ test("cameras.criado_em e botoes.criado_em vêm preenchidos", async () => {
   expect(rb.rows[0].criado_em).toBeInstanceOf(Date);
 });
 
-// --- 0006: alunos e reservas ---
-
-async function alunoDe(db: Awaited<ReturnType<typeof novoBanco>>, arenaId: string, email = "a@x.com") {
-  const r = await db.query<{ id: string }>(
-    "insert into alunos (arena_id, nome, email, senha_hash) values ($1, 'Ana', $2, 'h') returning id",
-    [arenaId, email]);
-  return r.rows[0].id;
-}
-const RESERVA = `insert into reservas (arena_id, quadra_id, inicio, fim)
-  values ($1, $2, $3::timestamptz, $4::timestamptz) returning id`;
+// --- 0006: migração registrada (as tabelas de alunos e reservas saíram na 0010) ---
 
 test("migrar registra a 0006_reservas", async () => {
   const db = await novoBanco();
   const r = await db.query<{ nome: string }>("select nome from schema_migrations");
   expect(r.rows.map((x) => x.nome)).toContain("0006_reservas.sql");
-});
-
-test("aluno: e-mail único por arena, igual em outra arena é aceito", async () => {
-  const db = await novoBanco();
-  const a = await criarArena(db), b = await criarArena(db);
-  await alunoDe(db, a.id);
-  await expect(alunoDe(db, a.id)).rejects.toThrow(/unique|duplicate/i);
-  await expect(alunoDe(db, b.id)).resolves.toBeTruthy();
-});
-
-test("reserva: fim <= início e mais de 12 h violam o check", async () => {
-  const db = await novoBanco();
-  const a = await criarArena(db);
-  const q = await criarQuadra(db, a.id);
-  await expect(db.query(RESERVA, [a.id, q.id, "2026-10-17T10:00Z", "2026-10-17T10:00Z"])).rejects.toThrow(/check/i);
-  await expect(db.query(RESERVA, [a.id, q.id, "2026-10-17T00:00Z", "2026-10-17T12:01Z"])).rejects.toThrow(/check/i);
-  await expect(db.query(RESERVA, [a.id, q.id, "2026-10-17T00:00Z", "2026-10-17T12:00Z"])).resolves.toBeTruthy();
-});
-
-test("reserva não pode apontar para quadra de outra arena", async () => {
-  const db = await novoBanco();
-  const a = await criarArena(db), b = await criarArena(db);
-  const qa = await criarQuadra(db, a.id);
-  await expect(db.query(RESERVA, [b.id, qa.id, "2026-10-17T10:00Z", "2026-10-17T11:00Z"]))
-    .rejects.toThrow(/foreign key/i);
-});
-
-test("reserva_alunos: aluno de outra arena viola a FK e apagar a reserva ou o aluno apaga o vínculo", async () => {
-  const db = await novoBanco();
-  const a = await criarArena(db), b = await criarArena(db);
-  const q = await criarQuadra(db, a.id);
-  const al = await alunoDe(db, a.id), alB = await alunoDe(db, b.id);
-  const r = (await db.query<{ id: string }>(RESERVA, [a.id, q.id, "2026-10-17T10:00Z", "2026-10-17T11:00Z"])).rows[0].id;
-  const VINCULO = "insert into reserva_alunos (reserva_id, aluno_id, arena_id) values ($1,$2,$3)";
-  await expect(db.query(VINCULO, [r, alB, a.id])).rejects.toThrow(/foreign key/i);
-  await db.query(VINCULO, [r, al, a.id]);
-  await expect(db.query(VINCULO, [r, al, a.id])).rejects.toThrow(/unique|duplicate/i);
-  await db.query("delete from alunos where id = $1", [al]);
-  expect((await db.query("select 1 from reserva_alunos")).rows).toHaveLength(0);
-  await db.query(VINCULO, [r, await alunoDe(db, a.id, "o@x.com"), a.id]);
-  await db.query("delete from reservas where id = $1", [r]);
-  expect((await db.query("select 1 from reserva_alunos")).rows).toHaveLength(0);
-});
-
-test("clipe_alunos: FKs compostas e cascade", async () => {
-  const db = await novoBanco();
-  const a = await criarArena(db), b = await criarArena(db);
-  const q = await criarQuadra(db, a.id);
-  const c = await criarCamera(db, a.id, q.id);
-  const bt = await criarBotao(db, a.id, q.id, c.id);
-  const ap = await db.query<{ id: string }>(APERTO, [a.id, bt.id]);
-  const cl = (await db.query<{ id: string }>(CLIPE, [a.id, ap.rows[0].id, c.id])).rows[0].id;
-  const al = await alunoDe(db, a.id), alB = await alunoDe(db, b.id);
-  const ATRIB = "insert into clipe_alunos (clipe_id, aluno_id, arena_id) values ($1,$2,$3)";
-  await expect(db.query(ATRIB, [cl, alB, a.id])).rejects.toThrow(/foreign key/i);
-  await expect(db.query(ATRIB, [cl, al, b.id])).rejects.toThrow(/foreign key/i);
-  await db.query(ATRIB, [cl, al, a.id]);
-  await db.query("delete from clipes where id = $1", [cl]);
-  expect((await db.query("select 1 from clipe_alunos")).rows).toHaveLength(0);
-});
-
-test("sessoes_aluno: aluno de outra arena viola a FK; apagar o aluno apaga a sessão; token único", async () => {
-  const db = await novoBanco();
-  const a = await criarArena(db), b = await criarArena(db);
-  const al = await alunoDe(db, a.id);
-  const SA = `insert into sessoes_aluno (arena_id, aluno_id, token_hash, expira_em)
-    values ($1,$2,$3, now() + interval '7 days')`;
-  await expect(db.query(SA, [b.id, al, "h1"])).rejects.toThrow(/foreign key/i);
-  await db.query(SA, [a.id, al, "h1"]);
-  await expect(db.query(SA, [a.id, al, "h1"])).rejects.toThrow(/unique|duplicate/i);
-  await db.query("delete from alunos where id = $1", [al]);
-  expect((await db.query("select 1 from sessoes_aluno")).rows).toHaveLength(0);
 });
 
 test("dias_retencao: padrão 3, aceita 1 a 3 e recusa 0 e 4", async () => {
@@ -283,7 +202,7 @@ test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem
       [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
     const sete = await inserir(7), um = await inserir(1);
 
-    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql"]);
+    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql"]);
 
     const ar = await db.query("select id, dias_retencao from arenas");
     expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
@@ -306,7 +225,7 @@ test("migração 0008 dá slug próprio às arenas existentes; slug é único, o
     const db = await novoBanco(pasta);
     await db.query("insert into arenas (nome) values ('A'), ('B')");
 
-    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql"]);
+    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql"]);
 
     const r = await db.query<{ slug: string }>("select slug from arenas order by nome");
     expect(r.rows).toHaveLength(2);
@@ -337,7 +256,7 @@ test("migração 0009 normaliza status_assinatura antigo para ativa e preserva a
       `insert into arenas (nome, slug, status_assinatura)
        values ('A', 'a'||repeat('x', 21), 'ativa'), ('B', 'b'||repeat('x', 21), 'trial'), ('C', 'c'||repeat('x', 21), 'suspensa')`);
 
-    expect(await migrar(db)).toEqual(["0009_super_admin.sql"]);
+    expect(await migrar(db)).toEqual(["0009_super_admin.sql", "0010_sem_alunos.sql"]);
 
     const r = await db.query("select nome, status_assinatura from arenas order by nome");
     expect(r.rows).toEqual([
@@ -347,5 +266,13 @@ test("migração 0009 normaliza status_assinatura antigo para ativa e preserva a
     ]);
   } finally {
     rmSync(pasta, { recursive: true, force: true });
+  }
+});
+
+test("0010 apaga alunos e reservas", async () => {
+  const db = await novoBanco();
+  for (const t of ["alunos", "reserva_alunos", "clipe_alunos", "sessoes_aluno", "reservas"]) {
+    const r = await db.query<{ r: string | null }>("select to_regclass($1)::text as r", [t]);
+    expect(r.rows[0].r, t).toBeNull();
   }
 });

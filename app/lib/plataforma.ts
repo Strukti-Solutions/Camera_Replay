@@ -14,25 +14,24 @@ export type StatusArena = "ativa" | "suspensa";
 
 export type ArenaAdmin = {
   id: string; nome: string; slug: string; status: StatusArena;
-  quadras: number; alunos: number; donoEmail: string | null; criadoEm: Date;
+  quadras: number; donoEmail: string | null; criadoEm: Date;
 };
 
 // Todas as arenas, para o painel do super admin. Nunca devolve senha_hash.
 export async function listarArenasAdmin(db: Db): Promise<ArenaAdmin[]> {
   const { rows } = await db.query<{
-    id: string; nome: string; slug: string; status: StatusArena; quadras: number; alunos: number;
+    id: string; nome: string; slug: string; status: StatusArena; quadras: number;
     dono_email: string | null; criado_em: Date;
   }>(
     `select a.id, a.nome, a.slug, a.status_assinatura as status, a.criado_em,
             (select count(*) from quadras q where q.arena_id = a.id)::int as quadras,
-            (select count(*) from alunos al where al.arena_id = a.id)::int as alunos,
             (select min(u.email) from usuarios u where u.arena_id = a.id and u.papel = 'dono') as dono_email
        from arenas a
       order by a.criado_em desc, a.id`,
   );
   return rows.map((r) => ({
     id: r.id, nome: r.nome, slug: r.slug, status: r.status,
-    quadras: Number(r.quadras), alunos: Number(r.alunos), donoEmail: r.dono_email, criadoEm: r.criado_em,
+    quadras: Number(r.quadras), donoEmail: r.dono_email, criadoEm: r.criado_em,
   }));
 }
 
@@ -46,7 +45,7 @@ export async function criarArenaAdmin(
 }
 
 // true se a arena existe (e agora está no estado pedido); id malformado ou status
-// inválido não tocam o banco. Suspender apaga as sessões de dono e de aluno da arena
+// inválido não tocam o banco. Suspender apaga as sessões de dono da arena
 // (reativar não revive sessão antiga); o resto fica e volta ao reativar.
 export async function definirStatusArena(db: Db, arenaId: string, status: StatusArena): Promise<boolean> {
   if (typeof arenaId !== "string" || !UUID.test(arenaId)) return false;
@@ -55,7 +54,6 @@ export async function definirStatusArena(db: Db, arenaId: string, status: Status
   if (r.rows.length === 0) return false;
   if (status === "suspensa") {
     await db.query("delete from sessoes where arena_id = $1", [arenaId]);
-    await db.query("delete from sessoes_aluno where arena_id = $1", [arenaId]);
   }
   return true;
 }

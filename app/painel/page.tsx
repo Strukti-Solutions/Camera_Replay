@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { AssinaturaStrukti } from "@/app/componentes/marca";
-import { slugDaArena } from "@/app/lib/acesso-aluno";
+import { slugDaArena } from "@/app/lib/arena-slug";
 import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { textoCamera, urlDaArena } from "./apresentacao";
@@ -69,8 +69,7 @@ export default async function PaginaPainel() {
   );
 }
 
-// Um QR só para a arena inteira: abre a área do aluno, onde ele entra com a
-// conta que o dono cadastrou. Ao imprimir, só a folha aparece.
+// Um QR só para a arena inteira: abre a página da arena. Ao imprimir, só a folha aparece.
 async function QrDaArena({ arena, slug }: { arena: string; slug: string | null }) {
   const appUrl = process.env.APP_URL?.trim();
   const titulo = (

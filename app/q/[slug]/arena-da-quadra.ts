@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { slugDaArenaDaQuadra } from "@/app/lib/acesso-aluno";
+import { slugDaArenaDaQuadra } from "@/app/lib/arena-slug";
 import { poolCompartilhado } from "@/app/lib/pool";
 
 // Rotas antigas /q/<slug-da-quadra>: os QRs por quadra já impressos continuam

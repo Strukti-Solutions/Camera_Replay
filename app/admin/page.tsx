@@ -40,9 +40,6 @@ export default async function PaginaAdmin() {
                   <th scope="col" className="num">
                     Quadras
                   </th>
-                  <th scope="col" className="num">
-                    Alunos
-                  </th>
                   <th scope="col">E-mail do dono</th>
                   <th scope="col">Criada em</th>
                   <th scope="col">
@@ -60,7 +57,6 @@ export default async function PaginaAdmin() {
                       </span>
                     </td>
                     <td className="num">{a.quadras}</td>
-                    <td className="num">{a.alunos}</td>
                     <td className="suave">{a.donoEmail ?? "Sem dono"}</td>
                     <td className="suave num-tab">{textoData(a.criadoEm)}</td>
                     <td>
@@ -72,7 +68,7 @@ export default async function PaginaAdmin() {
                           acao={suspenderArenaAction}
                           arenaId={a.id}
                           rotulo="Suspender"
-                          pergunta="O dono e os alunos perdem o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 3 dias."
+                          pergunta="O dono perde o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 3 dias."
                           confirmar="Confirmar: suspender arena"
                           perigo
                         />
@@ -82,7 +78,7 @@ export default async function PaginaAdmin() {
                           acao={reativarArenaAction}
                           arenaId={a.id}
                           rotulo="Reativar"
-                          pergunta="O dono e os alunos voltam a entrar e o botão volta a gravar."
+                          pergunta="O dono volta a entrar e o botão volta a gravar."
                           confirmar="Confirmar: reativar arena"
                           perigo={false}
                         />

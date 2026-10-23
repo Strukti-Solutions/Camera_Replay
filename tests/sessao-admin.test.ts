@@ -3,8 +3,6 @@ import { novoBanco } from "./db";
 import { criarArena } from "./fixtures";
 import { hashSenha } from "../app/lib/senha";
 import { entrar, validarSessao } from "../app/lib/sessao";
-import { entrarAluno, validarSessaoAluno } from "../app/lib/acesso-aluno";
-import { criarAluno } from "../app/lib/alunos";
 import { entrarAdmin, sairAdmin, validarSessaoAdmin } from "../app/lib/sessao-admin";
 import type { Db } from "../app/lib/db";
 
@@ -59,45 +57,31 @@ test("mesmo limite do dono: 5 por e-mail e 20 por IP, 15 min; chave admin:<email
   expect(k.rows).toEqual([{ email: "admin:x@strukti.com" }]);
 });
 
-test("limite por IP é por tipo: falhas de aluno, dono e admin não bloqueiam os outros tipos", async () => {
+test("limite por IP é por tipo: falhas de dono e de admin não bloqueiam o outro tipo", async () => {
   const db = await preparar();
   const arena = await criarArena(db, "Arena");
   await db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'dono@x.com', $2, 'dono')", [arena.id, await hashSenha(SENHA)]);
-  await criarAluno(db, arena.id, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
 
-  // 20 falhas de aluno no IP do Wi-Fi da arena: dono e admin ainda entram
-  for (let i = 0; i < 20; i++) await falhas(db, `aluno:${arena.id}:u${i}@x.com`, "5.5.5.5", 1);
-  expect((await entrar(db, "dono@x.com", SENHA, "5.5.5.5")).ok).toBe(true);
-  expect((await entrarAdmin(db, "admin@strukti.com", SENHA, "5.5.5.5")).ok).toBe(true);
-  // mas aluno nesse IP continua bloqueado
-  expect(await entrarAluno(db, arena.slug, "ana@x.com", "senha-boa-1", "5.5.5.5")).toEqual({ ok: false, motivo: "bloqueado" });
-
-  // 20 falhas de dono não bloqueiam aluno nem admin
+  // 20 falhas de dono não bloqueiam admin
   for (let i = 0; i < 20; i++) await falhas(db, `dono:u${i}@x.com`, "6.6.6.6", 1);
-  expect((await entrarAluno(db, arena.slug, "ana@x.com", "senha-boa-1", "6.6.6.6")).ok).toBe(true);
   expect((await entrarAdmin(db, "admin@strukti.com", SENHA, "6.6.6.6")).ok).toBe(true);
   expect(await entrar(db, "dono@x.com", SENHA, "6.6.6.6")).toEqual({ ok: false, motivo: "bloqueado" });
 
-  // 20 falhas de admin não bloqueiam dono nem aluno
+  // 20 falhas de admin não bloqueiam dono
   for (let i = 0; i < 20; i++) await falhas(db, `admin:u${i}@x.com`, "4.4.4.4", 1);
   expect((await entrar(db, "dono@x.com", SENHA, "4.4.4.4")).ok).toBe(true);
-  expect((await entrarAluno(db, arena.slug, "ana@x.com", "senha-boa-1", "4.4.4.4")).ok).toBe(true);
   expect(await entrarAdmin(db, "admin@strukti.com", SENHA, "4.4.4.4")).toEqual({ ok: false, motivo: "bloqueado" });
 });
 
-test("sessão de admin não vale como de dono ou aluno, e vice-versa", async () => {
+test("sessão de admin não vale como de dono, e vice-versa", async () => {
   const db = await preparar();
   const arena = await criarArena(db, "Arena");
   await db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'dono@x.com', $2, 'dono')", [arena.id, await hashSenha(SENHA)]);
-  await criarAluno(db, arena.id, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1" });
   const adm = await entrarAdmin(db, "admin@strukti.com", SENHA, "1.1.1.1");
   const dono = await entrar(db, "dono@x.com", SENHA, "1.1.1.1");
-  const al = await entrarAluno(db, arena.slug, "ana@x.com", "senha-boa-1", "1.1.1.1");
-  if (!adm.ok || !dono.ok || !al.ok) throw new Error("login falhou");
+  if (!adm.ok || !dono.ok) throw new Error("login falhou");
   expect(await validarSessao(db, adm.token)).toBeNull();
-  expect(await validarSessaoAluno(db, adm.token)).toBeNull();
   expect(await validarSessaoAdmin(db, dono.token)).toBeNull();
-  expect(await validarSessaoAdmin(db, al.token)).toBeNull();
 });
 
 test("conta de dono com o e-mail do admin não entra no admin, e vice-versa", async () => {

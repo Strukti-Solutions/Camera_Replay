@@ -7,8 +7,6 @@ import { usePathname } from "next/navigation";
 // e para o destaque visual); o detalhe e o QR da quadra contam como Quadras.
 const SECOES = [
   { href: "/painel", rotulo: "Quadras", ativa: (p: string) => p === "/painel" || p.startsWith("/painel/quadras") },
-  { href: "/painel/reservas", rotulo: "Reservas", ativa: (p: string) => p.startsWith("/painel/reservas") },
-  { href: "/painel/alunos", rotulo: "Alunos", ativa: (p: string) => p.startsWith("/painel/alunos") },
 ];
 
 export function NavegacaoPainel() {
