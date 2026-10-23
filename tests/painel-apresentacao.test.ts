@@ -53,69 +53,13 @@ test("valor lançado que não é Error também vira genérico sem eco", () => {
   expect(log.mock.calls[0].map(String).join(" ")).not.toContain("token-xyz");
 });
 
-// ---------- Reservas e alunos ----------
+// ---------- Datas e avatares ----------
 
 import { PALETA_AVATAR, corDoAvatar, iniciais } from "../app/componentes/avatar-cor";
-import {
-  instanteEmSaoPaulo,
-  intervaloDaReserva,
-  textoData,
-  textoReserva,
-} from "../app/painel/apresentacao";
+import { textoData } from "../app/painel/apresentacao";
 
-test("data e hora de São Paulo viram instante absoluto (UTC−3, sem horário de verão)", () => {
-  expect(instanteEmSaoPaulo("2026-10-17", "08:00")?.toISOString()).toBe("2026-10-17T11:00:00.000Z");
-  expect(instanteEmSaoPaulo("2026-10-17", "22:30")?.toISOString()).toBe("2026-10-18T01:30:00.000Z");
-  // Janeiro também é UTC−3: o Brasil não tem mais horário de verão.
-  expect(instanteEmSaoPaulo("2027-01-10", "00:00")?.toISOString()).toBe("2027-01-10T03:00:00.000Z");
-  // Alguns navegadores mandam segundos.
-  expect(instanteEmSaoPaulo("2026-10-17", "08:00:00")?.toISOString()).toBe("2026-10-17T11:00:00.000Z");
-});
-
-test("data ou hora malformada ou impossível vira null", () => {
-  for (const [d, h] of [
-    ["", "08:00"],
-    ["2026-10-17", ""],
-    ["17/10/2026", "08:00"],
-    ["2026-02-30", "08:00"],
-    ["2026-13-01", "08:00"],
-    ["2026-10-17", "24:00"],
-    ["2026-10-17", "08:60"],
-    ["2026-10-17", "8h"],
-  ]) {
-    expect(instanteEmSaoPaulo(d, h)).toBeNull();
-  }
-});
-
-test("intervalo da reserva: fim antes ou igual ao início é erro, horário inválido também", () => {
-  const r = intervaloDaReserva("2026-10-17", "08:00", "10:00");
-  expect(r.inicio.toISOString()).toBe("2026-10-17T11:00:00.000Z");
-  expect(r.fim.toISOString()).toBe("2026-10-17T13:00:00.000Z");
-  expect(() => intervaloDaReserva("2026-10-17", "10:00", "08:00")).toThrow(ErroPainel);
-  expect(mensagemDoErro(capturar(() => intervaloDaReserva("2026-10-17", "10:00", "08:00")), "x")).toBe(
-    "O fim precisa ser depois do início.",
-  );
-  expect(mensagemDoErro(capturar(() => intervaloDaReserva("2026-10-17", "10:00", "10:00")), "x")).toBe(
-    "O fim precisa ser depois do início.",
-  );
-  expect(mensagemDoErro(capturar(() => intervaloDaReserva("", "10:00", "11:00")), "x")).toBe("Horário inválido.");
-});
-
-function capturar(f: () => unknown): unknown {
-  try {
-    f();
-  } catch (e) {
-    return e;
-  }
-  throw new Error("não lançou");
-}
-
-test("rótulo da reserva em horário de São Paulo, minutos só quando houver", () => {
-  const sp = (iso: string) => new Date(iso);
-  expect(textoReserva(sp("2026-10-17T11:00:00Z"), sp("2026-10-17T13:00:00Z"))).toBe("Reserva 8h–10h");
-  expect(textoReserva(sp("2026-10-17T11:30:00Z"), sp("2026-10-17T13:05:00Z"))).toBe("Reserva 8h30–10h05");
-  expect(textoReserva(sp("2026-10-18T01:00:00Z"), sp("2026-10-18T02:00:00Z"))).toBe("Reserva 22h–23h");
-  expect(textoData(sp("2026-10-18T01:00:00Z"))).toBe("17/10/2026");
+test("data civil em São Paulo", () => {
+  expect(textoData(new Date("2026-10-18T01:00:00Z"))).toBe("17/10/2026");
 });
 
 test("iniciais: primeira e última palavra, até 2 letras", () => {

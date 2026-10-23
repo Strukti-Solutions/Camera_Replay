@@ -4,7 +4,7 @@ import { hashToken, novoToken } from "./segredos";
 import { obterHashFalso, registrarTentativa } from "./sessao";
 
 // Sessão do super admin: tabela própria (sessoes_admin), nunca vale como sessão de
-// dono ou aluno nem o contrário. Mesmo desenho do login do dono: tentativa
+// dono nem o contrário. Mesmo desenho do login do dono: tentativa
 // registrada antes de conferir a senha, chave `admin:<email>`, hash falso para
 // e-mail inexistente e só o hash do token no banco.
 

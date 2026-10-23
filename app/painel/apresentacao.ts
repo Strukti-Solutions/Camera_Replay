@@ -39,38 +39,6 @@ export function mensagemDoErro(e: unknown, contexto: string): string {
   return ERRO_GENERICO;
 }
 
-// ---------- Reservas ----------
-
-// São Paulo é UTC−3 o ano todo (o Brasil não tem horário de verão desde 2019).
-const OFFSET_SP_H = 3;
-
-const RE_DATA = /^(\d{4})-(\d{2})-(\d{2})$/;
-const RE_HORA = /^(\d{2}):(\d{2})(?::\d{2})?$/;
-
-// "2026-10-17" + "08:00" digitados no horário de São Paulo → instante absoluto.
-// null se algum dos dois for malformado ou impossível (30/02, 24:00).
-export function instanteEmSaoPaulo(data: string, hora: string): Date | null {
-  const d = RE_DATA.exec(data);
-  const h = RE_HORA.exec(hora);
-  if (!d || !h) return null;
-  const [ano, mes, dia, hh, mm] = [d[1], d[2], d[3], h[1], h[2]].map(Number);
-  if (hh > 23 || mm > 59) return null;
-  const civil = new Date(Date.UTC(ano, mes - 1, dia));
-  // Date.UTC aceita 30/02 e rola para março; a volta confere.
-  if (civil.getUTCFullYear() !== ano || civil.getUTCMonth() !== mes - 1 || civil.getUTCDate() !== dia) return null;
-  return new Date(Date.UTC(ano, mes - 1, dia, hh + OFFSET_SP_H, mm));
-}
-
-// Data + início + fim do formulário. Sem reserva que vira a noite: fim antes
-// do início (ou igual) é erro, não "dia seguinte".
-export function intervaloDaReserva(data: string, inicio: string, fim: string): { inicio: Date; fim: Date } {
-  const i = instanteEmSaoPaulo(data, inicio);
-  const f = instanteEmSaoPaulo(data, fim);
-  if (!i || !f) throw new ErroPainel("horário inválido");
-  if (f.getTime() <= i.getTime()) throw new ErroPainel("o fim precisa ser depois do início");
-  return { inicio: i, fim: f };
-}
-
 const partesSP = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
   year: "numeric",
@@ -85,17 +53,6 @@ function emSP(d: Date): Record<string, string> {
   const p: Record<string, string> = {};
   for (const { type, value } of partesSP.formatToParts(d)) p[type] = value;
   return p;
-}
-
-// "8h", "8h30".
-function horaCurta(d: Date): string {
-  const p = emSP(d);
-  return `${Number(p.hour)}h${p.minute === "00" ? "" : p.minute}`;
-}
-
-// "Reserva 8h–10h", no horário de São Paulo.
-export function textoReserva(inicio: Date, fim: Date): string {
-  return `Reserva ${horaCurta(inicio)}–${horaCurta(fim)}`;
 }
 
 // "17/10/2026": a data civil em São Paulo.

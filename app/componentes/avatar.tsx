@@ -1,6 +1,6 @@
 import { corDoAvatar, iniciais } from "./avatar-cor";
 
-// Avatar do aluno: "squircle" com as iniciais sobre uma cor fixa escolhida
+// Avatar da pessoa: "squircle" com as iniciais sobre uma cor fixa escolhida
 // pelo id (não muda se o nome mudar). aria-hidden: o nome está sempre ao
 // lado (ou em texto para leitor de tela), e o avatar não deve repeti-lo.
 // SVG próprio e sem JavaScript: um nó leve por linha da tabela.
@@ -13,19 +13,5 @@ export function Avatar({ id, nome }: { id: string; nome: string }) {
         {iniciais(nome)}
       </text>
     </svg>
-  );
-}
-
-// Avatares sobrepostos (lista de alunos de uma reserva). Os nomes vão em
-// texto para o leitor de tela e no title para quem passa o mouse.
-export function AvataresEmpilhados({ alunos }: { alunos: { id: string; nome: string }[] }) {
-  const nomes = alunos.map((a) => a.nome).join(", ");
-  return (
-    <span className="avatares" title={nomes}>
-      {alunos.map((a) => (
-        <Avatar key={a.id} id={a.id} nome={a.nome} />
-      ))}
-      <span className="so-leitor">{nomes}</span>
-    </span>
   );
 }

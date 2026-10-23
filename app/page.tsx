@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Escolha sua arena" };
 
 type Props = { searchParams: Promise<{ busca?: string | string[] }> };
 
-// Porta de entrada pública: o aluno escolhe a arena e segue para /a/<slug>.
+// Porta de entrada pública: o jogador escolhe a arena e segue para /a/<slug>.
 // Só nome e slug das arenas ativas aparecem aqui. A busca é um formulário GET
 // comum, então funciona sem JavaScript.
 export default async function EscolhaDaArena({ searchParams }: Props) {

@@ -25,7 +25,7 @@ export default async function PaginaEntrar() {
         <LinkVoltar href="/" />
         <p className="entrar-quadra">Painel do dono</p>
         <h1>Entrar como dono da arena</h1>
-        <p className="entrar-dica">Acesso de quem administra a arena. Aluno entra pela página da arena.</p>
+        <p className="entrar-dica">Acesso de quem administra a arena.</p>
         <FormularioEntrar />
       </main>
     </>

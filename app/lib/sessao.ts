@@ -24,11 +24,11 @@ export function obterHashFalso(): Promise<string> {
 }
 
 // Registra a tentativa de login e diz se o limite já estourou (true = bloqueado).
-// Compartilhada pelo login do dono e do aluno: os dois usam tentativas_login.
-// A chave identifica a conta (`dono:<email>` ou `aluno:<arena_id>:<email>`), para
+// Compartilhada pelo login do dono e do admin: os dois usam tentativas_login.
+// A chave identifica a conta (`dono:<email>` ou `admin:<email>`), para
 // que o sucesso numa conta nunca zere o limite de outra com o mesmo e-mail.
-// O limite por IP soma só as chaves do mesmo tipo (`dono`, `aluno` ou `admin`, o
-// trecho antes do primeiro ":"): alunos errando a senha no Wi-Fi da arena não podem
+// O limite por IP soma só as chaves do mesmo tipo (`dono` ou `admin`, o
+// trecho antes do primeiro ":"): gente errando a senha no Wi-Fi da arena não pode
 // travar o login do dono nem o do admin.
 export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.

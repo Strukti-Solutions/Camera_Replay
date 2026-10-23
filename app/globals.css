@@ -983,10 +983,10 @@ video {
   }
 }
 
-/* ---------- Painel: navegação, tabelas, alunos e reservas ---------- */
+/* ---------- Painel: navegação e tabelas ---------- */
 
 :root {
-  /* Fundo sob o ponteiro (tabelas, caixas de alunos, botões de contorno).
+  /* Fundo sob o ponteiro (tabelas, botões de contorno).
      Mais claro que o navy-100 para o link azul seguir ≥ 4,5:1 por cima. */
   --realce: #eaf0f5;
 }
@@ -1088,28 +1088,6 @@ video {
   font-variant-numeric: tabular-nums;
 }
 
-/* Avatar + nome + e-mail: todo avatar tem a mesma caixa, então os nomes
-   começam alinhados e a coluna se lê como coluna. */
-.pessoa {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.pessoa-texto {
-  min-width: 0;
-}
-
-.pessoa-nome {
-  font-weight: 600;
-}
-
-.pessoa-email {
-  color: var(--tinta-suave);
-  font-size: 0.875rem;
-  overflow-wrap: anywhere;
-}
-
 .avatar {
   flex-shrink: 0;
   width: 32px;
@@ -1123,32 +1101,6 @@ video {
   font-weight: 700;
 }
 
-/* Avatares sobrepostos, separados por um contorno da cor da superfície. */
-.avatares {
-  display: inline-flex;
-  align-items: center;
-}
-
-.avatares .avatar + .avatar {
-  margin-left: -8px;
-}
-
-.avatares .avatar path {
-  stroke: var(--superficie);
-  stroke-width: 4;
-}
-
-.selo-neutro {
-  display: inline-block;
-  padding: 0.1rem 0.6rem;
-  border-radius: var(--raio-campo);
-  border: 1.5px solid currentColor;
-  color: var(--tinta-suave);
-  font-size: 0.875rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .acoes-linha {
   display: flex;
   flex-wrap: wrap;
@@ -1160,114 +1112,7 @@ video {
   margin-top: 0;
 }
 
-/* Caixas de alunos: a linha inteira (rótulo) é o alvo de toque. */
-.caixas-alunos {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-}
-
-.caixas-alunos legend {
-  padding: 0;
-  margin-bottom: 0.35rem;
-  font-weight: 600;
-}
-
-.caixas-alunos ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.25rem;
-}
-
-.caixas-alunos li label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-height: var(--alvo);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--raio);
-  cursor: pointer;
-}
-
-.caixas-alunos li label:hover {
-  background: var(--realce);
-}
-
-/* Só as caixas da lista: o campo de busca fica no tamanho padrão. */
-.caixas-alunos input[type="checkbox"] {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0;
-  accent-color: var(--link);
-}
-
-/* Busca e contagem da escolha de alunos (só com JavaScript e mais de 10 alunos). */
-.escolha-filtro {
-  display: grid;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
-}
-
-.escolha-contagem {
-  margin: 0;
-  color: var(--tinta-suave);
-  font-weight: 600;
-}
-
-/* Páginas da lista de alunos (links) e da escolha de alunos (botões). */
-.alunos-total {
-  margin: 0 0 0.5rem;
-}
-
-.paginacao {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.paginacao-texto {
-  color: var(--tinta-suave);
-  font-variant-numeric: tabular-nums;
-}
-
-.paginacao-botao[aria-disabled="true"] {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.paginacao-botao[aria-disabled="true"]:hover {
-  background: transparent;
-}
-
-.campos-lado {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.campo select {
-  min-height: var(--alvo);
-  padding: 0.5rem 0.75rem;
-  border: 1.5px solid var(--borda-campo);
-  border-radius: var(--raio-campo);
-  background: var(--superficie);
-  color: var(--tinta);
-  font: inherit;
-}
-
-.lance-reserva,
-.lance-alunos {
-  margin-bottom: 0.5rem;
-}
-
-/* ---------- Página do QR: reservas e aluno ---------- */
-
-.faixa-quadra,
+/* ---------- Telas de entrar ---------- */
 .entrar-quadra {
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -1295,75 +1140,6 @@ video {
   gap: 0.35rem;
   min-height: var(--alvo);
   font-weight: 600;
-}
-
-.quadra-publica {
-  padding-block: 1.25rem 3rem;
-}
-
-.aluno-barra {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.aluno-ola {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.aluno-barra form {
-  margin: 0;
-}
-
-/* Cada reserva do aluno é um cartão empilhado: no celular é uma linha de
-   toque, sem rolagem lateral. */
-.reservas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.reserva {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "texto acao"
-    "selo acao";
-  align-items: center;
-  gap: 0.35rem 0.75rem;
-  padding: 0.75rem 1rem;
-  background: var(--superficie);
-  border: 2px solid var(--borda);
-  border-radius: var(--raio);
-}
-
-.reserva-texto {
-  grid-area: texto;
-  min-width: 0;
-}
-
-.reserva-texto .suave {
-  overflow-wrap: anywhere;
-}
-
-.reserva-titulo {
-  font-size: 1.0625rem;
-  font-weight: 700;
-}
-
-.reserva > .selo-neutro {
-  grid-area: selo;
-  justify-self: start;
-}
-
-.reserva-acao {
-  grid-area: acao;
 }
 
 /* ---------- Escolha da arena (/) ---------- */

@@ -54,7 +54,7 @@ export const SLUG_VALIDO = /^[A-Za-z0-9_-]{20,64}$/;
 const LIMITE = 50;
 
 // Lista todos os clipes prontos da quadra, pelo slug. NÃO usar em página pública:
-// clipes fora de reserva são só do dono (spec, "Reservas e alunos"). Hoje nenhuma
+// esta lista traz todos os clipes da quadra, e isso é só do dono. Hoje nenhuma
 // página a usa; fica com os testes.
 // Devolve null para slug malformado (sem tocar no banco) ou desconhecido.
 // Clipes não têm quadra_id: a ligação é pela câmera, e a consulta filtra por

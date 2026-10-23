@@ -1,4 +1,4 @@
-// Cor e iniciais do avatar do aluno. Módulo sem dependências: o avatar
+// Cor e iniciais do avatar da pessoa. Módulo sem dependências: o avatar
 // aparece também em componentes de cliente, que não podem puxar app/lib.
 
 // Fundos do avatar. Todos com contraste ≥ 4,5:1 contra as iniciais brancas,
