@@ -18,7 +18,7 @@
 - Limite de tentativas: 5 por chave e 20 por IP em 15 min (`registrarTentativa`, `app/lib/sessao.ts`). Chaves novas: `entrar:<email>` no login único e `recuperar:<email>` no pedido de link.
 - Resposta igual para "e-mail não existe" e "senha errada"; "suspensa" só para quem acertou a senha. O pedido de link responde sempre "Se o e-mail tiver conta, enviamos um link para redefinir a senha."
 - Link de redefinição: uso único, válido por 1 hora; trocar a senha por ele encerra todas as sessões da conta e invalida os outros links dela.
-- Sessão do jogador: tabela `sessoes_jogador`, cookie `replay_jogador` (HttpOnly, Secure em produção, SameSite Lax, path `/`), 7 dias. Dono (`replay_sessao`) e admin (`replay_admin`, path `/admin`, SameSite Strict, 12 h) continuam como estão.
+- Sessão do jogador: tabela `sessoes_jogador`, cookie `replay_jogador` (HttpOnly, Secure em produção, SameSite Lax, path `/`), 30 dias. Dono (`replay_sessao`) e admin (`replay_admin`, path `/admin`, SameSite Strict, 12 h) continuam como estão.
 - Termos: caixa obrigatória "Li e aceito os termos de uso e a política de privacidade", link para `/termos`; versão `TERMOS_VERSAO = "provisorio-2026-10-22"` e data do aceite gravadas na conta. O texto de `/termos` começa com "Texto provisório".
 - Só caminhos internos em `?voltar=` (começa com `/`, não com `//` nem `/\`, até 512 caracteres); qualquer outro valor é ignorado.
 - pt-BR, WCAG AA, alvos de 48 px, identidade Strukti, sem libs novas. Páginas funcionam sem JavaScript.
@@ -60,7 +60,7 @@
 **Interfaces:**
 - Consumes: `hashSenha`/`conferirSenha` (`senha.ts`), `novoToken`/`hashToken` (`segredos.ts`).
 - Produces (`app/lib/jogadores.ts`):
-  - `TERMOS_VERSAO = "provisorio-2026-10-22"`, `DURACAO_SESSAO_JOGADOR_S = 7 * 24 * 3600`, `SENHA_JOGADOR_MIN = 8`
+  - `TERMOS_VERSAO = "provisorio-2026-10-22"`, `DURACAO_SESSAO_JOGADOR_S = 30 * 24 * 3600`, `SENHA_JOGADOR_MIN = 8`
   - `type SessaoJogador = { jogadorId: string; nome: string; email: string }`
   - `criarContaJogador(db, d: { nome: string; email: string; senha: string; aceitouTermos: boolean }): Promise<{ ok: true; jogadorId: string } | { ok: false; erro: "nome" | "email" | "senha" | "termos" | "email_em_uso" }>` — nome com trim, 1 a 80 caracteres.
   - `criarSessaoJogador(db, jogadorId): Promise<{ token: string; expiraEm: Date }>`
@@ -122,7 +122,7 @@
   - `nome` → "Informe seu nome (até 80 caracteres)."; `email` → "Informe um e-mail válido."; `senha` → "A senha precisa ter pelo menos 8 caracteres."; `termos` → "Para criar a conta, aceite os termos de uso e a política de privacidade."; `email_em_uso` → "Este e-mail já tem conta. Entre ou use \"Esqueci a senha\"."; `senha_atual` → "Senha atual incorreta."
 - Telas:
   - `/criar-conta`: nome, e-mail, senha, caixa dos termos; ao criar, já entra (cookie do jogador) e vai para `caminhoSeguro(voltar) ?? "/minhas-reservas"`. Logado como jogador → `/minhas-reservas`.
-  - `/termos`: texto provisório (termos de uso + privacidade em linguagem simples: quem é a Strukti, que dados guarda — nome, e-mail, vídeos por até 3 dias —, para quê, como apagar a conta), com o aviso "Texto provisório".
+  - `/termos`: texto provisório (termos de uso + privacidade em linguagem simples: quem é a Strukti, que dados guarda — nome, e-mail, vídeos por até 3 dias —, para quê, como apagar a conta; responsável "Strukti Soluções", contato struktisolutions@gmail.com), com o aviso "Texto provisório".
   - `/minhas-reservas`: exige jogador; "Olá, <primeiro nome>"; "Você ainda não tem reservas."; links "Minha conta" e "Sair".
   - `/minha-conta`: exige jogador; três formulários separados — nome; senha (atual + nova); apagar conta (senha + caixa "Entendo que a conta e o histórico serão apagados"). Apagar → apaga o cookie e vai para `/` com "Conta apagada.".
   - Cabeçalho público: sem sessão de jogador, "Entrar" e "Criar conta"; com sessão, "Minhas reservas" e "Sair".
