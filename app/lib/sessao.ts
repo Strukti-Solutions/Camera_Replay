@@ -1,5 +1,5 @@
 import type { Db } from "./db";
-import { conferirSenha, hashSenha } from "./senha";
+import { hashSenha } from "./senha";
 import { hashToken, novoToken } from "./segredos";
 
 export const DURACAO_SESSAO_S = 7 * 24 * 3600;
@@ -11,10 +11,6 @@ const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/; // 32 bytes em base64url (novoToken
 
 export type Sessao = { usuarioId: string; arenaId: string; arenaNome: string; email: string };
 
-export type ResultadoEntrar =
-  | { ok: true; token: string; expiraEm: Date }
-  | { ok: false; motivo: "credenciais" | "bloqueado" | "suspensa" };
-
 // Hash de uma senha sem dono, para e-mail inexistente gastar o mesmo tempo de
 // scrypt que um e-mail real (evita revelar quais e-mails existem pelo tempo).
 let hashFalso: Promise<string> | undefined;
@@ -24,12 +20,9 @@ export function obterHashFalso(): Promise<string> {
 }
 
 // Registra a tentativa de login e diz se o limite já estourou (true = bloqueado).
-// Compartilhada pelo login do dono e do admin: os dois usam tentativas_login.
-// A chave identifica a conta (`dono:<email>` ou `admin:<email>`), para
-// que o sucesso numa conta nunca zere o limite de outra com o mesmo e-mail.
-// O limite por IP soma só as chaves do mesmo tipo (`dono` ou `admin`, o
-// trecho antes do primeiro ":"): gente errando a senha no Wi-Fi da arena não pode
-// travar o login do dono nem o do admin.
+// Usada pelo login único (entrar-unico.ts), com a chave `entrar:<email>`.
+// O limite por IP soma só as chaves do mesmo prefixo (o trecho antes do
+// primeiro ":"); hoje todo login usa `entrar`, então conta todas as contas.
 export async function registrarTentativa(db: Db, chave: string, ip: string): Promise<boolean> {
   // Registro pessimista: grava a tentativa ANTES de contar e de conferir a senha.
   // Assim requisições concorrentes enxergam umas às outras e o limite vale de verdade.
@@ -57,37 +50,19 @@ export async function registrarTentativa(db: Db, chave: string, ip: string): Pro
   return false;
 }
 
-export async function entrar(db: Db, email: string, senha: string, ip: string): Promise<ResultadoEntrar> {
-  const emailNorm = email.trim().toLowerCase();
-
-  // Limpeza oportunista: sessões vencidas e tentativas com mais de 1 dia.
+// Abre a sessão do dono (o login único já conferiu a senha e a arena ativa).
+export async function criarSessaoDono(
+  db: Db, usuarioId: string, arenaId: string,
+): Promise<{ token: string; expiraEm: Date }> {
+  // Limpeza oportunista das sessões vencidas.
   await db.query("delete from sessoes where expira_em < now()");
-  await db.query("delete from tentativas_login where em < now() - interval '1 day'");
-
-  const chave = `dono:${emailNorm}`;
-  if (await registrarTentativa(db, chave, ip)) return { ok: false, motivo: "bloqueado" };
-
-  const u = await db.query<{ id: string; arena_id: string; senha_hash: string; status: string }>(
-    `select u.id, u.arena_id, u.senha_hash, a.status_assinatura as status
-       from usuarios u join arenas a on a.id = u.arena_id
-      where u.email = $1`,
-    [emailNorm],
-  );
-  const usuario = u.rows[0];
-  const certa = await conferirSenha(senha, usuario ? usuario.senha_hash : await obterHashFalso());
-  if (!usuario || !certa) return { ok: false, motivo: "credenciais" };
-  // Só quem acertou a senha fica sabendo que a arena está suspensa.
-  if (usuario.status !== "ativa") return { ok: false, motivo: "suspensa" };
-
-  // Apaga as falhas do e-mail (inclui a linha desta tentativa).
-  await db.query("delete from tentativas_login where email = $1", [chave]);
   const token = novoToken();
   const r = await db.query<{ expira_em: Date }>(
     `insert into sessoes (arena_id, usuario_id, token_hash, expira_em)
      values ($1, $2, $3, now() + make_interval(secs => $4)) returning expira_em`,
-    [usuario.arena_id, usuario.id, hashToken(token), DURACAO_SESSAO_S],
+    [arenaId, usuarioId, hashToken(token), DURACAO_SESSAO_S],
   );
-  return { ok: true, token, expiraEm: new Date(r.rows[0].expira_em) };
+  return { token, expiraEm: new Date(r.rows[0].expira_em) };
 }
 
 export async function validarSessao(db: Db, token: string): Promise<Sessao | null> {

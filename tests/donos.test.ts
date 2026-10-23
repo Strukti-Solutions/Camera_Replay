@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { novoBanco } from "./db";
 import { criarArenaComDono } from "../app/lib/donos";
-import { entrar } from "../app/lib/sessao";
+import { entrarUnico } from "../app/lib/entrar-unico";
 
 const SENHA = "senha-bem-longa";
 
@@ -17,7 +17,7 @@ test("cria arena e dono, e o entrar funciona com a senha", async () => {
     [r.usuarioId],
   );
   expect(u.rows[0]).toEqual({ arena_id: r.arenaId, email: "dono@x.com", papel: "dono" });
-  const s = await entrar(db, "dono@x.com", SENHA, "1.1.1.1");
+  const s = await entrarUnico(db, "dono@x.com", SENHA, "1.1.1.1");
   expect(s.ok).toBe(true);
 });
 

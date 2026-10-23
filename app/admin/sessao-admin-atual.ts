@@ -1,12 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { validarSessaoAdmin, type SessaoAdmin } from "@/app/lib/sessao-admin";
+import { COOKIE_ADMIN, validarSessaoAdmin, type SessaoAdmin } from "@/app/lib/sessao-admin";
 
-// Cookie próprio do super admin: nunca o de dono (replay_sessao).
-// Path /admin: o navegador só o manda para as páginas e actions daqui.
-export const COOKIE_ADMIN = "replay_admin";
-export const CAMINHO_COOKIE_ADMIN = "/admin";
+// O cookie (replay_admin, path /admin) é definido em app/lib/sessao-admin.ts,
+// porque o login único em /entrar também o grava.
 
 export async function sessaoAdminAtual(): Promise<SessaoAdmin | null> {
   const token = (await cookies()).get(COOKIE_ADMIN)?.value;
@@ -17,6 +15,6 @@ export async function sessaoAdminAtual(): Promise<SessaoAdmin | null> {
 // Toda página e toda action de /admin chamam isto antes de tocar em plataforma.ts.
 export async function exigirSuperAdmin(): Promise<SessaoAdmin> {
   const sessao = await sessaoAdminAtual();
-  if (!sessao) redirect("/admin/entrar");
+  if (!sessao) redirect("/entrar");
   return sessao;
 }

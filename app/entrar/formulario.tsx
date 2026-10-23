@@ -5,10 +5,12 @@ import { entrarAction, type EstadoEntrar } from "./actions";
 
 const inicial: EstadoEntrar = { erro: null, email: "" };
 
-export function FormularioEntrar() {
+// `voltar` vai num campo escondido; a action só o usa depois de caminhoSeguro.
+export function FormularioEntrar({ voltar }: { voltar: string | null }) {
   const [estado, acao, pendente] = useActionState(entrarAction, inicial);
   return (
     <form action={acao} className="formulario">
+      {voltar ? <input type="hidden" name="voltar" value={voltar} /> : null}
       <div className="campo">
         <label htmlFor="email">E-mail</label>
         <input id="email" name="email" type="email" autoComplete="email" defaultValue={estado.email} required />

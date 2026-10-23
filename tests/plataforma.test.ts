@@ -6,7 +6,7 @@ import {
   criarArenaAdmin, criarSuperAdmin, definirStatusArena, listarArenasAdmin,
 } from "../app/lib/plataforma";
 import { listarArenasPublicas } from "../app/lib/arenas-publicas";
-import { entrarAdmin } from "../app/lib/sessao-admin";
+import { entrarUnico } from "../app/lib/entrar-unico";
 
 test("migração: status só aceita ativa/suspensa; super admin com e-mail minúsculo e único", async () => {
   const db = await novoBanco();
@@ -103,7 +103,7 @@ test("criarSuperAdmin: senha >= 12, e-mail normalizado e único, hash scrypt", a
   expect(q.rows[0].email).toBe("admin@x.com");
   expect(q.rows[0].senha_hash).toMatch(/^scrypt\$/);
   await expect(criarSuperAdmin(db, { email: "admin@x.com", senha: "senha-bem-longa" })).rejects.toThrow("e-mail já cadastrado");
-  expect((await entrarAdmin(db, "admin@x.com", "senha-bem-longa", "1.1.1.1")).ok).toBe(true);
+  expect(await entrarUnico(db, "admin@x.com", "senha-bem-longa", "1.1.1.1")).toMatchObject({ ok: true, tipo: "admin" });
 });
 
 test("e-mail de super admin não pode coincidir com o de dono (um e-mail, uma conta)", async () => {

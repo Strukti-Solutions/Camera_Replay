@@ -1,5 +1,5 @@
-// Frases das recusas de login, as mesmas para dono. "suspensa" só chega
-// depois da senha certa (sessao.ts), então não revela nada a
+// Frases das recusas do login único. "suspensa" só chega ao dono e só
+// depois da senha certa (entrar-unico.ts), então não revela nada a
 // quem não tem a conta.
 
 export type MotivoRecusa = "credenciais" | "bloqueado" | "suspensa";

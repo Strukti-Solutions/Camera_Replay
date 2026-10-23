@@ -1129,6 +1129,21 @@ video {
   margin: -1rem 0 1.5rem;
 }
 
+/* "Criar conta" e "Esqueci a senha" embaixo do formulário de entrar. */
+.entrar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.entrar-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  font-weight: 600;
+}
+
 /* "← Voltar" das telas de entrar: alvo de toque de 48 px. */
 .voltar {
   margin: -1rem 0 1rem;
