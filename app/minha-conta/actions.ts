@@ -1,10 +1,12 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { apagarContaJogador, atualizarNomeJogador, trocarSenhaJogador } from "@/app/lib/jogadores";
+import { ipDoCliente } from "@/app/entrar/ip";
+import { apagarContaComLimite, trocarSenhaComLimite } from "@/app/lib/cadastro-jogador";
+import { atualizarNomeJogador } from "@/app/lib/jogadores";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { mensagemMinhaConta } from "@/app/jogador/mensagens";
+import { MENSAGEM_MUITAS_TENTATIVAS, mensagemMinhaConta } from "@/app/jogador/mensagens";
 import { COOKIE_JOGADOR, exigirJogador } from "@/app/jogador/sessao-jogador";
 
 // Estado dos três formulários: `erro` e `ok` nunca vêm juntos.
@@ -20,10 +22,12 @@ export async function mudarNomeAction(_e: EstadoConta, form: FormData): Promise<
 export async function trocarSenhaAction(_e: EstadoConta, form: FormData): Promise<EstadoConta> {
   const { jogadorId } = await exigirJogador();
   const token = (await cookies()).get(COOKIE_JOGADOR)?.value ?? "";
-  const r = await trocarSenhaJogador(
-    poolCompartilhado(), jogadorId, String(form.get("atual") ?? ""), String(form.get("nova") ?? ""), token,
+  const ip = ipDoCliente(await headers());
+  const r = await trocarSenhaComLimite(
+    poolCompartilhado(), jogadorId, String(form.get("atual") ?? ""), String(form.get("nova") ?? ""), token, ip,
   );
-  return r.ok ? { erro: null, ok: "Senha alterada." } : { erro: mensagemMinhaConta(r.erro), ok: null };
+  if (r.ok) return { erro: null, ok: "Senha alterada." };
+  return { erro: r.erro === "limite" ? MENSAGEM_MUITAS_TENTATIVAS : mensagemMinhaConta(r.erro), ok: null };
 }
 
 export async function apagarContaAction(_e: EstadoConta, form: FormData): Promise<EstadoConta> {
@@ -31,8 +35,9 @@ export async function apagarContaAction(_e: EstadoConta, form: FormData): Promis
   if (form.get("entendo") !== "on") {
     return { erro: "Marque a caixa para confirmar que entende.", ok: null };
   }
-  const r = await apagarContaJogador(poolCompartilhado(), jogadorId, String(form.get("senha") ?? ""));
-  if (!r.ok) return { erro: "Senha incorreta.", ok: null };
+  const ip = ipDoCliente(await headers());
+  const r = await apagarContaComLimite(poolCompartilhado(), jogadorId, String(form.get("senha") ?? ""), ip);
+  if (!r.ok) return { erro: r.erro === "limite" ? MENSAGEM_MUITAS_TENTATIVAS : "Senha incorreta.", ok: null };
   (await cookies()).delete(COOKIE_JOGADOR);
   redirect("/?ok=conta-apagada");
 }
