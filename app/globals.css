@@ -67,8 +67,12 @@
   color-scheme: light dark;
 }
 
+:root[data-tema="claro"] {
+  color-scheme: light;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     /* Tema escuro: noite, com peças elevadas em navy-800. */
     --fundo: var(--navy-900);
     --superficie: var(--navy-800);
@@ -83,6 +87,23 @@
     --perigo: #ff8a80;
     --sucesso: #7fd8a0;
   }
+}
+
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+  /* Tema escuro: noite, com peças elevadas em navy-800. */
+  --fundo: var(--navy-900);
+  --superficie: var(--navy-800);
+  --tinta: #ffffff;
+  --tinta-suave: var(--navy-200);
+  --borda: var(--navy-700);
+  --borda-campo: var(--navy-300);
+  --borda-selo: var(--navy-300);
+  /* Ciano só no escuro (MASTER §3.2). */
+  --link: var(--cyan-300);
+  --foco: var(--cyan-400);
+  --perigo: #ff8a80;
+  --sucesso: #7fd8a0;
 }
 
 *,
@@ -356,9 +377,13 @@ video {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --capa-vazia: var(--navy-800);
   }
+}
+
+:root[data-tema="escuro"] {
+  --capa-vazia: var(--navy-800);
 }
 
 /* Só para leitor de tela. */
@@ -637,9 +662,13 @@ video {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --sobre-perigo: var(--navy-950);
   }
+}
+
+:root[data-tema="escuro"] {
+  --sobre-perigo: var(--navy-950);
 }
 
 .painel {
@@ -1050,9 +1079,13 @@ video {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema="claro"]) {
     --realce: var(--navy-700);
   }
+}
+
+:root[data-tema="escuro"] {
+  --realce: var(--navy-700);
 }
 
 .painel-nav {
