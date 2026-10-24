@@ -24,8 +24,8 @@ test("listarArenasPublicas: só ativas, por nome, só nome e slug", async () => 
   const s = await criarArena(db, "Suspensa");
   await definirStatusArena(db, s.id, "suspensa");
   const r = await listarArenasPublicas(db);
-  expect(r).toEqual([{ nome: "Alfa", slug: a.slug }, { nome: "Zeta", slug: z.slug }]);
-  expect(Object.keys(r[0]).sort()).toEqual(["nome", "slug"]);
+  expect(r).toEqual([{ nome: "Alfa", slug: a.slug, cidade: null }, { nome: "Zeta", slug: z.slug, cidade: null }]);
+  expect(Object.keys(r[0]).sort()).toEqual(["cidade", "nome", "slug"]);
 });
 
 test("listarArenasPublicas: busca por nome ignora caixa, trata % e _ como texto e limita a 50", async () => {

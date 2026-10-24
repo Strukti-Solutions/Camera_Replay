@@ -1,22 +1,137 @@
 import type { Db } from "./db";
+import type { Faixa } from "./precos";
+import { SLUG_VALIDO } from "./clipes";
 
-// Lista pública de arenas para a página de escolha (/). Fica fora de
-// plataforma.ts de propósito: este é o único dado que cruza arenas sem sessão
-// de super admin, e devolve só nome e slug (nada de dono, quadras ou contagens).
+// Dados públicos das arenas (home, busca, mapa e /a/<slug>). Fica fora de
+// plataforma.ts de propósito: é o dado que cruza arenas sem sessão. Só sai o que
+// é de vitrine: nome, slug, endereço, coordenadas, quadras e faixas de preço
+// (nada de dono, taxa, câmeras ou contagens).
 
 export const LIMITE_PUBLICO = 50;
+export const LIMITE_SUGESTOES = 8;
 
-// Arenas ativas, por nome, até 50. A busca é por trecho do nome, sem curingas
-// (% e _ valem como texto). O NUL sai do termo: o Postgres recusa esse caractere.
-export async function listarArenasPublicas(db: Db, busca?: string): Promise<{ nome: string; slug: string }[]> {
-  const termo = typeof busca === "string" ? busca.replace(/\u0000/g, "").trim().slice(0, 80) : "";
-  const { rows } = await db.query<{ nome: string; slug: string }>(
-    `select nome, slug from arenas
+const ACENTOS = "áàâãäéèêëíìîïóòôõöúùûüçñ";
+const SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucn";
+
+// Termo sem NUL (o Postgres recusa), aparado, até 80 caracteres, minúsculo e sem
+// acento. Os dois lados da comparação passam pela mesma normalização.
+function normalizar(busca: unknown): string {
+  if (typeof busca !== "string") return "";
+  return busca
+    .replace(/\u0000/g, "")
+    .trim()
+    .slice(0, 80)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+// Expressão SQL equivalente para uma coluna de texto (nula vira vazio).
+const sqlNorm = (col: string) => `translate(lower(coalesce(${col}, '')), '${ACENTOS}', '${SEM_ACENTO}')`;
+
+const CAMPOS_BUSCA = ["nome", "endereco_rua", "endereco_bairro", "endereco_cidade", "endereco_uf"];
+// position() mantém % e _ como texto literal. O alvo junta os campos com \n,
+// que o termo (aparado, de uma linha) não atravessa por acaso.
+const ALVO_BUSCA = CAMPOS_BUSCA.map(sqlNorm).join(" || E'\n' || ");
+
+type ArenaLista = { nome: string; slug: string; cidade: string | null };
+
+async function buscar(db: Db, termo: string, limite: number): Promise<ArenaLista[]> {
+  const { rows } = await db.query<ArenaLista>(
+    `select nome, slug, endereco_cidade as cidade from arenas
       where status_assinatura = 'ativa'
-        and ($1 = '' or position(lower($1) in lower(nome)) > 0)
+        and ($1 = '' or position($1 in ${ALVO_BUSCA}) > 0)
       order by nome, id
-      limit ${LIMITE_PUBLICO}`,
+      limit ${limite}`,
     [termo],
   );
-  return rows.map((r) => ({ nome: r.nome, slug: r.slug }));
+  return rows.map((r) => ({ nome: r.nome, slug: r.slug, cidade: r.cidade || null }));
+}
+
+// Arenas ativas, por nome, até 50, casando nome, rua, bairro, cidade e UF sem
+// acento e sem diferença de maiúscula.
+export function listarArenasPublicas(db: Db, busca?: string): Promise<ArenaLista[]> {
+  return buscar(db, normalizar(busca), LIMITE_PUBLICO);
+}
+
+// Sugestões da busca: 2 a 80 caracteres (o que sobra do aparo); menos que isso
+// ou mais que isso devolve [] sem consultar o banco.
+export async function sugestoesArenas(db: Db, termo: string): Promise<ArenaLista[]> {
+  if (typeof termo !== "string") return [];
+  const limpo = termo.replace(/\u0000/g, "").trim();
+  if (limpo.length < 2 || limpo.length > 80) return [];
+  return buscar(db, normalizar(limpo), LIMITE_SUGESTOES);
+}
+
+// Pontos do mapa: arenas ativas com latitude e longitude.
+export async function arenasNoMapa(
+  db: Db,
+): Promise<{ nome: string; slug: string; latitude: number; longitude: number }[]> {
+  const { rows } = await db.query<{ nome: string; slug: string; latitude: number; longitude: number }>(
+    `select nome, slug, latitude, longitude from arenas
+      where status_assinatura = 'ativa' and latitude is not null and longitude is not null
+      order by nome, id`,
+  );
+  return rows.map((r) => ({ nome: r.nome, slug: r.slug, latitude: Number(r.latitude), longitude: Number(r.longitude) }));
+}
+
+export type ArenaPublica = {
+  nome: string;
+  slug: string;
+  ativa: boolean;
+  endereco: { rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null } | null;
+  latitude: number | null;
+  longitude: number | null;
+  quadras: { id: string; nome: string; esporte: string; faixas: Faixa[] }[];
+};
+
+// Página pública da arena. Slug malformado não toca o banco; arena suspensa sai
+// sem quadras.
+export async function arenaPublica(db: Db, slug: string): Promise<ArenaPublica | null> {
+  if (typeof slug !== "string" || !SLUG_VALIDO.test(slug)) return null;
+  const a = await db.query<{
+    id: string; nome: string; slug: string; status: string;
+    rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null;
+    latitude: number | null; longitude: number | null;
+  }>(
+    `select id, nome, slug, status_assinatura as status, endereco_rua as rua, endereco_numero as numero,
+            endereco_bairro as bairro, endereco_cidade as cidade, endereco_uf as uf, endereco_cep as cep,
+            latitude, longitude
+       from arenas where slug = $1`,
+    [slug],
+  );
+  const r = a.rows[0];
+  if (!r) return null;
+  const ativa = r.status === "ativa";
+  const endereco = { rua: r.rua, numero: r.numero, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep };
+  const temEndereco = Object.values(endereco).some((v) => v !== null && v !== "");
+  const base = {
+    nome: r.nome,
+    slug: r.slug,
+    ativa,
+    endereco: temEndereco ? endereco : null,
+    latitude: r.latitude === null ? null : Number(r.latitude),
+    longitude: r.longitude === null ? null : Number(r.longitude),
+  };
+  if (!ativa) return { ...base, quadras: [] };
+
+  const q = await db.query<{ id: string; nome: string; esporte: string }>(
+    "select id, nome, esporte from quadras where arena_id = $1 order by nome, id",
+    [r.id],
+  );
+  const p = await db.query<{ quadra_id: string; dia_semana: number; inicio: number; fim: number; preco_centavos: number }>(
+    `select quadra_id, dia_semana, inicio, fim, preco_centavos from precos_quadra
+      where arena_id = $1 order by dia_semana, inicio`,
+    [r.id],
+  );
+  const faixas = new Map<string, Faixa[]>();
+  for (const f of p.rows) {
+    const lista = faixas.get(f.quadra_id) ?? [];
+    lista.push({ diaSemana: f.dia_semana, inicio: f.inicio, fim: f.fim, precoCentavos: f.preco_centavos });
+    faixas.set(f.quadra_id, lista);
+  }
+  return {
+    ...base,
+    quadras: q.rows.map((x) => ({ id: x.id, nome: x.nome, esporte: x.esporte, faixas: faixas.get(x.id) ?? [] })),
+  };
 }
