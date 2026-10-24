@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { novoBanco } from "./db";
-import { criarArena } from "./fixtures";
+import { criarArena, criarQuadra } from "./fixtures";
 import { criarArenaComDono } from "../app/lib/donos";
 import { criarArenaAdmin } from "../app/lib/plataforma";
 import {
@@ -56,6 +56,26 @@ test("apagar conta pede a senha, derruba sessões e libera o e-mail", async () =
   expect(await apagarContaJogador(db, r.jogadorId, SENHA)).toEqual({ ok: true });
   expect(await validarSessaoJogador(db, token)).toBeNull();
   expect((await criarContaJogador(db, conta("a@x.com"))).ok).toBe(true);
+});
+
+test("apagar conta recusa com reserva confirmada que ainda não terminou", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const q = await criarQuadra(db, a.id);
+  const r = await criarContaJogador(db, conta("a@x.com"));
+  if (!r.ok) throw new Error("conta");
+  const ins = (situacao: string, inicio: string, fim: string) => db.query(
+    `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, pagamento, total_centavos, taxa_centavos, detalhe)
+     values ($1, $2, $3, 'reserva', $4, now() + $5::interval, now() + $6::interval, 'arena', 1, 0, '[]')`,
+    [a.id, q.id, r.jogadorId, situacao, inicio, fim]);
+  await ins("cancelada", "1 day", "1 day 1 hour");
+  await ins("confirmada", "-30 minutes", "30 minutes"); // em andamento
+  expect(await apagarContaJogador(db, r.jogadorId, SENHA)).toEqual({ ok: false, erro: "reservas_futuras" });
+  await db.query("update reservas set situacao = 'cancelada', cancelada_por = 'dono', cancelada_em = now() where situacao = 'confirmada'");
+  await ins("confirmada", "-2 hours", "-1 hour");
+  expect(await apagarContaJogador(db, r.jogadorId, SENHA)).toEqual({ ok: true });
+  const n = await db.query("select 1 from reservas where jogador_id is not null");
+  expect(n.rows).toHaveLength(0);
 });
 
 test("trocar senha confere a atual e derruba as outras sessões", async () => {

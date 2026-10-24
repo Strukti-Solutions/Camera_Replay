@@ -110,16 +110,26 @@ export async function trocarSenhaJogador(
 
 // Apaga a conta: sessões saem por cascata, o trigger libera o e-mail e os links
 // de "Esqueci a senha" saem junto (tokens_senha não tem chave estrangeira).
-// A regra de reservas futuras entra na fase 4.
+// Com reserva confirmada que ainda não terminou, recusa; as passadas ficam com
+// jogador_id null (o dono vê "Conta apagada"). A conferência e o delete são um
+// comando só, então uma reserva criada no meio não escapa.
 export async function apagarContaJogador(
   db: Db, jogadorId: string, senha: string,
-): Promise<{ ok: true } | { ok: false; erro: "senha" }> {
+): Promise<{ ok: true } | { ok: false; erro: "senha" | "reservas_futuras" }> {
   const hash = await hashDoJogador(db, jogadorId);
   if (!hash || !(await conferirSenha(String(senha ?? ""), hash))) return { ok: false, erro: "senha" };
-  await db.query(
-    `with j as (delete from jogadores where id = $1 returning id)
-     delete from tokens_senha where tipo = 'jogador' and conta_id in (select id from j)`,
+  const r = await db.query<{ id: string }>(
+    `with j as (
+       delete from jogadores where id = $1
+          and not exists (
+            select 1 from reservas
+             where jogador_id = $1 and tipo = 'reserva' and situacao = 'confirmada' and fim > now())
+       returning id
+     ), t as (
+       delete from tokens_senha where tipo = 'jogador' and conta_id in (select id from j)
+     )
+     select id from j`,
     [jogadorId],
   );
-  return { ok: true };
+  return r.rows.length === 1 ? { ok: true } : { ok: false, erro: "reservas_futuras" };
 }

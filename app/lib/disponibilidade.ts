@@ -102,7 +102,7 @@ export function precoEscolha(
 // Início (UTC) da hora local `hora` do dia `dia` em São Paulo. Começa no palpite
 // de UTC-3 e corrige pela hora local observada (vale se o fuso voltar a ter
 // horário de verão).
-function instanteLocal(dia: string, hora: number): number {
+export function instanteLocal(dia: string, hora: number): number {
   const [a, m, d] = dia.split("-").map(Number);
   let t = Date.UTC(a, m - 1, d, hora + 3);
   for (let i = 0; i < 2; i++) {
