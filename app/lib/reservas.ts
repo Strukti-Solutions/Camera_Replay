@@ -215,6 +215,18 @@ export async function bloquearHorario(
   }
 }
 
+// Super admin: reservas de jogador confirmadas que ainda não começaram, por
+// arena (uma consulta para a lista toda). Arena sem nenhuma fica fora do mapa.
+export async function reservasFuturasPorArena(db: Pick<Db, "query">, agora: Date): Promise<Map<string, number>> {
+  const { rows } = await db.query<{ arena_id: string; n: number }>(
+    `select arena_id, count(*)::int as n from reservas
+      where tipo = 'reserva' and situacao = 'confirmada' and inicio > $1::timestamptz
+      group by arena_id`,
+    [agora],
+  );
+  return new Map(rows.map((r) => [r.arena_id, Number(r.n)]));
+}
+
 export type ReservaJogador = {
   id: string;
   arena: { nome: string; slug: string };

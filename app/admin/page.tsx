@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { listarArenasAdmin } from "@/app/lib/plataforma";
 import { poolCompartilhado } from "@/app/lib/pool";
+import { reservasFuturasPorArena } from "@/app/lib/reservas";
 import { textoData } from "@/app/painel/apresentacao";
 import { reativarArenaAction, suspenderArenaAction } from "./actions";
-import { textoStatusArena, textoTaxa } from "./apresentacao";
+import { textoReservasFuturas, textoStatusArena, textoTaxa } from "./apresentacao";
 import { CabecalhoAdmin } from "./cabecalho";
 import { ConfirmarStatus, FormularioNovaArena, FormularioNovoSuperAdmin } from "./formularios";
 import { exigirSuperAdmin } from "./sessao-admin-atual";
@@ -19,7 +20,8 @@ export const metadata: Metadata = {
 export default async function PaginaAdmin() {
   // Sessão de super admin antes de qualquer consulta que cruza arenas.
   await exigirSuperAdmin();
-  const arenas = await listarArenasAdmin(poolCompartilhado());
+  const db = poolCompartilhado();
+  const [arenas, futuras] = await Promise.all([listarArenasAdmin(db), reservasFuturasPorArena(db, new Date())]);
 
   return (
     <>
@@ -76,7 +78,7 @@ export default async function PaginaAdmin() {
                           acao={suspenderArenaAction}
                           arenaId={a.id}
                           rotulo="Suspender"
-                          pergunta="O dono perde o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 3 dias."
+                          pergunta={`${textoReservasFuturas(futuras.get(a.id) ?? 0)} O dono perde o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 3 dias.`}
                           confirmar="Confirmar: suspender arena"
                           perigo
                         />

@@ -4,7 +4,7 @@ import { criarContaJogador, apagarContaJogador } from "../app/lib/jogadores";
 import { adicionarFaixas } from "../app/lib/precos-quadra";
 import {
   LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
-  criarReserva, removerBloqueio, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador,
+  criarReserva, removerBloqueio, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador, reservasFuturasPorArena,
 } from "../app/lib/reservas";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -403,4 +403,29 @@ test("removerBloqueio só remove bloqueio futuro da própria arena", async () =>
     { id: bloqueio, situacao: "cancelada", cancelada_por: "dono" },
     { id: reserva, situacao: "confirmada", cancelada_por: null },
   ]);
+});
+
+test("reservas futuras confirmadas por arena: ignora bloqueio, cancelada, passada e outra arena", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const bia = await jogador(db, "Bia");
+  await reservar(db, ana, quadra.id, 8, 1);
+  await reservar(db, bia, quadra.id, 10, 2);
+  const cancelada = await reservar(db, ana, quadra.id, 14, 1);
+  expect(await cancelarPeloJogador(db, ana, cancelada, new Date("2026-11-01T10:00:00-03:00"))).toBe(true);
+  await reservaPassada(db, arena.id, quadra.id, ana, "2026-11-01");
+  expect(await bloquearHorario(db, arena.id, { quadraId: quadra.id, dia: DIA, inicio: 16, fim: 18, motivo: "Manutenção" }, AGORA))
+    .toEqual({ ok: true });
+  const outra = await criarArena(db, "Arena B");
+  const qb = await criarQuadra(db, outra.id);
+  await adicionarFaixas(db, outra.id, qb.id, [2], { inicio: 7, fim: 23, precoCentavos: 10000 });
+  await reservar(db, bia, qb.id, 18, 1);
+  const vazia = await criarArena(db, "Arena C");
+
+  const n = await reservasFuturasPorArena(db, AGORA);
+  expect(n.get(arena.id)).toBe(2);
+  expect(n.get(outra.id)).toBe(1);
+  expect(n.get(vazia.id) ?? 0).toBe(0);
+  // Já começou às 8h do dia 10: deixa de ser futura.
+  expect((await reservasFuturasPorArena(db, h(9))).get(arena.id)).toBe(1);
 });
