@@ -30,7 +30,14 @@ export async function conferirSenha(senha: string, hash: string): Promise<boolea
     const sal = Buffer.from(partes[4], "base64");
     const esperado = Buffer.from(partes[5], "base64");
     if (sal.length === 0 || esperado.length !== TAM_CHAVE) return false;
-    const obtido = await derivar(senha, sal, n, r, p);
+    let obtido: Buffer;
+    try {
+      obtido = await derivar(senha, sal, n, r, p);
+    } catch (e) {
+      // O scrypt em si falhou (ex.: memória): registra só o código, nunca a senha nem o hash.
+      console.error("senha: falha no scrypt", (e as { code?: string }).code ?? "");
+      return false;
+    }
     return timingSafeEqual(obtido, esperado);
   } catch {
     return false;

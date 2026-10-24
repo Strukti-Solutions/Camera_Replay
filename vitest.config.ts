@@ -5,5 +5,11 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./", import.meta.url)) },
   },
-  test: { environment: "node", include: ["tests/**/*.test.ts"], testTimeout: 20000 },
+  test: {
+    environment: "node",
+    include: ["tests/**/*.test.ts"],
+    testTimeout: 20000,
+    // PGlite (WASM) e scrypt (64 MiB por hash) caem no Windows com muitos arquivos em paralelo.
+    maxWorkers: 2,
+  },
 });
