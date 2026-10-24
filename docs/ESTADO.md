@@ -21,10 +21,21 @@ Branch `feat/reservas-publicas`, **sem merge e sem push**. Spec: `docs/superpowe
 ## Decisões pendentes do dono
 - Confirmação de e-mail no cadastro: hoje a enumeração de contas em `/criar-conta` só é contida pelo limite de tentativas.
 - Texto final dos termos: o provisório diz "Não vendemos seus dados" e o dono precisa validar.
-- Taxa padrão da Strukti (fase 2).
+- Taxa padrão da Strukti: decidida em 5% (23/10), ajustável por arena.
 
 ## Fases seguintes
-Fase 2 em diante: ver o spec de reservas públicas. O restante deste arquivo é o estado anterior (17/10), ainda válido onde não conflita com a fase 1; as seções sobre alunos por arena foram superadas.
+Fase 3 em diante: ver o spec de reservas públicas. O restante deste arquivo é o estado anterior (17/10), ainda válido onde não conflita com a fase 1; as seções sobre alunos por arena foram superadas.
+
+## Fase 2 feita (Strukti cria, dono ajusta) — branch `feat/fase2-strukti-cria`, sem merge e sem push
+- Migração 0014: endereço e coordenadas da arena, taxa da Strukti por arena (padrão 5%, decisão do dono em 23/10), esporte da quadra e tabela de preços.
+- Strukti (super admin) em `/admin/arenas/<id>`: cria e renomeia quadras, cadastra câmeras e credenciais, cria e revoga botões, define a taxa (0 a 30%).
+- Dono no painel: não cria mais quadras, câmeras nem botões. Em `/painel/arena` ajusta nome e endereço (geocodificado uma vez; se não achar, salva sem coordenadas e avisa). Na página da quadra define nome, esporte e tabela de preços por dia da semana e faixas de hora cheia (sobreposição rejeitada, faixas adjacentes aceitas; trava de linha contra sobreposição concorrente).
+- Nominatim (OpenStreetMap): política de uso de 1 requisição por segundo e User-Agent identificado. Só salvar um endereço chama o serviço; nenhuma outra tela consulta.
+
+## Para produção (fase 2, mesma ordem da fase 1)
+1. Ok do dono. 2. Migrar (aplica a 0014): `npx tsx --env-file=C:/Users/anton/replay-producao.env db/migrar-cli.ts`. 3. Logo em seguida merge na `main` e push. 4. Smoke: página admin da arena, endereço da arena no painel do dono, tabela de preços de uma quadra.
+
+## Próxima: fase 3 (busca pública com mapa)
 
 ---
 
