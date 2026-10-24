@@ -18,7 +18,7 @@
 - **Tabela de preços:** por quadra, faixas de dia da semana + hora de início + hora de fim + preço por hora. Dia da semana `0` = domingo … `6` = sábado. Horas cheias: início de `0` a `23`, fim de `1` a `24` (`24` = meia-noite), fim > início. Preço em centavos inteiros, de `1` a `1_000_000` (R$ 10.000,00). Faixas do mesmo dia e da mesma quadra não se sobrepõem; faixas encostadas (fim = início da outra) são aceitas. Fuso: `America/Sao_Paulo`; a tabela é em hora local.
 - **Endereço:** rua (1–120), número (1–20), bairro (0–80), cidade (1–80), UF (2 letras, uma das 27), CEP (8 dígitos; aceita `00000-000`). Ao salvar, vira latitude e longitude uma vez; se a conversão falhar, salva assim mesmo, sem coordenadas, e mostra "Endereço salvo, mas não foi possível localizá-lo no mapa. Confira o endereço." Endereço que muda apaga as coordenadas antigas antes de tentar de novo.
 - **Esporte:** texto de 0 a 40 caracteres (vazio = não informado).
-- **Taxa da Strukti:** percentual por arena com até 2 casas decimais, de `0` a `30`; padrão para arenas novas `TAXA_PADRAO_PERCENTUAL = 10` (provisório até o dono do projeto definir).
+- **Taxa da Strukti:** percentual por arena com até 2 casas decimais, de `0` a `30`; padrão para arenas novas `TAXA_PADRAO_PERCENTUAL = 5` (decisão do dono, 23/10).
 - Nominatim: `GET https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=<endereço>`, cabeçalho `User-Agent: Replay-Strukti/1.0 (struktisolutions@gmail.com)`, tempo máximo 5 s. Nunca chamado em teste (geocodificador injetado).
 - pt-BR, WCAG AA, alvos de 48 px, identidade Strukti, sem libs novas; páginas funcionam sem JavaScript.
 
@@ -40,7 +40,7 @@
 
 **Interfaces:**
 - Produces:
-  - Banco (`0014_fase2.sql`): `arenas` ganha `endereco_rua`, `endereco_numero`, `endereco_bairro`, `endereco_cidade`, `endereco_uf`, `endereco_cep` (text, nulos), `latitude double precision`, `longitude double precision` (nulos), `taxa_percentual numeric(5,2) not null default 10 check (taxa_percentual between 0 and 30)`; `quadras` ganha `esporte text not null default '' check (length(esporte) <= 40)`; tabela `precos_quadra (id uuid pk, arena_id uuid not null, quadra_id uuid not null, dia_semana smallint check 0..6, inicio smallint check 0..23, fim smallint check 1..24, preco_centavos int check 1..1000000, criado_em, check (fim > inicio), foreign key (quadra_id, arena_id) references quadras (id, arena_id) on delete cascade)`, índice `(quadra_id, dia_semana)`.
+  - Banco (`0014_fase2.sql`): `arenas` ganha `endereco_rua`, `endereco_numero`, `endereco_bairro`, `endereco_cidade`, `endereco_uf`, `endereco_cep` (text, nulos), `latitude double precision`, `longitude double precision` (nulos), `taxa_percentual numeric(5,2) not null default 5 check (taxa_percentual between 0 and 30)`; `quadras` ganha `esporte text not null default '' check (length(esporte) <= 40)`; tabela `precos_quadra (id uuid pk, arena_id uuid not null, quadra_id uuid not null, dia_semana smallint check 0..6, inicio smallint check 0..23, fim smallint check 1..24, preco_centavos int check 1..1000000, criado_em, check (fim > inicio), foreign key (quadra_id, arena_id) references quadras (id, arena_id) on delete cascade)`, índice `(quadra_id, dia_semana)`.
   - `app/lib/precos.ts` (puro, sem banco):
     - `type Faixa = { diaSemana: number; inicio: number; fim: number; precoCentavos: number }`
     - `PRECO_MAX_CENTAVOS = 1_000_000`
@@ -146,7 +146,7 @@
 ### Task 5: Documentação e produção
 
 **Files:**
-- Modify: `docs/ESTADO.md` (fase 2 feita; migração 0014; taxa padrão provisória de 10%; geocodificação pelo Nominatim; o que o dono e a Strukti fazem agora).
+- Modify: `docs/ESTADO.md` (fase 2 feita; migração 0014; taxa padrão de 5%; geocodificação pelo Nominatim; o que o dono e a Strukti fazem agora).
 
 - [ ] **Step 1:** atualizar o documento.
 - [ ] **Step 2:** `npm test`, `npm run typecheck` e, com o `next dev` parado, `npm run build` → verdes.
