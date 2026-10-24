@@ -56,6 +56,12 @@ export async function dadosArenaDono(
   return { nome: l.nome, endereco, temCoordenadas: l.latitude !== null && l.longitude !== null };
 }
 
+// Pula campos vazios (bairro é opcional).
+function consulta(e: EnderecoArena): string {
+  const local = [e.rua, e.numero, e.bairro, `${e.cidade} - ${e.uf}`, e.cep].filter((p) => p !== "");
+  return [...local, "Brasil"].join(", ");
+}
+
 export async function atualizarArenaDono(
   db: Db, arenaId: string, dados: { nome: string; endereco: EnderecoArena }, geocodificar: Geocodificar,
 ): Promise<{ ok: true; localizada: boolean } | { ok: false; erro: string }> {
@@ -84,7 +90,7 @@ export async function atualizarArenaDono(
 
   let coord = null;
   try {
-    coord = await geocodificar(`${e.rua}, ${e.numero}, ${e.bairro}, ${e.cidade} - ${e.uf}, ${e.cep}, Brasil`);
+    coord = await geocodificar(consulta(e));
   } catch {
     coord = null;
   }

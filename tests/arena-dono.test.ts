@@ -73,3 +73,12 @@ test("nome inválido é recusado", async () => {
   expect((await atualizarArenaDono(db, a.id, { nome: " ", endereco: end }, achou)).ok).toBe(false);
   expect((await atualizarArenaDono(db, a.id, { nome: "x".repeat(81), endereco: end }, achou)).ok).toBe(false);
 });
+
+test("bairro vazio não deixa vírgulas vazias na consulta", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "A");
+  let q = "";
+  await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, bairro: "" } }, async (s) => { q = s; return null; });
+  expect(q).not.toContain(", ,");
+  expect(q).toBe("Rua A, 10, Fortaleza - CE, 60000000, Brasil");
+});

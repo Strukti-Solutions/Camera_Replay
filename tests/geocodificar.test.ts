@@ -26,3 +26,9 @@ test("sem resultado, erro HTTP ou exceção devolvem null", async () => {
   expect(await criarGeocodificador((async () => { throw new Error("rede"); }) as unknown as typeof fetch)("x")).toBeNull();
   expect(await criarGeocodificador((async () => resp([{ lat: "abc", lon: "1" }])) as unknown as typeof fetch)("x")).toBeNull();
 });
+
+test("lat/lon vazios, nulos ou fora do intervalo devolvem null", async () => {
+  for (const item of [{ lat: "", lon: "1" }, { lat: null, lon: "1" }, { lat: "95", lon: "1" }, { lat: "1", lon: "181" }]) {
+    expect(await criarGeocodificador((async () => resp([item])) as unknown as typeof fetch)("x")).toBeNull();
+  }
+});

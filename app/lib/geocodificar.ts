@@ -4,6 +4,13 @@ export type Geocodificar = (endereco: string) => Promise<Coordenadas | null>;
 const URL_BASE = "https://nominatim.openstreetmap.org/search";
 const USER_AGENT = "Replay-Strukti/1.0 (struktisolutions@gmail.com)";
 
+// Só texto não vazio que vira número finito dentro do limite.
+function numero(v: unknown, limite: number): number | null {
+  if (typeof v !== "string" || v.trim() === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && Math.abs(n) <= limite ? n : null;
+}
+
 // Nominatim: uma consulta por endereço salvo. Nunca lança: qualquer falha vira null.
 export function criarGeocodificador(fetcher: typeof fetch = fetch): Geocodificar {
   return async (endereco) => {
@@ -16,9 +23,9 @@ export function criarGeocodificador(fetcher: typeof fetch = fetch): Geocodificar
       if (!r.ok) return null;
       const lista = (await r.json()) as unknown;
       if (!Array.isArray(lista) || lista.length === 0) return null;
-      const latitude = Number(lista[0]?.lat);
-      const longitude = Number(lista[0]?.lon);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      const latitude = numero(lista[0]?.lat, 90);
+      const longitude = numero(lista[0]?.lon, 180);
+      if (latitude === null || longitude === null) return null;
       return { latitude, longitude };
     } catch {
       return null;

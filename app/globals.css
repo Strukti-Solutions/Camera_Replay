@@ -596,7 +596,8 @@ video {
 }
 
 /* Campo (MASTER §8.7): 48 px, borda funcional de 1,5 px, texto de 16 px ou mais. */
-.campo input {
+.campo input,
+.campo select {
   min-height: var(--alvo);
   padding: 0.5rem 0.75rem;
   border: 1.5px solid var(--borda-campo);
