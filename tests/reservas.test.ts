@@ -429,3 +429,68 @@ test("reservas futuras confirmadas por arena: ignora bloqueio, cancelada, passad
   // Já começou às 8h do dia 10: deixa de ser futura.
   expect((await reservasFuturasPorArena(db, h(9))).get(arena.id)).toBe(1);
 });
+
+// Corrida real com a exclusão da 0016: outra reserva confirmada entra depois da
+// conferência de horários livres e antes da transação; o insert esbarra (23P01)
+// e o jogador recebe "não está mais disponível", sem linha a mais.
+test("exclusão (23P01) depois da conferência vira MSG_INDISPONIVEL e não grava", async () => {
+  const pg = await novoBanco();
+  const { arena, quadra, ana } = await base(pg);
+  const bia = await jogador(pg, "Bia");
+  let intrusa = false;
+  const db: Db = {
+    query: (sql, params) => pg.query(sql, params),
+    async transaction(fn) {
+      await pg.query(
+        `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, pagamento, total_centavos, taxa_centavos, detalhe)
+         values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 'arena', 10000, 0, '[]')`,
+        [arena.id, quadra.id, bia, h(19), h(20)],
+      );
+      intrusa = true;
+      return pg.transaction!(fn);
+    },
+  };
+  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 2 }, AGORA))
+    .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
+  expect(intrusa).toBe(true);
+  const l = await pg.query<{ jogador_id: string }>("select jogador_id from reservas");
+  expect(l.rows).toEqual([{ jogador_id: bia }]);
+});
+
+// Pool falso: no pg.Pool, criarReserva trava o jogador (for no key update) e
+// só depois, em comando separado do mesmo cliente, conta as reservas e insere.
+test("no pg.Pool, criar reserva trava o jogador antes de contar e inserir", async () => {
+  const pg = await novoBanco();
+  const { quadra, ana } = await base(pg);
+  const log: string[] = [];
+  const clientes: unknown[] = [];
+  const db = {
+    // Conferências antes da transação vão ao banco de verdade.
+    query: (sql: string, params?: unknown[]) => pg.query(sql, params),
+    async connect() {
+      const cliente = {
+        async query(sql: string) {
+          const s = sql.trim();
+          if (/^begin|^commit|^rollback/.test(s)) log.push(s);
+          else if (/from jogadores/.test(s) && /for no key update/.test(s)) log.push("trava");
+          else if (/^select/.test(s) && /from reservas/.test(s)) log.push("conta");
+          else if (/^update reservas set situacao = 'expirada'/.test(s)) log.push("expira");
+          else if (/^insert into reservas/.test(s)) log.push("insere");
+          else log.push("?" + s);
+          if (/for no key update/.test(s)) return { rows: [{ "?column?": 1 }] };
+          if (/^select/.test(s) && /from reservas/.test(s)) return { rows: [{ arena: 0, total: 0 }] };
+          if (/^insert into reservas/.test(s)) return { rows: [{ id: "r1" }] };
+          return { rows: [] };
+        },
+        release() { clientes.push(cliente); },
+      };
+      return cliente;
+    },
+  } as unknown as Db;
+
+  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 1 }, AGORA))
+    .toEqual({ ok: true, reservaId: "r1" });
+  expect(log).toEqual(["begin", "trava", "conta", "expira", "insere", "commit"]);
+  expect(clientes).toHaveLength(1);
+  expect(await contar(pg)).toBe(0);
+});
