@@ -22,3 +22,5 @@ export function mensagemMinhaConta(erro: ErroMinhaConta): string {
     case "senha_atual": return "Senha atual incorreta.";
   }
 }
+
+export const MSG_NAO_CANCELOU = "Não foi possível cancelar. O prazo é até 24 h antes do início.";

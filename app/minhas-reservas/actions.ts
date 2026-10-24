@@ -1,13 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { MSG_NAO_CANCELOU } from "@/app/jogador/mensagens";
 import { exigirJogador } from "@/app/jogador/sessao-jogador";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { cancelarPeloJogador } from "@/app/lib/reservas";
 
 export type EstadoCancelar = { erro: string | null };
-
-export const MSG_NAO_CANCELOU = "Não foi possível cancelar. O prazo é até 24 h antes do início.";
 
 // Só o jogador da sessão e o relógio do servidor decidem: o formulário manda
 // apenas o id da reserva.
