@@ -7,14 +7,16 @@ Branch `feat/reservas-publicas`, **sem merge e sem push**. Spec: `docs/superpowe
 - Migração 0011: contas da plataforma (um e-mail = uma conta) e conta do jogador.
 - Login único em `/entrar` (jogador, dono e super admin), com limite de tentativas por tipo; qualquer bloqueio responde "credenciais".
 - `/criar-conta` (com limite de cadastros por IP), `/termos` (texto provisório), `/minhas-reservas` (vazia até a fase 4) e `/minha-conta` (nome, senha, apagar conta; limite de tentativas na senha atual).
-- Esqueci a senha (migração 0012): link de uso único, válido por 1 hora, enviado por e-mail via Resend. Sem configuração fora de produção, o link é impresso no terminal do servidor de desenvolvimento.
+- Esqueci a senha (migração 0012): link de uso único, válido por 1 hora, enviado por e-mail via Resend. Redefinir a senha apaga as falhas de login da conta. Sem configuração fora de produção, o link é impresso no terminal do servidor de desenvolvimento; em produção sem configuração, o link some de `/entrar`.
+- Migração 0013: e-mail do dono só em minúsculas (check em `usuarios.email`).
 - `conferirSenha` registra no log (sem senha nem hash) quando o próprio scrypt falha.
 
-## Para produção
-1. Aplicar as migrações 0010 a 0012: `npx tsx --env-file=C:/Users/anton/replay-producao.env db/migrar-cli.ts` (só com o ok do dono; a 0010 apaga alunos e reservas existentes).
-2. Variáveis novas na Vercel: `RESEND_API_KEY` e `EMAIL_REMETENTE`. `APP_URL` já está configurada (o link de recuperação é montado com ela).
-3. **Pendente com o dono:** criar a conta no Resend e configurar o DNS (SPF e DKIM) do domínio do remetente. Sem isso, o e-mail de recuperação não sai em produção.
-4. Conferir `/entrar` no ar com as três contas (jogador, dono, super admin).
+## Para produção (nesta ordem)
+1. **Ok do dono** para subir a fase 1 (a 0010 apaga os alunos e as reservas existentes).
+2. Aplicar as migrações 0010 a 0013 no banco de produção: `npx tsx --env-file=C:/Users/anton/replay-producao.env db/migrar-cli.ts`. A 0013 exige e-mail de dono em minúsculas (produção tem 0 donos com maiúscula, conferido).
+3. **Logo em seguida**, merge na `main` e push (a Vercel publica em ~2 min). Aceito: nesses poucos minutos o código antigo ainda no ar dá erro na página de quadra do painel (sem usuários reais ainda).
+4. Smoke no ar: `/entrar` com o super admin, com o dono e com uma conta nova de jogador; `/criar-conta`; `/minha-conta`.
+5. E-mail: conta no Resend, DNS do domínio do remetente (SPF e DKIM) e as variáveis `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel (`APP_URL` já está configurada; o link é montado com ela). Depois, um teste real de "Esqueci a senha". **Até lá o link "Esqueci a senha" fica escondido em `/entrar` em produção** (`envioEmailConfigurado` em `app/lib/email.ts`).
 
 ## Decisões pendentes do dono
 - Confirmação de e-mail no cadastro: hoje a enumeração de contas em `/criar-conta` só é contida pelo limite de tentativas.

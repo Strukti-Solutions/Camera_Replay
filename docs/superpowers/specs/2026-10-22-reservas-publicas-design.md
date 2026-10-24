@@ -41,7 +41,7 @@ Cada fase é entregue, revisada e publicada antes da próxima.
 - **Um e-mail é uma conta só na plataforma inteira** **(decisão nossa)**. Criar um dono com um e-mail que já é de jogador, ou o contrário, falha com mensagem clara. Quem é dono e também joga usa outro e-mail. Isso evita a pergunta "entrar como quem?".
 - **Criar conta** (`/criar-conta`): nome, e-mail, senha (8 ou mais caracteres, como hoje). Só cria jogador; dono e super admin continuam sendo criados pela Strukti.
 - As sessões continuam separadas por tipo (cookie, duração, SameSite), como no spec principal. Muda só a porta de entrada. A sessão do super admin segue mais curta e com SameSite Strict.
-- Continuam valendo o limite de tentativas (por e-mail e por IP), o scrypt e a resposta igual para "e-mail não existe" e "senha errada". O limite por IP passa a valer por tela de entrar, e não mais por tipo de conta.
+- Continuam valendo o limite de tentativas (por e-mail e por IP), o scrypt e a resposta igual para "e-mail não existe" e "senha errada". O limite por IP continua valendo por tipo de conta, para que jogadores errando a senha no Wi-Fi da arena não travem o dono nem o admin; e qualquer bloqueio (por e-mail ou por IP) responde igual a uma senha errada, sem revelar o tipo da conta **(decisão nossa)**.
 - **Esqueci a senha** **(decisão do dono: entra na fase 1)**, para jogador, dono e super admin:
   - Na tela de entrar, "Esqueci a senha" pede o e-mail e **sempre responde a mesma coisa** ("Se o e-mail tiver conta, enviamos um link"), para não revelar quem tem conta.
   - O e-mail traz um link de uso único, válido por **1 hora** **(decisão nossa)**. O banco guarda só o hash do token, como nas sessões. O pedido tem limite por e-mail e por IP.
