@@ -98,7 +98,7 @@ async function QrDaArena({ arena, slug }: { arena: string; slug: string | null }
         <h3>Quadra com gravação de vídeo</h3>
         <p>
           Aperte o botão da quadra para salvar os últimos 30 segundos. Aponte a câmera do celular para o
-          código e entre com o e-mail e a senha que a arena cadastrou para ver os seus lances.
+          código, entre ou crie sua conta e veja os seus lances.
         </p>
         <div
           className="qr-codigo"
