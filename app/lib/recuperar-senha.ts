@@ -36,15 +36,18 @@ function textoDoEmail(link: string): string {
   ].join("\n");
 }
 
-// Bloqueado pelo limite ou e-mail sem conta: não envia nada e não diz nada.
-// Quem chama deve responder sempre a mesma frase, e não esperar o envio de
-// verdade (o tempo da resposta revelaria quem tem conta).
-export async function pedirRecuperacao(
-  db: Db, email: string, ip: string, appUrl: string, enviar: EnviarEmail,
-): Promise<void> {
+// O pedido tem duas metades. limitarPedido registra a tentativa e devolve o
+// e-mail normalizado (ou null se o limite bloqueou); enviarLink acha a conta,
+// grava o token e envia. A tela responde logo depois da primeira metade e roda
+// a segunda depois da resposta (after): o tempo da resposta não pode revelar
+// quem tem conta. Bloqueado ou e-mail sem conta: nada é enviado.
+export async function limitarPedido(db: Db, email: string, ip: string): Promise<string | null> {
   const emailNorm = String(email ?? "").trim().toLowerCase().slice(0, EMAIL_MAX);
-  if (await registrarTentativa(db, `recuperar:${emailNorm}`, ip)) return;
+  if (await registrarTentativa(db, `recuperar:${emailNorm}`, ip)) return null;
+  return emailNorm;
+}
 
+export async function enviarLink(db: Db, emailNorm: string, appUrl: string, enviar: EnviarEmail): Promise<void> {
   const t = await db.query<{ tipo: TipoConta }>("select tipo from contas_email where email = $1", [emailNorm]);
   const tipo = t.rows[0]?.tipo;
   if (!tipo) return;
@@ -64,6 +67,14 @@ export async function pedirRecuperacao(
   await enviar({ para: emailNorm, assunto: "Redefinir sua senha do Replay", texto: textoDoEmail(link) });
 }
 
+// As duas metades em sequência (usado nos testes e por quem não precisa do after).
+export async function pedirRecuperacao(
+  db: Db, email: string, ip: string, appUrl: string, enviar: EnviarEmail,
+): Promise<void> {
+  const emailNorm = await limitarPedido(db, email, ip);
+  if (emailNorm !== null) await enviarLink(db, emailNorm, appUrl, enviar);
+}
+
 export async function redefinirSenha(db: Db, token: string, novaSenha: string): Promise<ResultadoRedefinir> {
   if (typeof token !== "string" || !FORMATO_TOKEN.test(token)) return { ok: false, erro: "link" };
   const r = await db.query<{ id: string; tipo: TipoConta }>(
@@ -81,23 +92,32 @@ export async function redefinirSenha(db: Db, token: string, novaSenha: string): 
   // links da conta, tudo ou nada. A condição do "t" se repete para que dois usos
   // simultâneos do mesmo link não troquem a senha duas vezes. Conta apagada não
   // casa no "c": nada muda e o link é recusado.
-  const feito = await db.query<{ n: number }>(
-    `with t as (
-       update tokens_senha set usado_em = now()
-        where id = $1 and usado_em is null and expira_em > now()
-        returning conta_id
-     ), c as (
-       update ${conta.tabela} set senha_hash = $2
-        where id in (select conta_id from t)
-        returning id
-     ), s as (
-       delete from ${conta.sessoes} where ${conta.coluna} in (select id from c)
-     ), o as (
-       delete from tokens_senha where tipo = $3 and conta_id in (select id from c) and id <> $1
-     )
-     select count(*)::int as n from c`,
-    [l.id, hash, l.tipo],
-  );
+  let feito: { rows: { n: number }[] };
+  try {
+    feito = await db.query<{ n: number }>(
+      `with t as (
+         update tokens_senha set usado_em = now()
+          where id = $1 and usado_em is null and expira_em > now()
+          returning conta_id
+       ), c as (
+         update ${conta.tabela} set senha_hash = $2
+          where id in (select conta_id from t)
+          returning id
+       ), s as (
+         delete from ${conta.sessoes} where ${conta.coluna} in (select id from c)
+       ), o as (
+         delete from tokens_senha where tipo = $3 and conta_id in (select id from c) and id <> $1
+       )
+       select count(*)::int as n from c`,
+      [l.id, hash, l.tipo],
+    );
+  } catch (e) {
+    // Dois links da mesma conta usados ao mesmo tempo podem travar um no outro
+    // (deadlock ou serialização): o perdedor recebe "link" e pede de novo.
+    const codigo = (e as { code?: string }).code;
+    if (codigo === "40P01" || codigo === "40001") return { ok: false, erro: "link" };
+    throw e;
+  }
   if (feito.rows[0].n !== 1) return { ok: false, erro: "link" };
   return { ok: true, tipo: l.tipo };
 }

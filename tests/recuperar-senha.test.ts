@@ -8,7 +8,9 @@ import { apagarContaJogador, criarContaJogador, criarSessaoJogador, validarSessa
 import { hashSenha } from "../app/lib/senha";
 import { criarSessaoDono, validarSessao } from "../app/lib/sessao";
 import { criarSessaoAdmin, validarSessaoAdmin } from "../app/lib/sessao-admin";
-import { pedirRecuperacao, redefinirSenha, VALIDADE_LINK_S } from "../app/lib/recuperar-senha";
+import {
+  enviarLink, limitarPedido, pedirRecuperacao, redefinirSenha, VALIDADE_LINK_S,
+} from "../app/lib/recuperar-senha";
 
 const SENHA = "senha-certa-123";
 const APP = "https://replay.exemplo";
@@ -155,4 +157,35 @@ test("pedir um link novo não invalida o anterior; usar um invalida os dois", as
   expect(await redefinirSenha(db, t1, "nova-senha-1")).toEqual({ ok: true, tipo: "jogador" });
   expect(await redefinirSenha(db, t2, "nova-senha-2")).toEqual({ ok: false, erro: "link" });
   expect(await redefinirSenha(db, t1, "nova-senha-3")).toEqual({ ok: false, erro: "link" });
+});
+
+test("metades do pedido: o limite só registra; o envio acha a conta depois", async () => {
+  const { db } = await preparar();
+  // limitarPedido não consulta contas nem grava token: só a tentativa.
+  expect(await limitarPedido(db, "  J@x.com ", IP)).toBe("j@x.com");
+  expect(await limitarPedido(db, "ninguem@x.com", IP)).toBe("ninguem@x.com");
+  expect((await db.query("select 1 from tokens_senha")).rows).toHaveLength(0);
+
+  const c = caixa();
+  await enviarLink(db, "ninguem@x.com", APP, c.enviar);
+  expect(c.msgs).toHaveLength(0);
+  await enviarLink(db, "j@x.com", APP, c.enviar);
+  expect(c.msgs).toHaveLength(1);
+  expect(await redefinirSenha(db, tokenDe(c.msgs[0]), "nova-senha-1")).toEqual({ ok: true, tipo: "jogador" });
+
+  for (let i = 0; i < 4; i++) await limitarPedido(db, "j@x.com", IP);
+  expect(await limitarPedido(db, "j@x.com", IP)).toBeNull();
+});
+
+test("deadlock ou serialização ao usar o link responde link, outros erros sobem", async () => {
+  const comErro = (code: string): Db => ({
+    query: async <T,>(sql: string): Promise<{ rows: T[] }> => {
+      if (sql.startsWith("select id, tipo from tokens_senha")) return { rows: [{ id: "x", tipo: "jogador" }] as T[] };
+      throw Object.assign(new Error("falhou"), { code });
+    },
+  });
+  const t = "a".repeat(43);
+  expect(await redefinirSenha(comErro("40P01"), t, "nova-senha-1")).toEqual({ ok: false, erro: "link" });
+  expect(await redefinirSenha(comErro("40001"), t, "nova-senha-1")).toEqual({ ok: false, erro: "link" });
+  await expect(redefinirSenha(comErro("23505"), t, "nova-senha-1")).rejects.toThrow("falhou");
 });

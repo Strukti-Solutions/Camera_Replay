@@ -3,9 +3,9 @@
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { ipDoCliente } from "@/app/entrar/ip";
-import { criarEnvioEmail, type EnviarEmail } from "@/app/lib/email";
+import { criarEnvioEmail } from "@/app/lib/email";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { pedirRecuperacao } from "@/app/lib/recuperar-senha";
+import { enviarLink, limitarPedido } from "@/app/lib/recuperar-senha";
 
 export type EstadoEsqueci = { ok: string | null; email: string };
 
@@ -28,19 +28,31 @@ export async function esqueciAction(_estado: EstadoEsqueci, form: FormData): Pro
     return { ok: FRASE, email };
   }
 
-  // O envio de verdade roda depois da resposta (after): esperar por ele deixaria
-  // a resposta mais lenta só para quem tem conta. O erro vai para o log sem o
-  // link e sem o e-mail.
-  const envio = criarEnvioEmail();
-  const enviar: EnviarEmail = async (m) => {
+  // Só o limite de tentativas roda antes da resposta. Achar a conta, gravar o
+  // token e enviar vão para depois dela (after): o tempo da resposta é o mesmo
+  // para quem tem conta e para quem não tem. Os erros vão para o log sem o link
+  // e sem o e-mail; a tela mostra a mesma frase de qualquer jeito.
+  const db = poolCompartilhado();
+  let emailNorm: string | null;
+  try {
+    emailNorm = await limitarPedido(db, email, ip);
+  } catch {
+    console.error("esqueci a senha: falha no banco ao registrar o pedido");
+    return { ok: FRASE, email };
+  }
+  if (emailNorm !== null) {
+    const alvo = emailNorm;
     after(async () => {
       try {
-        await envio(m);
+        await enviarLink(db, alvo, appUrl, criarEnvioEmail());
       } catch (e) {
-        console.error("esqueci a senha: falha ao enviar o e-mail:", e instanceof Error ? e.message : "erro desconhecido");
+        // Só o código do Postgres ou a mensagem do email.ts ("e-mail: ..."), que
+        // não levam link nem endereço.
+        const codigo = (e as { code?: string }).code;
+        const msg = e instanceof Error && e.message.startsWith("e-mail:") ? e.message : "";
+        console.error("esqueci a senha: falha ao gerar ou enviar o link", codigo ? `(código ${codigo})` : msg);
       }
     });
-  };
-  await pedirRecuperacao(poolCompartilhado(), email, ip, appUrl, enviar);
+  }
   return { ok: FRASE, email };
 }
