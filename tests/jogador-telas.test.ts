@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { novoBanco } from "./db";
+import { criarArena, criarQuadra } from "./fixtures";
 import { apagarContaComLimite, criarContaComLimite, trocarSenhaComLimite } from "../app/lib/cadastro-jogador";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { conferirSenha } from "../app/lib/senha";
@@ -62,6 +63,32 @@ test("apagar conta: depois de 5 senhas erradas a 6a, mesmo certa, é bloqueada e
   expect(await apagarContaComLimite(db, id, "senha-boa-1", "2.2.2.2")).toEqual({ ok: false, erro: "limite" });
   const c = await db.query<{ n: number }>("select count(*)::int as n from jogadores");
   expect(c.rows[0].n).toBe(1);
+});
+
+// Senha certa com outra recusa (reserva futura, senha nova curta) não é
+// tentativa errada: repetida, nunca vira "muitas tentativas".
+test("apagar conta recusado por reserva futura não conta como tentativa", async () => {
+  const { db, id } = await contaPronta();
+  const arena = await criarArena(db, "A");
+  const quadra = await criarQuadra(db, arena.id);
+  await db.query(
+    `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, pagamento, total_centavos, taxa_centavos, detalhe)
+     values ($1, $2, $3, 'reserva', 'confirmada', now() + interval '2 days', now() + interval '2 days 1 hour', 'arena', 10000, 0, '[]')`,
+    [arena.id, quadra.id, id],
+  );
+  for (let i = 0; i < 8; i++) {
+    expect(await apagarContaComLimite(db, id, "senha-boa-1", "4.4.4.4")).toEqual({ ok: false, erro: "reservas_futuras" });
+  }
+  const n = await db.query<{ n: number }>("select count(*)::int as n from tentativas_login where email = $1", [`senha-jogador:${id}`]);
+  expect(n.rows[0].n).toBe(0);
+});
+
+test("trocar senha com a atual certa e a nova curta não conta como tentativa", async () => {
+  const { db, id } = await contaPronta();
+  for (let i = 0; i < 8; i++) {
+    expect(await trocarSenhaComLimite(db, id, "senha-boa-1", "curta", "", "5.5.5.5")).toEqual({ ok: false, erro: "senha" });
+  }
+  expect(await trocarSenhaComLimite(db, id, "errada", "nova-senha-1", "", "5.5.5.5")).toEqual({ ok: false, erro: "senha_atual" });
 });
 
 test("senha certa zera as tentativas do jogador", async () => {
