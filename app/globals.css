@@ -1769,6 +1769,7 @@ html.mapa-tela-cheia {
     overflow-x: auto;
     scrollbar-width: none;
     gap: 0 1rem;
+    padding: 4px 2px;
   }
 
   .cabecalho-links,
@@ -1782,8 +1783,10 @@ html.mapa-tela-cheia {
     gap: 0 0.5rem;
   }
 
-  .topo-acoes {
-    padding: 4px 2px;
+  /* A linha rola de lado e recorta o que passa da borda: o anel de foco vai para dentro. */
+  .topo-acoes a:focus-visible,
+  .topo-acoes button:focus-visible {
+    outline-offset: -3px;
   }
 
   .topo-texto-longo {
