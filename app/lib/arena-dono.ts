@@ -88,6 +88,18 @@ export async function atualizarArenaDono(
   );
   if (!mudou && atual.temCoordenadas) return { ok: true, localizada: true };
 
+  // Nominatim pede no máximo 1 req/s e o IP da Vercel é compartilhado: cada
+  // arena tenta no máximo uma vez por minuto. A reserva é atômica (um update),
+  // então dois saves simultâneos não geocodificam duas vezes.
+  const vez = await db.query(
+    `update arenas set geocodificacao_tentada_em = now()
+      where id = $1 and (geocodificacao_tentada_em is null
+        or geocodificacao_tentada_em < now() - interval '60 seconds')
+      returning id`,
+    [arenaId],
+  );
+  if (vez.rows.length === 0) return { ok: true, localizada: false };
+
   let coord = null;
   try {
     coord = await geocodificar(consulta(e));

@@ -6,7 +6,7 @@ import { registrarAperto } from "../app/lib/aperto";
 import { hashToken } from "../app/lib/segredos";
 import {
   ErroPainel, apagarClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
-  criarBotao, criarQuadra, detalheQuadra, listarQuadras, renomearQuadra, revogarBotao,
+  criarBotao, criarQuadra, detalheQuadra, listarQuadras, renomearQuadra, revogarBotao, salvarNomeEsporteQuadra,
 } from "../app/lib/painel";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao as fxBotao, criarCamera, criarQuadra as fxQuadra } from "./fixtures";
@@ -280,4 +280,21 @@ test("renomearQuadra valida 1–60 e não toca quadra de outra arena", async () 
   expect(await nome()).toBe("x".repeat(60));
   expect(await renomearQuadra(db, a.id, "malformado", "N")).toBe(false);
   expect(await renomearQuadra(db, "malformado", q.id, "N")).toBe(false);
+});
+
+test("salvarNomeEsporteQuadra grava os dois ou nenhum", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const b = await criarArena(db, "Outra");
+  const q = await criarQuadra(db, a.id, "Antiga");
+  const linha = async () => (await db.query<{ nome: string; esporte: string }>("select nome, esporte from quadras where id = $1", [q.id])).rows[0];
+  expect(await salvarNomeEsporteQuadra(db, a.id, q.id, "  Nova ", " Vôlei ")).toEqual({ ok: true });
+  expect(await linha()).toEqual({ nome: "Nova", esporte: "Vôlei" });
+  expect(await salvarNomeEsporteQuadra(db, a.id, q.id, "Outra", "x".repeat(41))).toEqual({ ok: false, erro: "esporte" });
+  expect(await salvarNomeEsporteQuadra(db, a.id, q.id, " ", "")).toEqual({ ok: false, erro: "nome" });
+  expect(await salvarNomeEsporteQuadra(db, a.id, q.id, "x".repeat(61), "")).toEqual({ ok: false, erro: "nome" });
+  expect(await linha()).toEqual({ nome: "Nova", esporte: "Vôlei" });
+  expect(await salvarNomeEsporteQuadra(db, b.id, q.id, "Invasor", "Gol")).toEqual({ ok: false, erro: "quadra" });
+  expect(await salvarNomeEsporteQuadra(db, a.id, "malformado", "N", "")).toEqual({ ok: false, erro: "quadra" });
+  expect(await linha()).toEqual({ nome: "Nova", esporte: "Vôlei" });
 });

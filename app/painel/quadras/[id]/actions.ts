@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { emTransacao } from "@/app/lib/db";
-import { apagarClipe, definirEsporteQuadra, renomearQuadra } from "@/app/lib/painel";
+import { apagarClipe, salvarNomeEsporteQuadra } from "@/app/lib/painel";
 import { centavosDeTexto } from "@/app/lib/precos";
 import { adicionarFaixas, removerFaixa } from "@/app/lib/precos-quadra";
 import { poolCompartilhado } from "@/app/lib/pool";
@@ -47,16 +46,17 @@ export type EstadoQuadra = { erro: string | null; ok: boolean };
 export async function salvarQuadraAction(_estado: EstadoQuadra, form: FormData): Promise<EstadoQuadra> {
   const sessao = await exigirSessao();
   const quadraId = campo(form, "quadraId");
-  const esporte = campo(form, "esporte");
-  // Confere o esporte antes de gravar o nome, para não salvar pela metade.
-  if (esporte.trim().length > 40) return { erro: "Esporte com no máximo 40 caracteres.", ok: false };
   try {
-    const db = poolCompartilhado();
-    if (!(await renomearQuadra(db, sessao.arenaId, quadraId, campo(form, "nome")))) {
-      return { erro: "Quadra não encontrada.", ok: false };
-    }
-    if (!(await definirEsporteQuadra(db, sessao.arenaId, quadraId, esporte))) {
-      return { erro: "Quadra não encontrada.", ok: false };
+    const r = await salvarNomeEsporteQuadra(
+      poolCompartilhado(), sessao.arenaId, quadraId, campo(form, "nome"), campo(form, "esporte"),
+    );
+    if (!r.ok) {
+      const erro = {
+        nome: "O nome deve ter de 1 a 60 caracteres.",
+        esporte: "Esporte com no máximo 40 caracteres.",
+        quadra: "Quadra não encontrada.",
+      }[r.erro];
+      return { erro, ok: false };
     }
   } catch (e) {
     return { erro: mensagemDoErro(e, "salvar quadra"), ok: false };

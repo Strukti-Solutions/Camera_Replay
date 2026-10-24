@@ -96,3 +96,18 @@ test("save concorrente de outro endereço não recebe as coordenadas do endereç
   expect(r).toEqual({ ok: true, localizada: false });
   expect(await coords(db, a.id)).toMatchObject({ latitude: null, longitude: null, endereco_rua: "Rua B" });
 });
+
+test("geocodificador no máximo uma vez por minuto por arena", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "A");
+  let n = 0;
+  const g: Geocodificar = async () => { n++; return null; };
+  await atualizarArenaDono(db, a.id, { nome: "A", endereco: end }, g);
+  const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, numero: "11" } }, g);
+  expect(n).toBe(1);
+  expect(r).toEqual({ ok: true, localizada: false });
+  expect(await coords(db, a.id)).toMatchObject({ endereco_rua: "Rua A", latitude: null });
+  await db.query("update arenas set geocodificacao_tentada_em = now() - interval '61 seconds' where id = $1", [a.id]);
+  await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, numero: "12" } }, g);
+  expect(n).toBe(2);
+});

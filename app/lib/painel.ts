@@ -357,3 +357,27 @@ export async function definirEsporteQuadra(
   ]);
   return r.rows.length === 1;
 }
+
+// Grava nome e esporte da quadra num único update: valida os dois antes, então
+// ou grava os dois ou nenhum. Mesmas regras de renomearQuadra (1 a 60) e
+// definirEsporteQuadra (0 a 40), mas devolve qual campo falhou.
+export async function salvarNomeEsporteQuadra(
+  db: Pick<Db, "query">,
+  arenaId: string,
+  quadraId: string,
+  nome: string,
+  esporte: string,
+): Promise<{ ok: true } | { ok: false; erro: "nome" | "esporte" | "quadra" }> {
+  const nomeLimpo = typeof nome === "string" ? nome.trim() : "";
+  if (nomeLimpo.length < 1 || nomeLimpo.length > 60) return { ok: false, erro: "nome" };
+  const esporteLimpo = typeof esporte === "string" ? esporte.trim() : null;
+  if (esporteLimpo === null || esporteLimpo.length > 40) return { ok: false, erro: "esporte" };
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return { ok: false, erro: "quadra" };
+  const r = await db.query("update quadras set nome = $3, esporte = $4 where id = $1 and arena_id = $2 returning id", [
+    quadraId,
+    arenaId,
+    nomeLimpo,
+    esporteLimpo,
+  ]);
+  return r.rows.length === 1 ? { ok: true } : { ok: false, erro: "quadra" };
+}

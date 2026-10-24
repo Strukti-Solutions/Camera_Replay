@@ -110,6 +110,36 @@ export default async function PaginaQuadra({ params }: Props) {
         )}
       </section>
 
+      <section className="secao" aria-labelledby="titulo-botoes">
+        <h2 id="titulo-botoes">Botões</h2>
+        {quadra.botoes.length === 0 ? (
+          <p className="suave">Nenhum botão. A Strukti instala os botões da quadra.</p>
+        ) : (
+          <ul className="cartoes">
+            {quadra.botoes.map((b) => (
+              <li key={b.id} className="cartao">
+                <dl className="dados">
+                  <div>
+                    <dt>Criado em</dt>
+                    <dd>{formatarHorario(b.criadoEm, agora)}</dd>
+                  </div>
+                  <div>
+                    <dt>Visto em</dt>
+                    <dd>{b.vistoEm ? formatarHorario(b.vistoEm, agora) : "nunca"}</dd>
+                  </div>
+                </dl>
+                {b.revogadoEm && (
+                  <p>
+                    <span className="selo-revogado">Revogado</span>{" "}
+                    <span className="suave">{formatarHorario(b.revogadoEm, agora)}</span>
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="secao" aria-labelledby="titulo-clipes">
         <div className="secao-cabeca">
           <h2 id="titulo-clipes">Clipes</h2>
