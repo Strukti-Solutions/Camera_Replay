@@ -27,6 +27,8 @@ export async function salvarArenaAction(_e: EstadoArena, form: FormData): Promis
     erro: null,
     ok: r.localizada
       ? "Arena salva."
-      : "Endereço salvo, mas não foi possível localizá-lo no mapa. Confira o endereço.",
+      : r.motivo === "limite"
+        ? "Endereço salvo. Para localizá-lo no mapa, salve de novo daqui a 1 minuto."
+        : "Endereço salvo, mas não foi possível localizá-lo no mapa. Confira o endereço.",
   };
 }

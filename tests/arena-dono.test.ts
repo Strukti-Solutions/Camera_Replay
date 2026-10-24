@@ -33,8 +33,9 @@ test("geocodificador sem resultado: salva sem coordenadas e apaga as antigas", a
   const db = await novoBanco();
   const a = await criarArena(db, "A");
   await atualizarArenaDono(db, a.id, { nome: "A", endereco: end }, achou);
+  await db.query("update arenas set geocodificacao_tentada_em = now() - interval '61 seconds' where id = $1", [a.id]);
   const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, numero: "99" } }, async () => null);
-  expect(r).toEqual({ ok: true, localizada: false });
+  expect(r).toEqual({ ok: true, localizada: false, motivo: "nao_encontrado" });
   expect(await coords(db, a.id)).toMatchObject({ latitude: null, longitude: null, endereco_rua: "Rua A" });
 });
 
@@ -42,7 +43,7 @@ test("geocodificador que lança também salva sem coordenadas", async () => {
   const db = await novoBanco();
   const a = await criarArena(db, "A");
   const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: end }, async () => { throw new Error("x"); });
-  expect(r).toEqual({ ok: true, localizada: false });
+  expect(r).toEqual({ ok: true, localizada: false, motivo: "nao_encontrado" });
 });
 
 test("endereço igual não chama o geocodificador de novo", async () => {
@@ -88,12 +89,13 @@ test("save concorrente de outro endereço não recebe as coordenadas do endereç
   const a = await criarArena(db, "A");
   const enderecoB = { ...end, rua: "Rua B", numero: "20" };
   const geoLento: Geocodificar = async () => {
-    // Antes de devolver as coordenadas de A, outro save grava B direto no banco.
+    // Antes de devolver as coordenadas de A, outro save grava B direto no banco
+    // (esse save cai no limite de 60 s e não geocodifica; só grava o endereço).
     await atualizarArenaDono(db, a.id, { nome: "A", endereco: enderecoB }, async () => null);
     return { latitude: -3.7, longitude: -38.5 };
   };
   const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: end }, geoLento);
-  expect(r).toEqual({ ok: true, localizada: false });
+  expect(r).toEqual({ ok: true, localizada: false, motivo: "nao_encontrado" });
   expect(await coords(db, a.id)).toMatchObject({ latitude: null, longitude: null, endereco_rua: "Rua B" });
 });
 
@@ -105,7 +107,7 @@ test("geocodificador no máximo uma vez por minuto por arena", async () => {
   await atualizarArenaDono(db, a.id, { nome: "A", endereco: end }, g);
   const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, numero: "11" } }, g);
   expect(n).toBe(1);
-  expect(r).toEqual({ ok: true, localizada: false });
+  expect(r).toEqual({ ok: true, localizada: false, motivo: "limite" });
   expect(await coords(db, a.id)).toMatchObject({ endereco_rua: "Rua A", latitude: null });
   await db.query("update arenas set geocodificacao_tentada_em = now() - interval '61 seconds' where id = $1", [a.id]);
   await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, numero: "12" } }, g);

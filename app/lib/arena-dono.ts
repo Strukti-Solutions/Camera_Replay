@@ -64,7 +64,11 @@ function consulta(e: EnderecoArena): string {
 
 export async function atualizarArenaDono(
   db: Db, arenaId: string, dados: { nome: string; endereco: EnderecoArena }, geocodificar: Geocodificar,
-): Promise<{ ok: true; localizada: boolean } | { ok: false; erro: string }> {
+): Promise<
+  | { ok: true; localizada: true }
+  | { ok: true; localizada: false; motivo: "limite" | "nao_encontrado" }
+  | { ok: false; erro: string }
+> {
   if (!ehUuid(arenaId)) return { ok: false, erro: "Arena não encontrada." };
   const nome = String(dados.nome ?? "").trim();
   if (!tam(nome, 1, 80)) return { ok: false, erro: "O nome da arena deve ter de 1 a 80 caracteres." };
@@ -98,7 +102,7 @@ export async function atualizarArenaDono(
       returning id`,
     [arenaId],
   );
-  if (vez.rows.length === 0) return { ok: true, localizada: false };
+  if (vez.rows.length === 0) return { ok: true, localizada: false, motivo: "limite" };
 
   let coord = null;
   try {
@@ -106,7 +110,7 @@ export async function atualizarArenaDono(
   } catch {
     coord = null;
   }
-  if (!coord) return { ok: true, localizada: false };
+  if (!coord) return { ok: true, localizada: false, motivo: "nao_encontrado" };
   // Só grava se o endereço ainda é o que foi geocodificado: um save concorrente
   // de outro endereço não pode receber coordenadas velhas.
   const r = await db.query(
@@ -116,5 +120,7 @@ export async function atualizarArenaDono(
       returning id`,
     [arenaId, coord.latitude, coord.longitude, e.rua, e.numero, e.bairro, e.cidade, e.uf, e.cep],
   );
-  return { ok: true, localizada: r.rows.length === 1 };
+  return r.rows.length === 1
+    ? { ok: true, localizada: true }
+    : { ok: true, localizada: false, motivo: "nao_encontrado" };
 }
