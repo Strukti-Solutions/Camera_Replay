@@ -1367,3 +1367,71 @@ video {
   color: var(--tinta-suave);
   margin-bottom: 1rem;
 }
+
+/* ---------- Página pública da arena (/a/<slug>) ---------- */
+
+.arena-publica {
+  padding-block: 1.5rem 3rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.arena-publica h1 {
+  font-family: var(--fonte-titulo);
+  font-size: 1.75rem;
+  overflow-wrap: anywhere;
+}
+
+.arena-endereco {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1rem;
+}
+
+.arena-endereco a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  font-weight: 600;
+}
+
+.quadras-publicas h2 {
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.quadra-escolha {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.quadra-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1rem;
+}
+
+.quadra-escolha .botao {
+  justify-self: start;
+}
+
+.quadra-sem-horario {
+  color: var(--tinta-suave);
+}
+
+.quadra-preco {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--borda);
+}
+
+.quadra-total {
+  font-size: 1.25rem;
+}
+
+.quadra-reservar:disabled {
+  cursor: not-allowed;
+}
