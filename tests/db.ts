@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { afterEach } from "vitest";
 import { migrar } from "../db/migrar";
 import type { Db } from "../app/lib/db";
@@ -16,8 +17,9 @@ afterEach(async () => {
 
 // Banco em memória, já migrado (por padrão com todas as migrações; `pasta`
 // permite parar numa versão antiga para testar uma migração com dados).
+// A 0016 precisa da extensão btree_gist (exclusão de reservas sobrepostas).
 export async function novoBanco(pasta?: string): Promise<Db> {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { btree_gist } });
   abertos.push(pg);
   await migrar(pg as unknown as Db, pasta);
   return pg as unknown as Db;

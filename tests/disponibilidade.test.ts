@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diaDaSemana, diaValido, diasDisponiveis, hojeLocal, iniciosLivres, precoEscolha } from "../app/lib/disponibilidade";
+import { diaDaSemana, diaValido, diasDisponiveis, hojeLocal, horasOcupadas, iniciosLivres, precoEscolha } from "../app/lib/disponibilidade";
 import type { Faixa } from "../app/lib/precos";
 
 const AGORA = new Date("2026-10-23T21:30:00Z"); // sexta 18h30 em São Paulo
@@ -65,5 +65,31 @@ describe("disponibilidade", () => {
       { diaSemana: 5, inicio: 14, fim: 18, precoCentavos: 8000 },
     ];
     expect(iniciosLivres(f, "2026-10-30", AGORA).find((i) => i.hora === 11)?.horasMax).toBe(1);
+  });
+
+  it("horas ocupadas tiram inícios e cortam a continuidade", () => {
+    const ocupadas = new Set([18]);
+    const l = iniciosLivres(sexta, "2026-10-30", AGORA, ocupadas);
+    expect(l.find((i) => i.hora === 17)?.horasMax).toBe(1);
+    expect(l.find((i) => i.hora === 18)).toBeUndefined();
+    expect(l.find((i) => i.hora === 19)?.horasMax).toBe(4);
+    expect(l.find((i) => i.hora === 15)?.horasMax).toBe(3);
+    expect(precoEscolha(sexta, "2026-10-30", 17, 2, AGORA, ocupadas)).toBeNull();
+    expect(precoEscolha(sexta, "2026-10-30", 17, 1, AGORA, ocupadas)?.totalCentavos).toBe(12000);
+    expect(precoEscolha(sexta, "2026-10-30", 18, 1, AGORA, ocupadas)).toBeNull();
+    expect(precoEscolha(sexta, "2026-10-30", 17, 2, AGORA)?.totalCentavos).toBe(24000);
+  });
+
+  it("horasOcupadas por dia local", () => {
+    const periodos = [
+      { inicio: new Date("2026-10-30T22:00:00-03:00"), fim: new Date("2026-10-31T01:00:00-03:00") },
+      { inicio: new Date("2026-10-30T08:00:00-03:00"), fim: new Date("2026-10-30T09:30:00-03:00") },
+    ];
+    expect([...horasOcupadas(periodos, "2026-10-30")].sort((x, y) => x - y)).toEqual([8, 9, 22, 23]);
+    expect([...horasOcupadas(periodos, "2026-10-31")]).toEqual([0]);
+    expect([...horasOcupadas(periodos, "2026-10-29")]).toEqual([]);
+    // fim exato numa hora cheia não ocupa a hora seguinte
+    expect([...horasOcupadas([{ inicio: new Date("2026-10-30T18:00:00-03:00"), fim: new Date("2026-10-30T20:00:00-03:00") }], "2026-10-30")])
+      .toEqual([18, 19]);
   });
 });
