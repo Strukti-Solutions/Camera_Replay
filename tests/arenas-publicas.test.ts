@@ -1,7 +1,12 @@
 import { expect, test } from "vitest";
 import { novoBanco } from "./db";
 import { criarArena, criarQuadra } from "./fixtures";
-import { arenaPublica, arenasNoMapa, listarArenasPublicas, sugestoesArenas } from "../app/lib/arenas-publicas";
+import {
+  arenaPublica, arenasNoMapa, listarArenasPublicas, ocupadasPublicas, slugDaQuadra, sugestoesArenas,
+} from "../app/lib/arenas-publicas";
+import { criarContaJogador } from "../app/lib/jogadores";
+import { adicionarFaixas } from "../app/lib/precos-quadra";
+import { criarReserva } from "../app/lib/reservas";
 import type { Db } from "../app/lib/db";
 
 async function endereco(
@@ -122,4 +127,32 @@ test("maiúsculas acentuadas na coluna e termo só de marcas combinantes", async
   expect((await listarArenasPublicas(db, "carapua")).map((x) => x.nome)).toEqual(["Arena Maiúscula"]);
   expect(await sugestoesArenas(db, "\u0301\u0301")).toEqual([]);
   expect(await listarArenasPublicas(db, "\u0301\u0301")).toHaveLength(1);
+});
+
+test("slugDaQuadra: slug da arena da quadra; id estranho sem consulta", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena Q");
+  const q = await criarQuadra(db, a.id);
+  expect(await slugDaQuadra(db, q.id)).toBe(a.slug);
+  expect(await slugDaQuadra(db, "00000000-0000-4000-8000-000000000000")).toBeNull();
+  const espiao = { query: () => { throw new Error("não devia consultar"); } } as unknown as Db;
+  expect(await slugDaQuadra(espiao, "x'; drop")).toBeNull();
+  expect(await slugDaQuadra(espiao, undefined as unknown as string)).toBeNull();
+});
+
+test("ocupadasPublicas: horas tomadas por reserva da quadra no dia", async () => {
+  const db = await novoBanco();
+  const agora = new Date("2026-11-09T10:00:00-03:00");
+  const a = await criarArena(db, "Arena O");
+  const q = await criarQuadra(db, a.id);
+  const outra = await criarQuadra(db, a.id);
+  await adicionarFaixas(db, a.id, q.id, [0, 1, 2, 3, 4, 5, 6], { inicio: 7, fim: 23, precoCentavos: 10000 });
+  const j = await criarContaJogador(db, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1", aceitouTermos: true });
+  if (!j.ok) throw new Error("conta");
+  const r = await criarReserva(db, j.jogadorId, { quadraId: q.id, dia: "2026-11-10", inicio: 16, horas: 2 }, agora);
+  expect(r.ok).toBe(true);
+  expect([...(await ocupadasPublicas(db, q.id, "2026-11-10"))].sort()).toEqual([16, 17]);
+  expect((await ocupadasPublicas(db, q.id, "2026-11-11")).size).toBe(0);
+  expect((await ocupadasPublicas(db, outra.id, "2026-11-10")).size).toBe(0);
+  expect((await ocupadasPublicas(db, "nada", "2026-11-10")).size).toBe(0);
 });

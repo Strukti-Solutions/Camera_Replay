@@ -7,7 +7,7 @@ import { registrarTentativa, validarSessao } from "../app/lib/sessao";
 import { validarSessaoAdmin } from "../app/lib/sessao-admin";
 import { criarContaJogador, validarSessaoJogador } from "../app/lib/jogadores";
 import { definirStatusArena } from "../app/lib/plataforma";
-import { caminhoSeguro, destinoDoTipo, entrarUnico } from "../app/lib/entrar-unico";
+import { caminhoSeguro, destinoDoTipo, destinoEntrar, entrarUnico } from "../app/lib/entrar-unico";
 
 const SENHA = "senha-certa-123";
 
@@ -229,4 +229,13 @@ test("e-mail longo: a chave da tentativa usa o e-mail cortado em 254", async () 
   expect((await entrarUnico(db, longo, SENHA, "1.1.1.1")).ok).toBe(false);
   const r = await db.query<{ email: string }>("select email from tentativas_login");
   expect(r.rows).toEqual([{ email: `jogador:${"a".repeat(254)}` }]);
+});
+
+test("destinoEntrar repassa o voltar só se for caminho interno", () => {
+  expect(destinoEntrar("/reservar?quadra=q&dia=2026-10-26&inicio=16&horas=2")).toBe(
+    "/entrar?voltar=%2Freservar%3Fquadra%3Dq%26dia%3D2026-10-26%26inicio%3D16%26horas%3D2",
+  );
+  expect(destinoEntrar("//mal.com")).toBe("/entrar");
+  expect(destinoEntrar("https://mal.com")).toBe("/entrar");
+  expect(destinoEntrar(undefined)).toBe("/entrar");
 });
