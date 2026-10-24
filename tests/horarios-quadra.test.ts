@@ -155,3 +155,30 @@ test("reservasFuturasPorHorario conta só reserva confirmada futura que toca o h
   await ins("confirmada", "2026-10-19T18:00:00-03:00", "2026-10-19T19:00:00-03:00"); // passada
   expect(await reservasFuturasPorHorario(db, a.id, qa.id, agora)).toEqual({ [h18.id]: 1 });
 });
+
+test("reservasFuturasPorHorario: reserva que passa da meia-noite conta nos dois dias; ignora bloqueio e outra arena", async () => {
+  const db = await novoBanco();
+  const { a, b, qa, qb } = await base(db);
+  const r = await criarContaJogador(db, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1", aceitouTermos: true });
+  if (!r.ok) throw new Error("conta");
+  await criarHorario(db, a.id, qa.id, h(1, 1380, 1440));
+  await criarHorario(db, a.id, qa.id, h(2, 0, 60));
+  await criarHorario(db, a.id, qa.id, h(2, 60, 120));
+  const l = await listarHorarios(db, a.id, qa.id);
+  const agora = new Date("2026-10-24T10:00:00-03:00");
+  const ini = "2026-10-26T23:00:00-03:00", fim = "2026-10-27T01:00:00-03:00";
+  const reserva = (arena: string, quadra: string) => db.query(
+    `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, total_centavos, detalhe)
+     values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 8000, '[]')`,
+    [arena, quadra, r.jogadorId, ini, fim]);
+  await reserva(a.id, qa.id);
+  expect(await reservasFuturasPorHorario(db, a.id, qa.id, agora)).toEqual({ [l[0].id]: 1, [l[1].id]: 1 });
+  // bloqueio e reserva de outra arena não entram
+  await db.query(
+    `insert into reservas (arena_id, quadra_id, tipo, situacao, inicio, fim, motivo)
+     values ($1, $2, 'bloqueio', 'confirmada', $3, $4, 'Manutenção')`,
+    [a.id, qa.id, "2026-11-02T23:00:00-03:00", "2026-11-03T01:00:00-03:00"]);
+  await criarHorario(db, b.id, qb.id, h(1, 1380, 1440));
+  await reserva(b.id, qb.id);
+  expect(await reservasFuturasPorHorario(db, a.id, qa.id, agora)).toEqual({ [l[0].id]: 1, [l[1].id]: 1 });
+});

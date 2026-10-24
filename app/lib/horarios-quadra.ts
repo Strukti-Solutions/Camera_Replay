@@ -172,7 +172,8 @@ export async function copiarDia(
 }
 
 // Quantas reservas de jogador, confirmadas e ainda por vir, tocam cada horário
-// (mesmo dia da semana local e minutos que se sobrepõem). Horário sem reserva
+// (mesmo dia da semana local e minutos que se sobrepõem; reserva que passa da
+// meia-noite conta nos horários dos dois dias). Horário sem reserva
 // fica fora do objeto.
 export async function reservasFuturasPorHorario(
   db: Db, arenaId: string, quadraId: string, agora: Date,
@@ -187,15 +188,17 @@ export async function reservasFuturasPorHorario(
   );
   const saida: Record<string, number> = {};
   for (const r of rows) {
-    const ini = partesDoInstante(new Date(r.inicio));
-    const dia = diaDaSemana(ini.dia);
-    const fimMs = new Date(r.fim).getTime();
     const iniMs = new Date(r.inicio).getTime();
-    for (const h of horarios) {
-      if (h.diaSemana !== dia) continue;
-      // Confronta em instantes do mesmo dia local, o que cobre reservas que passam da meia-noite.
-      if (iniMs < instanteDoMinuto(ini.dia, h.fim) && fimMs > instanteDoMinuto(ini.dia, h.inicio)) {
-        saida[h.id] = (saida[h.id] ?? 0) + 1;
+    const fimMs = new Date(r.fim).getTime();
+    // Dias locais tocados: o do início e, se passa da meia-noite, o do último instante (reserva dura até 12 h).
+    const dias = [...new Set([partesDoInstante(new Date(iniMs)).dia, partesDoInstante(new Date(fimMs - 1)).dia])];
+    for (const dia of dias) {
+      const semana = diaDaSemana(dia);
+      for (const h of horarios) {
+        if (h.diaSemana !== semana) continue;
+        if (iniMs < instanteDoMinuto(dia, h.fim) && fimMs > instanteDoMinuto(dia, h.inicio)) {
+          saida[h.id] = (saida[h.id] ?? 0) + 1;
+        }
       }
     }
   }
