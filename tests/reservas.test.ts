@@ -3,7 +3,7 @@ import type { Db } from "../app/lib/db";
 import { criarContaJogador, apagarContaJogador } from "../app/lib/jogadores";
 import { adicionarFaixas } from "../app/lib/precos-quadra";
 import {
-  MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
+  LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
   criarReserva, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador,
 } from "../app/lib/reservas";
 import { novoBanco } from "./db";
@@ -323,4 +323,54 @@ test("apagar conta com reserva futura recusa; sem futura apaga e mantém as pass
   expect(await apagarContaJogador(db, ana, SENHA)).toEqual({ ok: true });
   const r = await db.query<{ id: string; jogador_id: string | null }>("select id, jogador_id from reservas order by inicio");
   expect(r.rows).toEqual([{ id: passada, jogador_id: null }, { id: futura, jogador_id: null }]);
+});
+
+const MSG_LIMITE = "Você atingiu o limite de reservas futuras. Cancele uma ou aguarde o jogo.";
+
+test("limite de reservas futuras: 2 por arena e 5 no total; cancelada e passada não contam", async () => {
+  expect(LIMITE_RESERVAS_POR_ARENA).toBe(2);
+  expect(LIMITE_RESERVAS_TOTAL).toBe(5);
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  await reservaPassada(db, arena.id, quadra.id, ana, "2026-10-01");
+  await reservaPassada(db, arena.id, quadra.id, ana, "2026-10-02");
+  const cancelada = await reservar(db, ana, quadra.id, 18, 1);
+  expect(await cancelarPeloJogador(db, ana, cancelada, AGORA)).toBe(true);
+  await reservar(db, ana, quadra.id, 19, 1);
+  await reservar(db, ana, quadra.id, 20, 1);
+  // a 3ª futura na mesma arena (outra quadra) é recusada, nada gravado
+  const q2 = await criarQuadra(db, arena.id);
+  await adicionarFaixas(db, arena.id, q2.id, [2], { inicio: 7, fim: 23, precoCentavos: 100 });
+  const antes = await contar(db);
+  expect(await criarReserva(db, ana, { quadraId: q2.id, dia: DIA, inicio: 11, horas: 1 }, AGORA))
+    .toEqual({ ok: false, erro: MSG_LIMITE });
+  expect(await contar(db)).toBe(antes);
+  // outro jogador não é afetado
+  const bia = await jogador(db, "Bia");
+  expect((await criarReserva(db, bia, { quadraId: q2.id, dia: DIA, inicio: 11, horas: 1 }, AGORA)).ok).toBe(true);
+
+  // espalhadas por arenas: 2 + 2 + 1 = 5; a 6ª é recusada
+  const outras = [];
+  for (const nome of ["B", "C", "D"]) {
+    const a = await criarArena(db, nome);
+    const q = await criarQuadra(db, a.id);
+    await adicionarFaixas(db, a.id, q.id, [2], { inicio: 7, fim: 23, precoCentavos: 100 });
+    outras.push(q);
+  }
+  await reservar(db, ana, outras[0].id, 8, 1);
+  await reservar(db, ana, outras[0].id, 9, 1);
+  await reservar(db, ana, outras[1].id, 8, 1);
+  expect(await criarReserva(db, ana, { quadraId: outras[2].id, dia: DIA, inicio: 8, horas: 1 }, AGORA))
+    .toEqual({ ok: false, erro: MSG_LIMITE });
+  // depois do jogo, a reserva deixa de contar
+  const depois = new Date("2026-11-10T21:00:00-03:00");
+  expect((await criarReserva(db, ana, { quadraId: outras[2].id, dia: DIA, inicio: 22, horas: 1 }, depois)).ok).toBe(true);
+});
+
+test("jogador inexistente não reserva", async () => {
+  const db = await novoBanco();
+  const { quadra } = await base(db);
+  expect(await criarReserva(db, "00000000-0000-4000-8000-000000000009", { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 1 }, AGORA))
+    .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
+  expect(await contar(db)).toBe(0);
 });

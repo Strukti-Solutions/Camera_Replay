@@ -10,6 +10,10 @@ import { paraClipePublico, type ClipePublico, type LeitorR2, type LinhaClipe } f
 
 export const MSG_INDISPONIVEL = "Esse horário não está mais disponível.";
 export const MSG_BLOQUEIO_OCUPADO = "Já existe reserva ou bloqueio nesse horário.";
+export const MSG_LIMITE_RESERVAS = "Você atingiu o limite de reservas futuras. Cancele uma ou aguarde o jogo.";
+// Sem pagamento online, o limite impede que um jogador tome todos os horários.
+export const LIMITE_RESERVAS_POR_ARENA = 2;
+export const LIMITE_RESERVAS_TOTAL = 5;
 export const MOTIVO_CANCELAMENTO_MAX = 120;
 export const MOTIVO_BLOQUEIO_MAX = 60;
 const ANTECEDENCIA_CANCELAR_MS = 24 * 3_600_000;
@@ -86,9 +90,27 @@ export async function criarReserva(
   if (!escolha) return recusa;
 
   try {
-    const id = await emTransacao(db, async (tx) => {
+    const r = await emTransacao(db, async (tx): Promise<{ ok: true; reservaId: string } | { ok: false; erro: string }> => {
+      // Trava a linha do jogador: apagarContaJogador (for update) espera esta
+      // transação, e duas reservas do mesmo jogador passam uma de cada vez, então
+      // o limite não fura. for no key update e não for share: com for share as
+      // duas leriam a mesma contagem ao mesmo tempo. Não conflita com a trava de
+      // chave estrangeira (for key share) que o insert em reservas pega.
+      // A contagem vem num comando seguinte, com snapshot novo depois da espera.
+      const j = await tx.query("select 1 from jogadores where id = $1 for no key update", [jogadorId]);
+      if (j.rows.length === 0) return recusa;
+      const n = await tx.query<{ arena: number; total: number }>(
+        `select count(*) filter (where arena_id = $2)::int as arena, count(*)::int as total
+           from reservas
+          where jogador_id = $1 and tipo = 'reserva' and situacao = 'confirmada' and fim > $3::timestamptz`,
+        [jogadorId, arenaId, agora],
+      );
+      const c = n.rows[0];
+      if (Number(c.arena) >= LIMITE_RESERVAS_POR_ARENA || Number(c.total) >= LIMITE_RESERVAS_TOTAL) {
+        return { ok: false, erro: MSG_LIMITE_RESERVAS };
+      }
       await expirarSeguradas(tx, e.quadraId);
-      const r = await tx.query<{ id: string }>(
+      const ins = await tx.query<{ id: string }>(
         `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim,
                                pagamento, total_centavos, taxa_centavos, detalhe)
          values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 'arena', $6, 0, $7::jsonb) returning id`,
@@ -98,9 +120,9 @@ export async function criarReserva(
           escolha.totalCentavos, JSON.stringify(escolha.porHora),
         ],
       );
-      return r.rows[0].id;
+      return { ok: true, reservaId: ins.rows[0].id };
     });
-    return { ok: true, reservaId: id };
+    return r;
   } catch (err) {
     if (violouExclusao(err)) return recusa;
     throw err;

@@ -1,4 +1,6 @@
 import { expect, test } from "vitest";
+import type { Db } from "../app/lib/db";
+import { hashSenha } from "../app/lib/senha";
 import { novoBanco } from "./db";
 import { criarArena, criarQuadra } from "./fixtures";
 import { criarArenaComDono } from "../app/lib/donos";
@@ -117,4 +119,44 @@ test("trocar senha apaga os links pendentes de Esqueci a senha do jogador", asyn
   expect(await trocarSenhaJogador(db, r.jogadorId, SENHA, "nova-senha-1", s1.token)).toEqual({ ok: true });
   const t = await db.query<{ token_hash: string }>("select token_hash from tokens_senha");
   expect(t.rows).toEqual([{ token_hash: "t2" }]);
+});
+
+// Pool falso: no pg.Pool, apagar conta trava o jogador e só depois, em comando
+// separado do mesmo cliente, confere as reservas futuras e apaga.
+test("no pg.Pool, apagar conta trava o jogador antes de conferir reservas e apagar", async () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const hash = await hashSenha(SENHA);
+  const log: string[] = [];
+  const clientes: unknown[] = [];
+  const fazer = (futuras: boolean) => ({
+    query: async (sql: string) => {
+      if (/from jogadores where id/.test(sql) && !/for update/.test(sql)) return { rows: [{ senha_hash: hash }] };
+      throw new Error("fora da transação: " + sql);
+    },
+    async connect() {
+      const cliente = {
+        async query(sql: string) {
+          const s = sql.trim();
+          if (/^begin|^commit|^rollback/.test(s)) log.push(s);
+          else if (/for update/.test(s)) log.push("trava");
+          else if (/from reservas/.test(s) && /^select/.test(s)) log.push("confere");
+          else if (/delete from jogadores/.test(s)) log.push("apaga");
+          else log.push("?" + s);
+          if (/for update/.test(s)) return { rows: [{ id }] };
+          if (/from reservas/.test(s) && /^select/.test(s)) return { rows: futuras ? [{ "?column?": 1 }] : [] };
+          return { rows: [] };
+        },
+        release() { clientes.push(cliente); },
+      };
+      return cliente;
+    },
+  }) as unknown as Db;
+
+  expect(await apagarContaJogador(fazer(false), id, SENHA)).toEqual({ ok: true });
+  expect(log).toEqual(["begin", "trava", "confere", "apaga", "commit"]);
+  expect(clientes).toHaveLength(1);
+
+  log.length = 0;
+  expect(await apagarContaJogador(fazer(true), id, SENHA)).toEqual({ ok: false, erro: "reservas_futuras" });
+  expect(log).toEqual(["begin", "trava", "confere", "commit"]);
 });
