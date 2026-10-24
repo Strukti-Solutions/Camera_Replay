@@ -1,5 +1,5 @@
 import { sairAction } from "@/app/entrar/actions";
-import { MarcaDaFaixa } from "@/app/componentes/marca";
+import { Topo } from "@/app/componentes/topo";
 import { NavegacaoPainel } from "./navegacao";
 import { exigirSessao } from "./sessao-atual";
 
@@ -10,18 +10,12 @@ export default async function LayoutPainel({ children }: { children: React.React
   const sessao = await exigirSessao();
   return (
     <>
-      <header className="faixa">
-        <div className="miolo">
-          <MarcaDaFaixa />
-          <p className="painel-arena">{sessao.arenaNome}</p>
-          <form action={sairAction}>
-            <button type="submit" className="botao">
-              Sair
-            </button>
-          </form>
-          <NavegacaoPainel />
-        </div>
-      </header>
+      <Topo rotulo={sessao.arenaNome}>
+        <NavegacaoPainel />
+        <form action={sairAction}>
+          <button type="submit" className="cabecalho-sair">Sair</button>
+        </form>
+      </Topo>
       {children}
     </>
   );

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LinkVoltar } from "@/app/componentes/voltar";
 import type { LeitorR2 } from "@/app/lib/clipes";
 import { formatarDuracao, formatarHorario, textoStatus } from "@/app/lib/formato";
 import { clipesDoPainel, detalheQuadra } from "@/app/lib/painel";
@@ -51,9 +51,7 @@ export default async function PaginaQuadra({ params }: Props) {
 
   return (
     <main className="miolo painel">
-      <p>
-        <Link href="/painel">← Quadras</Link>
-      </p>
+      <LinkVoltar href="/painel" />
       <h1>{quadra.nome}</h1>
       <section className="secao" aria-labelledby="titulo-quadra">
         <h2 id="titulo-quadra">Quadra</h2>

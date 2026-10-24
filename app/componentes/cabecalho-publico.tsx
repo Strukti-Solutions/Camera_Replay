@@ -1,30 +1,26 @@
 import Link from "next/link";
 import type { SessaoJogador } from "@/app/lib/jogadores";
 import { sairJogadorAction } from "@/app/jogador/actions";
-import { MarcaDaFaixa } from "./marca";
+import { Topo } from "./topo";
+import { linksDoCabecalhoPublico } from "./topo-links";
 
-// Faixa das telas públicas: a marca e os atalhos da conta do jogador.
-export function CabecalhoPublico({ sessao }: { sessao: SessaoJogador | null }) {
+// Topo das telas públicas. `voltar` (já validado) é para onde o jogador volta
+// depois de entrar ou criar a conta.
+export function CabecalhoPublico({ sessao, voltar = null }: { sessao: SessaoJogador | null; voltar?: string | null }) {
   return (
-    <header className="faixa faixa-so-marca">
-      <div className="miolo cabecalho-publico">
-        <MarcaDaFaixa />
-        <nav className="cabecalho-links" aria-label="Conta">
-          {sessao ? (
-            <>
-              <Link href="/minhas-reservas">Minhas reservas</Link>
-              <form action={sairJogadorAction}>
-                <button type="submit" className="cabecalho-sair">Sair</button>
-              </form>
-            </>
-          ) : (
-            <>
-              <Link href="/entrar">Entrar</Link>
-              <Link href="/criar-conta">Criar conta</Link>
-            </>
-          )}
-        </nav>
-      </div>
-    </header>
+    <Topo>
+      <nav className="cabecalho-links" aria-label="Principal">
+        {linksDoCabecalhoPublico(sessao !== null, voltar).map((l) => (
+          <Link key={l.href} href={l.href}>
+            {l.texto}
+          </Link>
+        ))}
+        {sessao && (
+          <form action={sairJogadorAction}>
+            <button type="submit" className="cabecalho-sair">Sair</button>
+          </form>
+        )}
+      </nav>
+    </Topo>
   );
 }

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geologica } from "next/font/google";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+import { lerTema } from "./componentes/tema";
 import "./globals.css";
 
 // Fonte do design system da Strukti. next/font baixa o arquivo no build e o
@@ -17,17 +19,29 @@ export const metadata: Metadata = {
   title: { default: "Replay", template: "%s – Replay" },
 };
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  colorScheme: "light dark",
-  // A faixa do topo é o "espaço" da marca nos dois temas.
-  themeColor: "#08121d",
-};
+// Cor do topo em cada tema (--superficie no globals.css), que é o que o navegador pinta. Com tema escolhido pelo cookie,
+// vale a cor dele; sem cookie, a do esquema do aparelho.
+const FUNDO = { claro: "#ffffff", escuro: "#15273b" } as const;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export async function generateViewport(): Promise<Viewport> {
+  const escolhido = lerTema((await cookies()).get("tema")?.value);
+  return {
+    width: "device-width",
+    initialScale: 1,
+    colorScheme: escolhido ? (escolhido === "claro" ? "light" : "dark") : "light dark",
+    themeColor: escolhido
+      ? FUNDO[escolhido]
+      : [
+          { media: "(prefers-color-scheme: light)", color: FUNDO.claro },
+          { media: "(prefers-color-scheme: dark)", color: FUNDO.escuro },
+        ],
+  };
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const tema = lerTema((await cookies()).get("tema")?.value);
   return (
-    <html lang="pt-BR" className={geologica.variable}>
+    <html lang="pt-BR" className={geologica.variable} data-tema={tema ?? undefined}>
       <body>{children}</body>
     </html>
   );

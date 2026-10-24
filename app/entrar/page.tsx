@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MarcaDaFaixa } from "@/app/componentes/marca";
+import { Topo } from "@/app/componentes/topo";
 import { LinkVoltar } from "@/app/componentes/voltar";
 import { envioEmailConfigurado } from "@/app/lib/email";
 import { caminhoSeguro, destinoDoTipo } from "@/app/lib/entrar-unico";
@@ -29,11 +29,7 @@ export default async function PaginaEntrar({ searchParams }: Props) {
   const criarConta = voltar ? `/criar-conta?voltar=${encodeURIComponent(voltar)}` : "/criar-conta";
   return (
     <>
-      <header className="faixa faixa-so-marca">
-        <div className="miolo">
-          <MarcaDaFaixa />
-        </div>
-      </header>
+      <Topo />
       <main className="miolo entrar">
         <LinkVoltar href="/" />
         <h1>Entrar</h1>
