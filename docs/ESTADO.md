@@ -1,3 +1,31 @@
+# Onde paramos — 23/10/2026 (fase 1 das reservas públicas)
+
+Branch `feat/reservas-publicas`, **sem merge e sem push**. Spec: `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`.
+
+## Fase 1 feita (login único e conta do jogador)
+- Migração 0010: alunos por arena e reservas criadas pelo dono removidos.
+- Migração 0011: contas da plataforma (um e-mail = uma conta) e conta do jogador.
+- Login único em `/entrar` (jogador, dono e super admin), com limite de tentativas por tipo; qualquer bloqueio responde "credenciais".
+- `/criar-conta` (com limite de cadastros por IP), `/termos` (texto provisório), `/minhas-reservas` (vazia até a fase 4) e `/minha-conta` (nome, senha, apagar conta; limite de tentativas na senha atual).
+- Esqueci a senha (migração 0012): link de uso único, válido por 1 hora, enviado por e-mail via Resend. Sem configuração fora de produção, o link é impresso no terminal do servidor de desenvolvimento.
+- `conferirSenha` registra no log (sem senha nem hash) quando o próprio scrypt falha.
+
+## Para produção
+1. Aplicar as migrações 0010 a 0012: `npx tsx --env-file=C:/Users/anton/replay-producao.env db/migrar-cli.ts` (só com o ok do dono; a 0010 apaga alunos e reservas existentes).
+2. Variáveis novas na Vercel: `RESEND_API_KEY` e `EMAIL_REMETENTE`. `APP_URL` já está configurada (o link de recuperação é montado com ela).
+3. **Pendente com o dono:** criar a conta no Resend e configurar o DNS (SPF e DKIM) do domínio do remetente. Sem isso, o e-mail de recuperação não sai em produção.
+4. Conferir `/entrar` no ar com as três contas (jogador, dono, super admin).
+
+## Decisões pendentes do dono
+- Confirmação de e-mail no cadastro: hoje a enumeração de contas em `/criar-conta` só é contida pelo limite de tentativas.
+- Texto final dos termos: o provisório diz "Não vendemos seus dados" e o dono precisa validar.
+- Taxa padrão da Strukti (fase 2).
+
+## Fases seguintes
+Fase 2 em diante: ver o spec de reservas públicas. O restante deste arquivo é o estado anterior (17/10), ainda válido onde não conflita com a fase 1; as seções sobre alunos por arena foram superadas.
+
+---
+
 # Onde paramos — 17/10/2026
 
 ## Feito

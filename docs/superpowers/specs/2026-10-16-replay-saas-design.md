@@ -101,6 +101,7 @@ Chave no R2: `clipes/<arena_id>/<clipe_id>.mp4`.
 
 ## Painel do dono
 
+> **Nota (fase 1, 22/10/2026):** esta seção foi superada em parte por `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`. Alunos por arena e reservas criadas pelo dono foram removidos (migração 0010); o login agora é único em `/entrar` (jogador, dono e super admin). Em conflito, vale o spec novo.
 Migração `0005_painel.sql`. O painel é a única parte com login.
 
 **Tabelas novas**
@@ -123,6 +124,7 @@ Migração `0005_painel.sql`. O painel é a única parte com login.
 
 ## Reservas e alunos
 
+> **Nota (fase 1, 22/10/2026):** esta seção foi superada em parte por `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`. Alunos por arena e reservas criadas pelo dono foram removidos (migração 0010); o login agora é único em `/entrar` (jogador, dono e super admin). Em conflito, vale o spec novo.
 Migração `0006_reservas.sql`. O dono cadastra alunos e reservas; o aluno vê os lances das reservas dele.
 
 **Tabelas novas** (todas com `arena_id` e FKs compostas `(…, arena_id)`)
