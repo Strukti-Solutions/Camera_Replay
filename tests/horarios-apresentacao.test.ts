@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { avisoReservas, contagemPorDia, resumoLote } from "@/app/painel/quadras/[id]/horarios-apresentacao";
+import { avisoReservas, contagemPorDia, precoParaCampo, resumoLote, rotuloDuracao, valorHora } from "@/app/painel/quadras/[id]/horarios-apresentacao";
 
 const h = (diaSemana: number) => ({ id: `h${Math.random()}`, diaSemana, inicio: 420, fim: 480, precoCentavos: 8000 });
 
@@ -38,8 +38,6 @@ describe("resumoLote", () => {
     expect(resumoLote(0, 5)).toBe("Nenhum horário criado: todos chocavam com os existentes.");
   });
 });
-
-import { precoParaCampo, rotuloDuracao, valorHora } from "@/app/painel/quadras/[id]/horarios-apresentacao";
 
 describe("campos", () => {
   test("valorHora", () => {

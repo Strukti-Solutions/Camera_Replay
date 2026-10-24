@@ -376,6 +376,8 @@ function NovoHorario({
 
 function CopiarDia({ quadraId, dia, aoConcluir }: { quadraId: string; dia: number; aoConcluir: (m: string) => void }) {
   const [estado, acao, pendente] = useAcao(copiarDiaAction, aoConcluir);
+  // Controlados: o React 19 limpa o formulário após a ação, e o erro não pode perder a escolha.
+  const [marcados, setMarcados] = useState<number[]>([]);
   return (
     <form action={acao} className="hr-form">
       <input type="hidden" name="quadraId" value={quadraId} />
@@ -384,7 +386,8 @@ function CopiarDia({ quadraId, dia, aoConcluir }: { quadraId: string; dia: numbe
         <legend>Copiar para</legend>
         {ORDEM_DIAS.filter((d) => d !== dia).map((d) => (
           <label key={d} className="dia">
-            <input type="checkbox" name="destino" value={d} />
+            <input type="checkbox" name="destino" value={d} checked={marcados.includes(d)}
+              onChange={(e) => setMarcados((m) => (e.target.checked ? [...m, d] : m.filter((x) => x !== d)))} />
             {NOMES_DIAS[d]}
           </label>
         ))}
@@ -441,6 +444,8 @@ export function HorariosDaQuadra({
     setConflito(null);
   };
   const concluir = (m: string) => {
+    // Apagou pela caixinha: a caixinha some e o foco iria para o body.
+    if (apagando) requestAnimationFrame(() => botaoNovo.current?.focus());
     setMensagem(m);
     setApagando(null);
     fechar();

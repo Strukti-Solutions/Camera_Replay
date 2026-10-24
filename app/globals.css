@@ -1786,8 +1786,8 @@ html.mapa-tela-cheia {
 
 .hr-dias {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
-  gap: 0.25rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.125rem;
 }
 
 .hr-dia {
@@ -2076,6 +2076,11 @@ html.mapa-tela-cheia {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
+}
+
+.hr-form .botao:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .hr-chip {
