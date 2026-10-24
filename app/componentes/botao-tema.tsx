@@ -11,8 +11,9 @@ function temaEfetivo(): Tema {
 
 // No servidor não se sabe o tema do aparelho (sem cookie): o botão sai neutro
 // e se corrige ao montar, sem mudar de tamanho (o ícone ocupa a mesma caixa).
-export function BotaoTema() {
-  const [tema, setTema] = useState<Tema | null>(null);
+// `inicial` (cookie lido no servidor) faz o servidor já desenhar o ícone certo.
+export function BotaoTema({ inicial = null }: { inicial?: Tema | null }) {
+  const [tema, setTema] = useState<Tema | null>(inicial);
 
   useEffect(() => {
     setTema(temaEfetivo());

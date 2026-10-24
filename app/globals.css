@@ -86,6 +86,8 @@
     --foco: var(--cyan-400);
     --perigo: #ff8a80;
     --sucesso: #7fd8a0;
+    --exibe-simbolo-claro: none;
+    --exibe-simbolo-escuro: block;
   }
 }
 
@@ -104,6 +106,8 @@
   --foco: var(--cyan-400);
   --perigo: #ff8a80;
   --sucesso: #7fd8a0;
+  --exibe-simbolo-claro: none;
+  --exibe-simbolo-escuro: block;
 }
 
 *,
@@ -213,68 +217,115 @@ video {
   border-color: var(--primario-hover);
 }
 
-/* ---------- Faixa da quadra (topo da página do jogador) ---------- */
-
-.faixa {
-  background: var(--faixa);
-  color: var(--sobre-faixa);
-  border-bottom: 1px solid var(--faixa-borda);
-  /* O topo respeita a área de proteção da assinatura (altura do "S"). */
-  padding-block: 1.5rem;
-}
-
-.faixa :focus-visible {
-  outline-color: var(--faixa-foco);
-}
+/* ---------- Topo ---------- */
 
 :root {
-  /* Mínimo da assinatura horizontal: 24 px de altura (MASTER §7). */
+  --largura-larga: 64rem;
   --altura-marca: 28px;
 }
 
-/* Assinatura da Strukti (versão para fundo escuro) no topo da faixa. Altura
-   fixa e largura automática: nunca esticada. A margem abaixo é a área de
-   proteção: o "S" ocupa 3/4 da altura da imagem. */
-.marca {
-  flex-basis: 100%;
-  margin-bottom: calc(var(--altura-marca) * 0.75);
+.miolo-largo {
+  width: 100%;
+  max-width: var(--largura-larga);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
 }
 
-.marca img {
-  display: block;
-  height: var(--altura-marca);
-  width: auto;
+.topo {
+  background: var(--superficie);
+  color: var(--tinta);
+  border-bottom: 1px solid var(--borda);
 }
 
-/* Telas de entrar: a faixa leva só a assinatura; o respiro da faixa já é
-   maior que a área de proteção. */
-.faixa-so-marca .marca {
-  margin-bottom: 0;
-}
-
-.faixa .miolo {
+.topo-miolo {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
+  align-items: center;
+  gap: 0 1rem;
+  padding-block: 0.5rem;
 }
 
-.faixa h1 {
-  font-family: var(--fonte-titulo);
-  font-size: clamp(2rem, 9vw, 2.75rem);
-  letter-spacing: -0.02em;
+.topo-rotulo {
+  margin: 0;
+  color: var(--tinta-suave);
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-/* Contorno no escuro (MASTER §8.1): borda navy-300, texto branco. */
-.faixa .botao {
-  color: var(--sobre-faixa);
-  border-color: var(--faixa-contorno);
+/* Navegação, Sair e botão de tema vão para a direita; no celular estreito descem. */
+.topo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0 1.25rem;
+  margin-left: auto;
 }
 
-.faixa .botao:hover {
-  background: rgb(255 255 255 / 0.06);
+.marca-replay {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  min-height: var(--alvo);
+  align-content: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.marca-replay-nome {
+  font-family: var(--fonte-titulo);
+  font-size: 1.5rem;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.marca-replay-strukti {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--tinta-suave);
+  opacity: 0.8;
+}
+
+.marca-replay-strukti img {
+  height: 14px;
+  width: auto;
+}
+
+/* O símbolo certo para o fundo: claro por padrão; no escuro (tema ou sistema) troca. */
+:root {
+  --exibe-simbolo-claro: block;
+  --exibe-simbolo-escuro: none;
+}
+
+.simbolo-claro {
+  display: var(--exibe-simbolo-claro);
+}
+
+.simbolo-escuro {
+  display: var(--exibe-simbolo-escuro);
+}
+
+.botao-tema {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--alvo);
+  height: var(--alvo);
+  padding: 0;
+  border: 0;
+  border-radius: var(--raio-botao);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.botao-tema:hover {
+  background: var(--realce);
 }
 
 /* ---------- Lista de lances ---------- */
@@ -1024,7 +1075,7 @@ video {
 
 /* Impressão: só a folha, em preto sobre branco, mesmo no modo escuro. */
 @media print {
-  .faixa,
+  .topo,
   .nao-imprimir {
     display: none !important;
   }
@@ -1108,21 +1159,21 @@ video {
   padding: 0.5rem 1rem;
   border: 1.5px solid transparent;
   border-radius: var(--raio-botao);
-  color: var(--faixa-suave);
+  color: var(--tinta-suave);
   font-weight: 600;
   text-decoration: none;
 }
 
 .painel-nav a:hover {
-  color: var(--sobre-faixa);
-  border-color: var(--faixa-contorno);
+  color: var(--tinta);
+  border-color: var(--borda-campo);
 }
 
-/* Seção atual: fundo branco com o texto no espaço (18,8:1). */
+/* Seção atual: cores invertidas do tema (tinta sobre fundo). */
 .painel-nav a[aria-current="page"] {
-  background: var(--sobre-faixa);
-  border-color: var(--sobre-faixa);
-  color: var(--faixa);
+  background: var(--tinta);
+  border-color: var(--tinta);
+  color: var(--fundo);
 }
 
 /* Tabela: a rolagem é do invólucro, que também leva a borda arredondada. */
@@ -1466,16 +1517,7 @@ html.mapa-tela-cheia {
 
 /* ---------- Cabeçalho público e telas do jogador ---------- */
 
-/* Marca à esquerda, atalhos da conta à direita; no celular estreito descem. */
-.faixa .cabecalho-publico {
-  align-items: center;
-}
-
-.faixa .cabecalho-publico .marca {
-  flex-basis: auto;
-  margin-bottom: 0;
-}
-
+/* Atalhos da conta no topo; no celular estreito descem. */
 .cabecalho-links {
   display: flex;
   flex-wrap: wrap;

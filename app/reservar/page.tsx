@@ -54,7 +54,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
   if (!arena || !escolha || !quadra || !preco) {
     return (
       <>
-        <CabecalhoPublico sessao={sessao} />
+        <CabecalhoPublico sessao={sessao} voltar={hrefReservar(cru)} />
         <main className="miolo aviso">
           <p>{MSG_INDISPONIVEL}</p>
           {slug ? (
@@ -77,7 +77,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
 
   return (
     <>
-      <CabecalhoPublico sessao={sessao} />
+      <CabecalhoPublico sessao={sessao} voltar={hrefReservar(cru)} />
       <main className="miolo reservar">
         <LinkVoltar href={volta} />
         <h1>Confirmar reserva</h1>

@@ -42,7 +42,7 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
   if (!arena.ativa) {
     return (
       <>
-        <CabecalhoPublico sessao={sessao} />
+        <CabecalhoPublico sessao={sessao} voltar={`/a/${arena.slug}`} />
         <main className="miolo arena-publica">
           <h1>{arena.nome}</h1>
           <p>{MENSAGEM_ARENA_SUSPENSA}</p>
@@ -69,7 +69,7 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
 
   return (
     <>
-      <CabecalhoPublico sessao={sessao} />
+      <CabecalhoPublico sessao={sessao} voltar={`/a/${arena.slug}`} />
       <main className="miolo arena-publica">
         <h1>{arena.nome}</h1>
         {(endereco || comoChegar) && (
