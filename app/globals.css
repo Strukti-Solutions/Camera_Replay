@@ -1634,23 +1634,22 @@ html.mapa-tela-cheia {
   margin-top: 0.5rem;
 }
 
-.quadra-campos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 1rem;
+/* Dia e "Ver horários" lado a lado; o select não passa da coluna. */
+.quadra-dia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
 }
 
-/* O select não passa da coluna (o texto longo da opção cortava "16h · R$ 80,00"). */
-.quadra-campos select {
-  width: 100%;
+.quadra-dia .campo {
+  flex: 1 1 11rem;
   min-width: 0;
 }
 
-/* Celular: Início e Duração um sob o outro. */
-@media (max-width: 30rem) {
-  .quadra-campos {
-    grid-template-columns: 1fr;
-  }
+.quadra-dia select {
+  width: 100%;
+  min-width: 0;
 }
 
 .quadra-escolha .botao {
@@ -1672,8 +1671,90 @@ html.mapa-tela-cheia {
   font-size: 1.25rem;
 }
 
-.quadra-reduzida {
+/* Horários do dia para o jogador: caixinhas por período (madrugada e manhã, tarde, noite). */
+.pj-grupo {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pj-grupo h3 {
+  margin: 0;
+  font-size: 0.875rem;
   font-weight: 600;
+  color: var(--tinta-suave);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pj-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.pj-slot {
+  display: grid;
+  align-content: center;
+  gap: 0.1rem;
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  color: var(--tinta);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.pj-slot span {
+  color: var(--link);
+  font-weight: 600;
+}
+
+a.pj-slot:hover {
+  background: var(--realce);
+}
+
+a.pj-slot:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+/* Escolhido: cor cheia e a palavra "Escolhido" (a cor não é o único sinal). */
+.pj-slot-escolhido,
+a.pj-slot-escolhido:hover {
+  background: var(--primario);
+  border-color: var(--primario);
+  color: var(--sobre-primario);
+}
+
+.pj-slot-escolhido span {
+  color: var(--sobre-primario);
+}
+
+.pj-slot-escolhido em {
+  font-size: 0.8125rem;
+  font-style: normal;
+}
+
+/* Ocupado: tracejado, sem link. */
+.pj-slot-ocupado {
+  border-style: dashed;
+  border-color: var(--borda-campo);
+  background: transparent;
+  color: var(--tinta-suave);
+}
+
+.pj-slot-ocupado span {
+  color: var(--tinta-suave);
+  font-weight: 400;
+}
+
+.pj-dica {
+  margin: 0;
 }
 
 /* ---------- Resumo da reserva (/reservar) ---------- */
