@@ -3,7 +3,7 @@ import { novoBanco } from "./db";
 import { apagarContaComLimite, criarContaComLimite, trocarSenhaComLimite } from "../app/lib/cadastro-jogador";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { conferirSenha } from "../app/lib/senha";
-import { mensagemCriarConta, mensagemMinhaConta, MENSAGEM_MUITAS_TENTATIVAS } from "../app/jogador/mensagens";
+import { mensagemApagarConta, mensagemCriarConta, mensagemMinhaConta, MENSAGEM_MUITAS_TENTATIVAS } from "../app/jogador/mensagens";
 
 test("mensagemCriarConta devolve o texto de cada erro", () => {
   expect(mensagemCriarConta("nome")).toBe("Informe seu nome (até 80 caracteres).");
@@ -17,6 +17,12 @@ test("mensagemMinhaConta devolve o texto de cada erro", () => {
   expect(mensagemMinhaConta("nome")).toBe("Informe seu nome (até 80 caracteres).");
   expect(mensagemMinhaConta("senha")).toBe("A senha precisa ter pelo menos 8 caracteres.");
   expect(mensagemMinhaConta("senha_atual")).toBe("Senha atual incorreta.");
+});
+
+test("mensagemApagarConta devolve o texto de cada recusa", () => {
+  expect(mensagemApagarConta("reservas_futuras")).toBe("Cancele suas reservas futuras antes de apagar a conta.");
+  expect(mensagemApagarConta("senha")).toBe("Senha incorreta.");
+  expect(mensagemApagarConta("limite")).toBe(MENSAGEM_MUITAS_TENTATIVAS);
 });
 
 test("cadastro limita as tentativas por e-mail e não cria conta quando bloqueado", async () => {

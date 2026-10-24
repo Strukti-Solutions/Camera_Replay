@@ -259,7 +259,9 @@ export async function reservasDoJogador(
 export type ItemAgenda = {
   id: string;
   tipo: "reserva" | "bloqueio";
+  quadraId: string;
   quadra: string;
+  esporte: string;
   inicio: Date;
   fim: Date;
   situacao: string;
@@ -277,10 +279,10 @@ export async function agendaDaArena(
   const { de, ate } = intervalo ?? {};
   if (!ehUuid(arenaId) || typeof de !== "string" || typeof ate !== "string" || !DIA.test(de) || !DIA.test(ate)) return [];
   const { rows } = await db.query<{
-    id: string; tipo: "reserva" | "bloqueio"; quadra: string; inicio: Date; fim: Date; situacao: string;
+    id: string; tipo: "reserva" | "bloqueio"; quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date; situacao: string;
     jogador: string | null; total_centavos: number | null; motivo: string | null; cancelada_por: string | null;
   }>(
-    `select r.id, r.tipo, q.nome as quadra, r.inicio, r.fim, r.situacao,
+    `select r.id, r.tipo, r.quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim, r.situacao,
             case when r.tipo = 'reserva' then coalesce(j.nome, 'Conta apagada') end as jogador,
             r.total_centavos, r.motivo, r.cancelada_por
        from reservas r
@@ -294,7 +296,9 @@ export async function agendaDaArena(
   return rows.map((r) => ({
     id: r.id,
     tipo: r.tipo,
+    quadraId: r.quadra_id,
     quadra: r.quadra,
+    esporte: r.esporte ?? "",
     inicio: new Date(r.inicio),
     fim: new Date(r.fim),
     situacao: r.situacao,

@@ -258,7 +258,7 @@ test("agenda mostra nome do jogador ou Conta apagada", async () => {
     ["rb", "Conta apagada"], ["bloqueio", null], ["ra", "Ana"],
   ]);
   expect(ag.find((i) => i.id === ra)).toMatchObject({
-    tipo: "reserva", quadra: "Quadra 1", inicio: h(18), fim: h(20), situacao: "confirmada",
+    tipo: "reserva", quadraId: quadra.id, quadra: "Quadra 1", esporte: expect.any(String), inicio: h(18), fim: h(20), situacao: "confirmada",
     totalCentavos: 20000, motivo: null, canceladaPor: null,
   });
   expect(ag.find((i) => i.tipo === "bloqueio")).toMatchObject({ motivo: "Aula", totalCentavos: null });

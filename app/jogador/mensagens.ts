@@ -24,3 +24,12 @@ export function mensagemMinhaConta(erro: ErroMinhaConta): string {
 }
 
 export const MSG_NAO_CANCELOU = "Não foi possível cancelar. O prazo é até 24 h antes do início.";
+
+// Recusas ao apagar a conta (senha errada, limite de tentativas, reserva futura).
+export function mensagemApagarConta(erro: "senha" | "reservas_futuras" | "limite"): string {
+  switch (erro) {
+    case "reservas_futuras": return "Cancele suas reservas futuras antes de apagar a conta.";
+    case "limite": return MENSAGEM_MUITAS_TENTATIVAS;
+    case "senha": return "Senha incorreta.";
+  }
+}
