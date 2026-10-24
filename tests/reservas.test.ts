@@ -122,7 +122,7 @@ test("reserva ocupa e libera ao cancelar", async () => {
   const antes = await reservasDoJogador(db, ana, AGORA);
   expect(antes.proximas).toEqual([{
     id, arena: { nome: "Arena A", slug: arena.slug }, quadra: "Quadra 1", inicio: h(18), fim: h(20),
-    totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", podeCancelar: true, lances: 0,
+    totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", canceladaPor: null, podeCancelar: true, lances: 0,
   }]);
   expect(antes.historico).toEqual([]);
 
@@ -130,7 +130,7 @@ test("reserva ocupa e libera ao cancelar", async () => {
   expect(await periodosOcupados(db, arena.id, quadra.id, DIA)).toEqual([]);
   const depois = await reservasDoJogador(db, ana, AGORA);
   expect(depois.proximas).toEqual([]);
-  expect(depois.historico).toMatchObject([{ id, situacao: "cancelada", podeCancelar: false }]);
+  expect(depois.historico).toMatchObject([{ id, situacao: "cancelada", canceladaPor: "jogador", podeCancelar: false }]);
   const c = await db.query("select cancelada_por, cancelada_em is not null as quando from reservas where id = $1", [id]);
   expect(c.rows[0]).toEqual({ cancelada_por: "jogador", quando: true });
   await reservar(db, ana, quadra.id, 18, 2);

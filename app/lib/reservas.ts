@@ -211,6 +211,7 @@ export type ReservaJogador = {
   totalCentavos: number;
   pagamento: string;
   situacao: string;
+  canceladaPor: string | null;
   podeCancelar: boolean;
   lances: number;
 };
@@ -223,10 +224,10 @@ export async function reservasDoJogador(
   if (!ehUuid(jogadorId)) return { proximas: [], historico: [] };
   const { rows } = await db.query<{
     id: string; arena_nome: string; arena_slug: string; quadra: string; inicio: Date; fim: Date;
-    total_centavos: number; pagamento: string; situacao: string; lances: number;
+    total_centavos: number; pagamento: string; situacao: string; cancelada_por: string | null; lances: number;
   }>(
     `select r.id, a.nome as arena_nome, a.slug as arena_slug, q.nome as quadra, r.inicio, r.fim,
-            r.total_centavos, r.pagamento, r.situacao,
+            r.total_centavos, r.pagamento, r.situacao, r.cancelada_por,
             case when r.situacao = 'confirmada' then (select count(*)::int ${CLIPES_DA_JANELA}) else 0 end as lances
        from reservas r
        join arenas a on a.id = r.arena_id
@@ -246,6 +247,7 @@ export async function reservasDoJogador(
       totalCentavos: Number(r.total_centavos),
       pagamento: r.pagamento,
       situacao: r.situacao,
+      canceladaPor: r.cancelada_por,
       podeCancelar: r.situacao === "confirmada" && podeCancelarJogador(inicio, agora),
       lances: Number(r.lances),
     };
