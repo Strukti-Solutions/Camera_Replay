@@ -29,7 +29,7 @@ export async function listarFaixas(db: Db, arenaId: string, quadraId: string): P
 }
 
 // Uma faixa por dia marcado, tudo ou nada. Concorrência: a transação trava a
-// linha da quadra (for update) antes de ler as faixas existentes, então dois
+// linha da quadra (for no key update) antes de ler as faixas existentes, então dois
 // pedidos simultâneos para a mesma quadra passam um de cada vez e o segundo
 // enxerga o que o primeiro gravou (em read committed cada comando tira um
 // snapshot novo; por isso a trava e a leitura ficam em comandos separados).
@@ -50,7 +50,7 @@ export async function adicionarFaixas(
   }
 
   return emTransacao(db, async (tx) => {
-    const q = await tx.query("select id from quadras where id = $1 and arena_id = $2 for update", [quadraId, arenaId]);
+    const q = await tx.query("select id from quadras where id = $1 and arena_id = $2 for no key update", [quadraId, arenaId]);
     if (q.rows.length === 0) return { ok: false as const, erro: "Quadra não encontrada." };
 
     const existentes = (

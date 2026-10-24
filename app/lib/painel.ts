@@ -71,7 +71,7 @@ function paraCamera(l: LinhaCamera): CameraPainel | null {
 }
 
 export async function listarQuadras(
-  db: Db,
+  db: Pick<Db, "query">,
   arenaId: string,
 ): Promise<{ id: string; nome: string; slug: string; camera: CameraPainel | null; botoesAtivos: number }[]> {
   if (!ehUuid(arenaId)) return [];
@@ -95,7 +95,7 @@ export async function listarQuadras(
 }
 
 export async function detalheQuadra(
-  db: Db,
+  db: Pick<Db, "query">,
   arenaId: string,
   quadraId: string,
 ): Promise<{
@@ -139,7 +139,7 @@ export async function detalheQuadra(
 }
 
 export async function criarQuadra(
-  db: Db,
+  db: Pick<Db, "query">,
   arenaId: string,
   nome: string,
 ): Promise<{ id: string; slug: string }> {
@@ -166,7 +166,7 @@ const esquemaCredenciais = z.object({
 const esquemaCamera = esquemaCredenciais.extend({ nome: texto, sn: texto });
 
 export async function cadastrarCamera(
-  db: Db,
+  db: Pick<Db, "query">,
   chave: Buffer,
   arenaId: string,
   quadraId: string,
@@ -197,7 +197,7 @@ export async function cadastrarCamera(
 }
 
 export async function atualizarCredenciais(
-  db: Db,
+  db: Pick<Db, "query">,
   chave: Buffer,
   arenaId: string,
   cameraId: string,
@@ -217,7 +217,7 @@ export async function atualizarCredenciais(
 // Liga o botão à câmera mais recente da quadra. O token só existe no retorno:
 // no banco fica apenas o hash.
 export async function criarBotao(
-  db: Db,
+  db: Pick<Db, "query">,
   arenaId: string,
   quadraId: string,
 ): Promise<{ id: string; token: string } | null> {
@@ -254,7 +254,7 @@ export async function revogarBotao(db: Db, arenaId: string, botaoId: string): Pr
 // Os 50 clipes mais recentes não expirados, de qualquer status. A URL assinada
 // só existe para pronto/parcial; a chave do R2 nunca sai daqui.
 export async function clipesDoPainel(
-  db: Db,
+  db: Pick<Db, "query">,
   r2: LeitorR2,
   arenaId: string,
   quadraId: string,
@@ -297,7 +297,7 @@ export async function clipesDoPainel(
 // Apaga o objeto no R2 e depois a linha. Recusa clipe em andamento (o worker
 // ainda escreve nele). Erro do R2 sobe e a linha fica, para tentar de novo.
 export async function apagarClipe(
-  db: Db,
+  db: Pick<Db, "query">,
   r2: ApagadorR2,
   arenaId: string,
   clipeId: string,
@@ -342,7 +342,7 @@ export async function renomearQuadra(db: Db, arenaId: string, quadraId: string, 
 // Esporte da quadra (texto livre de 0 a 40 após trim; vazio limpa). false se
 // inválido ou se a quadra não é dessa arena.
 export async function definirEsporteQuadra(
-  db: Db,
+  db: Pick<Db, "query">,
   arenaId: string,
   quadraId: string,
   esporte: string,

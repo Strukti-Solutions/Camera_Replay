@@ -51,7 +51,7 @@ export function mensagemErroAdmin(e: unknown, contexto: string): string {
 // um número simples; a faixa e as casas são conferidas em definirTaxaArena.
 export function lerTaxa(bruto: string): number | null {
   const t = bruto.trim().replace(",", ".");
-  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  if (!/^\d{1,2}(\.\d{1,2})?$/.test(t)) return null;
   return Number(t);
 }
 

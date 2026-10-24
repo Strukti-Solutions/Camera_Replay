@@ -82,3 +82,17 @@ test("bairro vazio não deixa vírgulas vazias na consulta", async () => {
   expect(q).not.toContain(", ,");
   expect(q).toBe("Rua A, 10, Fortaleza - CE, 60000000, Brasil");
 });
+
+test("save concorrente de outro endereço não recebe as coordenadas do endereço antigo", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "A");
+  const enderecoB = { ...end, rua: "Rua B", numero: "20" };
+  const geoLento: Geocodificar = async () => {
+    // Antes de devolver as coordenadas de A, outro save grava B direto no banco.
+    await atualizarArenaDono(db, a.id, { nome: "A", endereco: enderecoB }, async () => null);
+    return { latitude: -3.7, longitude: -38.5 };
+  };
+  const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: end }, geoLento);
+  expect(r).toEqual({ ok: true, localizada: false });
+  expect(await coords(db, a.id)).toMatchObject({ latitude: null, longitude: null, endereco_rua: "Rua B" });
+});

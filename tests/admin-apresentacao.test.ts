@@ -58,7 +58,7 @@ test("lerTaxa aceita vírgula ou ponto e recusa lixo", () => {
   expect(lerTaxa("7,55")).toBe(7.55);
   expect(lerTaxa("7.5")).toBe(7.5);
   expect(lerTaxa("0")).toBe(0);
-  for (const ruim of ["", "  ", "abc", "7,5,1", "1e1", "-1", "7,", ",5", "0x10", "Infinity"]) {
+  for (const ruim of ["", "  ", "abc", "7,5,1", "1e1", "-1", "7,", ",5", "0x10", "Infinity", "7,555", "29.9999999999999999", "7.5000000000000001"]) {
     expect(lerTaxa(ruim)).toBeNull();
   }
 });

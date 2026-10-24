@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { emTransacao } from "@/app/lib/db";
 import { apagarClipe, definirEsporteQuadra, renomearQuadra } from "@/app/lib/painel";
 import { centavosDeTexto } from "@/app/lib/precos";
 import { adicionarFaixas, removerFaixa } from "@/app/lib/precos-quadra";

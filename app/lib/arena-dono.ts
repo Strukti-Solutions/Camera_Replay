@@ -95,6 +95,14 @@ export async function atualizarArenaDono(
     coord = null;
   }
   if (!coord) return { ok: true, localizada: false };
-  await db.query("update arenas set latitude = $2, longitude = $3 where id = $1", [arenaId, coord.latitude, coord.longitude]);
-  return { ok: true, localizada: true };
+  // Só grava se o endereço ainda é o que foi geocodificado: um save concorrente
+  // de outro endereço não pode receber coordenadas velhas.
+  const r = await db.query(
+    `update arenas set latitude = $2, longitude = $3
+      where id = $1 and endereco_rua = $4 and endereco_numero = $5 and endereco_bairro = $6
+        and endereco_cidade = $7 and endereco_uf = $8 and endereco_cep = $9
+      returning id`,
+    [arenaId, coord.latitude, coord.longitude, e.rua, e.numero, e.bairro, e.cidade, e.uf, e.cep],
+  );
+  return { ok: true, localizada: r.rows.length === 1 };
 }

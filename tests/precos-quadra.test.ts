@@ -117,7 +117,7 @@ test("no pg.Pool, trava a quadra e grava na mesma transação; erro faz rollback
       return {
         async query(sql: string) {
           log.push(sql.trim().split(/\s+/).slice(0, 2).join(" "));
-          if (/for update/.test(sql)) return { rows: [{ id: quadraId }] };
+          if (/for no key update/.test(sql)) return { rows: [{ id: quadraId }] };
           if (/^insert/.test(sql.trim())) throw new Error("boom");
           return { rows: [] };
         },
