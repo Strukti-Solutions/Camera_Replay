@@ -113,3 +113,13 @@ test("arenaPublica: suspensa sem quadras; slug malformado sem consulta", async (
   expect(await arenaPublica(espiao, "curto")).toBeNull();
   expect(await arenaPublica(db, "a".repeat(30))).toBeNull();
 });
+
+test("maiúsculas acentuadas na coluna e termo só de marcas combinantes", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena Maiúscula");
+  await endereco(db, a.id, { bairro: "ÇARAPUÁ", cidade: "SÃO PAULO", uf: "SP" });
+  expect((await listarArenasPublicas(db, "sao paulo")).map((x) => x.nome)).toEqual(["Arena Maiúscula"]);
+  expect((await listarArenasPublicas(db, "carapua")).map((x) => x.nome)).toEqual(["Arena Maiúscula"]);
+  expect(await sugestoesArenas(db, "\u0301\u0301")).toEqual([]);
+  expect(await listarArenasPublicas(db, "\u0301\u0301")).toHaveLength(1);
+});

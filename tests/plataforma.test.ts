@@ -17,7 +17,7 @@ test("migração: status só aceita ativa/suspensa; super admin com e-mail minú
   await expect(db.query("insert into super_admins (email, senha_hash) values ('a@x.com', 'h')")).rejects.toThrow();
 });
 
-test("listarArenasPublicas: só ativas, por nome, só nome e slug", async () => {
+test("listarArenasPublicas: só ativas, por nome, nome, slug e cidade", async () => {
   const db = await novoBanco();
   const z = await criarArena(db, "Zeta");
   const a = await criarArena(db, "Alfa");

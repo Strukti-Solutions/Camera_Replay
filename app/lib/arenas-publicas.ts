@@ -10,8 +10,9 @@ import { SLUG_VALIDO } from "./clipes";
 export const LIMITE_PUBLICO = 50;
 export const LIMITE_SUGESTOES = 8;
 
-const ACENTOS = "áàâãäéèêëíìîïóòôõöúùûüçñ";
-const SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucn";
+// Minúsculas e maiúsculas na tabela: não depende da localidade do banco para o lower() das maiúsculas acentuadas.
+const ACENTOS = "áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ";
+const SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucn".repeat(2);
 
 // Termo sem NUL (o Postgres recusa), aparado, até 80 caracteres, minúsculo e sem
 // acento. Os dois lados da comparação passam pela mesma normalização.
@@ -59,8 +60,11 @@ export function listarArenasPublicas(db: Db, busca?: string): Promise<ArenaLista
 export async function sugestoesArenas(db: Db, termo: string): Promise<ArenaLista[]> {
   if (typeof termo !== "string") return [];
   const limpo = termo.replace(/\u0000/g, "").trim();
-  if (limpo.length < 2 || limpo.length > 80) return [];
-  return buscar(db, normalizar(limpo), LIMITE_SUGESTOES);
+  if (limpo.length > 80) return [];
+  const norm = normalizar(limpo);
+  // O tamanho mínimo vale sobre o termo normalizado: só marcas combinantes não lista tudo.
+  if (norm.length < 2) return [];
+  return buscar(db, norm, LIMITE_SUGESTOES);
 }
 
 // Pontos do mapa: arenas ativas com latitude e longitude.
