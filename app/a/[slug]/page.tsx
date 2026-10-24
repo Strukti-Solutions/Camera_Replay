@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
+import { LinkVoltar } from "@/app/componentes/voltar";
 import { MENSAGEM_ARENA_SUSPENSA } from "@/app/entrar/mensagens";
 import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
 import { arenaPublica, ocupadasPublicas } from "@/app/lib/arenas-publicas";
@@ -44,6 +45,7 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
       <>
         <CabecalhoPublico sessao={sessao} voltar={`/a/${arena.slug}`} />
         <main className="miolo arena-publica">
+          <LinkVoltar href="/" />
           <h1>{arena.nome}</h1>
           <p>{MENSAGEM_ARENA_SUSPENSA}</p>
         </main>
@@ -71,6 +73,7 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
     <>
       <CabecalhoPublico sessao={sessao} voltar={`/a/${arena.slug}`} />
       <main className="miolo arena-publica">
+        <LinkVoltar href="/" />
         <h1>{arena.nome}</h1>
         {(endereco || comoChegar) && (
           <p className="arena-endereco">

@@ -34,5 +34,5 @@ export async function criarContaAction(_estado: EstadoCriarConta, form: FormData
     httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/",
     maxAge: DURACAO_SESSAO_JOGADOR_S,
   });
-  redirect(caminhoSeguro(form.get("voltar")) ?? "/minhas-reservas");
+  redirect(caminhoSeguro(form.get("voltar")) ?? "/");
 }

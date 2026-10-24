@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
+import { LinkVoltar } from "@/app/componentes/voltar";
 import { exigirJogador } from "@/app/jogador/sessao-jogador";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { lancesDaReservaDoJogador, reservasDoJogador } from "@/app/lib/reservas";
@@ -32,11 +32,9 @@ export default async function LancesDaReserva({ params }: Props) {
     <>
       <CabecalhoPublico sessao={sessao} />
       <main className="miolo">
+        <LinkVoltar href="/minhas-reservas" />
         <h1>{reserva.arena.nome} · {reserva.quadra}</h1>
         <p>{textoPeriodo(reserva.inicio, reserva.fim)}</p>
-        <p className="entrar-links">
-          <Link href="/minhas-reservas">Minhas reservas</Link>
-        </p>
       </main>
       <Galeria clipes={clipes} videosDisponiveis={videosDisponiveis} vazio="Nenhum lance gravado nesta reserva." />
     </>

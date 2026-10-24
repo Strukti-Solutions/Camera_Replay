@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LinkVoltar } from "@/app/componentes/voltar";
 import { formatarHorario } from "@/app/lib/formato";
 import { detalheQuadra, listarQuadras } from "@/app/lib/painel";
 import { detalheArenaAdmin } from "@/app/lib/plataforma";
@@ -47,9 +47,7 @@ export default async function PaginaArenaAdmin({ params }: Props) {
     <>
       <CabecalhoAdmin />
       <main className="miolo painel">
-        <p>
-          <Link href="/admin">← Arenas</Link>
-        </p>
+        <LinkVoltar href="/admin" />
         <h1>{arena.nome}</h1>
         <dl className="dados">
           <div>
