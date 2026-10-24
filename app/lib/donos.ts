@@ -1,8 +1,6 @@
 import type { Db } from "./db";
-import { hashSenha } from "./senha";
+import { hashSenha, SENHA_MIN_DONO } from "./senha";
 import { novoSlug } from "./segredos";
-
-const SENHA_MIN = 10;
 
 // Cria a arena (já com o slug público do QR) e o usuário dono num único comando SQL (CTE): ou entram os dois
 // ou nenhum, sem depender de transação explícita no tipo Db.
@@ -10,7 +8,7 @@ export async function criarArenaComDono(
   db: Db,
   dados: { arena: string; email: string; senha: string },
 ): Promise<{ arenaId: string; usuarioId: string }> {
-  if (dados.senha.length < SENHA_MIN) throw new Error(`senha curta: mínimo ${SENHA_MIN} caracteres`);
+  if (dados.senha.length < SENHA_MIN_DONO) throw new Error(`senha curta: mínimo ${SENHA_MIN_DONO} caracteres`);
   const email = dados.email.trim().toLowerCase();
   const hash = await hashSenha(dados.senha);
   try {

@@ -1,6 +1,6 @@
 import type { Db } from "./db";
 import { criarArenaComDono } from "./donos";
-import { hashSenha } from "./senha";
+import { hashSenha, SENHA_MIN_ADMIN } from "./senha";
 
 // Funções de administração da plataforma: cruzam arenas. Só app/admin/** (e os CLIs
 // de db/) importam este módulo, e as páginas e actions de /admin chamam depois de
@@ -8,7 +8,6 @@ import { hashSenha } from "./senha";
 // A lista pública de arenas (só nome e slug) mora em arenas-publicas.ts.
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SENHA_ADMIN_MIN = 12;
 
 export type StatusArena = "ativa" | "suspensa";
 
@@ -59,8 +58,8 @@ export async function definirStatusArena(db: Db, arenaId: string, status: Status
 }
 
 export async function criarSuperAdmin(db: Db, dados: { email: string; senha: string }): Promise<{ id: string }> {
-  if (typeof dados.senha !== "string" || dados.senha.length < SENHA_ADMIN_MIN) {
-    throw new Error(`senha curta: mínimo ${SENHA_ADMIN_MIN} caracteres`);
+  if (typeof dados.senha !== "string" || dados.senha.length < SENHA_MIN_ADMIN) {
+    throw new Error(`senha curta: mínimo ${SENHA_MIN_ADMIN} caracteres`);
   }
   const email = String(dados.email ?? "").trim().toLowerCase();
   if (!email.includes("@") || email.length > 200) throw new Error("e-mail inválido");

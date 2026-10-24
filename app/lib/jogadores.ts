@@ -102,13 +102,18 @@ export async function trocarSenhaJogador(
   return { ok: true };
 }
 
-// Apaga a conta: sessões saem por cascata e o trigger libera o e-mail.
+// Apaga a conta: sessões saem por cascata, o trigger libera o e-mail e os links
+// de "Esqueci a senha" saem junto (tokens_senha não tem chave estrangeira).
 // A regra de reservas futuras entra na fase 4.
 export async function apagarContaJogador(
   db: Db, jogadorId: string, senha: string,
 ): Promise<{ ok: true } | { ok: false; erro: "senha" }> {
   const hash = await hashDoJogador(db, jogadorId);
   if (!hash || !(await conferirSenha(String(senha ?? ""), hash))) return { ok: false, erro: "senha" };
-  await db.query("delete from jogadores where id = $1", [jogadorId]);
+  await db.query(
+    `with j as (delete from jogadores where id = $1 returning id)
+     delete from tokens_senha where tipo = 'jogador' and conta_id in (select id from j)`,
+    [jogadorId],
+  );
   return { ok: true };
 }

@@ -36,3 +36,9 @@ export async function conferirSenha(senha: string, hash: string): Promise<boolea
     return false;
   }
 }
+
+// Senha mínima de dono e de super admin. A do jogador (8) fica em jogadores.ts.
+// Moram aqui para o "Esqueci a senha" (recuperar-senha.ts) aplicar o mínimo de
+// cada tipo sem importar plataforma.ts, que só /admin pode importar.
+export const SENHA_MIN_DONO = 10;
+export const SENHA_MIN_ADMIN = 12;
