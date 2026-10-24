@@ -46,3 +46,16 @@ export function mensagemErroAdmin(e: unknown, contexto: string): string {
   }
   return ERRO_GENERICO;
 }
+
+// Taxa digitada em pt-BR: "10", "7,5", "7,55" (ponto também vale). null se não for
+// um número simples; a faixa e as casas são conferidas em definirTaxaArena.
+export function lerTaxa(bruto: string): number | null {
+  const t = bruto.trim().replace(",", ".");
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  return Number(t);
+}
+
+// 5 -> "5%", 7.5 -> "7,5%".
+export function textoTaxa(taxa: number): string {
+  return `${String(taxa).replace(".", ",")}%`;
+}

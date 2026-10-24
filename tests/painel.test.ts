@@ -6,7 +6,7 @@ import { registrarAperto } from "../app/lib/aperto";
 import { hashToken } from "../app/lib/segredos";
 import {
   ErroPainel, apagarClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
-  criarBotao, criarQuadra, detalheQuadra, listarQuadras, revogarBotao,
+  criarBotao, criarQuadra, detalheQuadra, listarQuadras, renomearQuadra, revogarBotao,
 } from "../app/lib/painel";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao as fxBotao, criarCamera, criarQuadra as fxQuadra } from "./fixtures";
@@ -264,3 +264,20 @@ test("apagarClipe: falhou sem chave_r2 apaga a linha sem chamar o R2", async () 
   expect((await db.query("select 1 from clipes where id = $1", [id])).rows).toHaveLength(0);
 });
 
+
+test("renomearQuadra valida 1–60 e não toca quadra de outra arena", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const b = await criarArena(db, "Outra");
+  const q = await criarQuadra(db, a.id, "Antiga");
+  const nome = async () => (await db.query<{ nome: string }>("select nome from quadras where id = $1", [q.id])).rows[0].nome;
+  expect(await renomearQuadra(db, a.id, q.id, "  Nova  ")).toBe(true);
+  expect(await nome()).toBe("Nova");
+  await expect(renomearQuadra(db, a.id, q.id, "   ")).rejects.toThrow(ErroPainel);
+  await expect(renomearQuadra(db, a.id, q.id, "x".repeat(61))).rejects.toThrow(ErroPainel);
+  expect(await renomearQuadra(db, a.id, q.id, "x".repeat(60))).toBe(true);
+  expect(await renomearQuadra(db, b.id, q.id, "Invasor")).toBe(false);
+  expect(await nome()).toBe("x".repeat(60));
+  expect(await renomearQuadra(db, a.id, "malformado", "N")).toBe(false);
+  expect(await renomearQuadra(db, "malformado", q.id, "N")).toBe(false);
+});

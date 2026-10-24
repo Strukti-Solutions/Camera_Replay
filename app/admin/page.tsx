@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { listarArenasAdmin } from "@/app/lib/plataforma";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { textoData } from "@/app/painel/apresentacao";
 import { reativarArenaAction, suspenderArenaAction } from "./actions";
-import { textoStatusArena } from "./apresentacao";
+import { textoStatusArena, textoTaxa } from "./apresentacao";
 import { CabecalhoAdmin } from "./cabecalho";
 import { ConfirmarStatus, FormularioNovaArena, FormularioNovoSuperAdmin } from "./formularios";
 import { exigirSuperAdmin } from "./sessao-admin-atual";
@@ -40,6 +41,9 @@ export default async function PaginaAdmin() {
                   <th scope="col" className="num">
                     Quadras
                   </th>
+                  <th scope="col" className="num">
+                    Taxa
+                  </th>
                   <th scope="col">E-mail do dono</th>
                   <th scope="col">Criada em</th>
                   <th scope="col">
@@ -57,9 +61,13 @@ export default async function PaginaAdmin() {
                       </span>
                     </td>
                     <td className="num">{a.quadras}</td>
+                    <td className="num">{textoTaxa(a.taxaPercentual)}</td>
                     <td className="suave">{a.donoEmail ?? "Sem dono"}</td>
                     <td className="suave num-tab">{textoData(a.criadoEm)}</td>
                     <td>
+                      <Link className="botao" href={`/admin/arenas/${a.id}`}>
+                        Configurar
+                      </Link>
                       {/* key com o status: depois de suspender ou reativar, a confirmação
                           remonta fechada; senão o <details> aberto deixaria desfazer com um clique. */}
                       {a.status === "ativa" ? (

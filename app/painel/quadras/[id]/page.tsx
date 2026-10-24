@@ -6,11 +6,11 @@ import { formatarDuracao, formatarHorario, textoStatus } from "@/app/lib/formato
 import { clipesDoPainel, detalheQuadra } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
-import { textoCamera, textoData, textoVistoHa } from "@/app/painel/apresentacao";
+import { textoCamera, textoVistoHa } from "@/app/painel/apresentacao";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import { VideoClipe } from "@/app/a/[slug]/video-clipe";
-import { apagarClipeAction, revogarBotaoAction } from "./actions";
-import { Confirmar, FormularioCamera, FormularioCredenciais, NovoBotao } from "./formularios";
+import { apagarClipeAction } from "./actions";
+import { Confirmar } from "./formularios";
 
 // URLs assinadas valem 15 min e o status da câmera muda a cada minuto.
 export const dynamic = "force-dynamic";
@@ -66,55 +66,10 @@ export default async function PaginaQuadra({ params }: Props) {
                 </dd>
               </div>
             </dl>
-            <h3>Atualizar credenciais</h3>
-            <FormularioCredenciais cameraId={camera.id} />
           </>
         ) : (
-          <>
-            <p className="suave">Sem câmera.</p>
-            <FormularioCamera quadraId={quadra.id} />
-          </>
+          <p className="suave">Sem câmera.</p>
         )}
-      </section>
-
-      <section className="secao" aria-labelledby="titulo-botoes">
-        <h2 id="titulo-botoes">Botões</h2>
-        {quadra.botoes.length === 0 ? (
-          <p className="suave">Nenhum botão.</p>
-        ) : (
-          <ul className="cartoes">
-            {quadra.botoes.map((b) => (
-              <li key={b.id} className="cartao">
-                <dl className="dados">
-                  <div>
-                    <dt>Criado em</dt>
-                    <dd>{formatarHorario(b.criadoEm, agora)}</dd>
-                  </div>
-                  <div>
-                    <dt>Visto em</dt>
-                    <dd>{b.vistoEm ? formatarHorario(b.vistoEm, agora) : "nunca"}</dd>
-                  </div>
-                </dl>
-                {b.revogadoEm ? (
-                  <p>
-                    <span className="selo-revogado">Revogado</span>{" "}
-                    <span className="suave">{formatarHorario(b.revogadoEm, agora)}</span>
-                  </p>
-                ) : (
-                  <Confirmar
-                    acao={revogarBotaoAction}
-                    campo="botaoId"
-                    valor={b.id}
-                    rotulo="Revogar"
-                    pergunta="O botão para de funcionar na hora. Não dá para desfazer."
-                    confirmar="Confirmar revogação"
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {camera ? <NovoBotao quadraId={quadra.id} /> : <p className="suave">Cadastre a câmera antes de criar um botão.</p>}
       </section>
 
       <section className="secao" aria-labelledby="titulo-clipes">

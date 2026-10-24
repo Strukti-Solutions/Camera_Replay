@@ -3,7 +3,7 @@ import { novoBanco } from "./db";
 import { criarArena, criarQuadra } from "./fixtures";
 import { hashSenha } from "../app/lib/senha";
 import {
-  criarArenaAdmin, criarSuperAdmin, definirStatusArena, listarArenasAdmin,
+  criarArenaAdmin, criarSuperAdmin, definirStatusArena, definirTaxaArena, detalheArenaAdmin, listarArenasAdmin,
 } from "../app/lib/plataforma";
 import { listarArenasPublicas } from "../app/lib/arenas-publicas";
 import { entrarUnico } from "../app/lib/entrar-unico";
@@ -118,4 +118,30 @@ test("listarArenasPublicas: busca com caractere NUL não quebra a consulta (o NU
   await criarArena(db, "Arena Beira Mar");
   expect((await listarArenasPublicas(db, "Bei\u0000ra")).map((x) => x.nome)).toEqual(["Arena Beira Mar"]);
   expect(await listarArenasPublicas(db, "\u0000")).toHaveLength(1);
+});
+
+test("detalheArenaAdmin devolve taxa e e-mail do dono; malformado não consulta", async () => {
+  const db = await novoBanco();
+  const { arenaId } = await criarArenaAdmin(db, { arena: "Arena X", email: "dono@x.com", senha: "umasenhalonga1" });
+  const d = await detalheArenaAdmin(db, arenaId);
+  expect(d).toMatchObject({ id: arenaId, nome: "Arena X", status: "ativa", taxaPercentual: 5, donoEmail: "dono@x.com" });
+  expect(d?.slug).toBeTruthy();
+  expect(await detalheArenaAdmin(db, "00000000-0000-4000-8000-000000000000")).toBeNull();
+  const espiao = { query: async () => { throw new Error("não devia consultar"); } };
+  expect(await detalheArenaAdmin(espiao as never, "malformado")).toBeNull();
+});
+
+test("definirTaxaArena aceita 0, 7,5 e 30 e recusa -1, 30,01 e 7,555", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  for (const v of [0, 7.5, 30]) {
+    expect(await definirTaxaArena(db, a.id, v)).toBe(true);
+    expect((await detalheArenaAdmin(db, a.id))?.taxaPercentual).toBe(v);
+  }
+  for (const v of [-1, 30.01, 7.555, Number.NaN]) {
+    expect(await definirTaxaArena(db, a.id, v)).toBe(false);
+  }
+  expect((await detalheArenaAdmin(db, a.id))?.taxaPercentual).toBe(30);
+  expect(await definirTaxaArena(db, "00000000-0000-4000-8000-000000000000", 5)).toBe(false);
+  expect(await definirTaxaArena(db, "x", 5)).toBe(false);
 });

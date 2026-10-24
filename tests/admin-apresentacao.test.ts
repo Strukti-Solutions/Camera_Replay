@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { ERRO_SENHA_LONGA, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoStatusArena } from "../app/admin/apresentacao";
+import { ERRO_SENHA_LONGA, lerTaxa, textoTaxa, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoStatusArena } from "../app/admin/apresentacao";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -50,4 +50,22 @@ test("valor lançado que não é Error vira genérico sem eco", () => {
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   expect(mensagemErroAdmin("senha-secreta", "criar super admin")).toBe("Algo deu errado. Tente de novo.");
   expect(log.mock.calls[0].map(String).join(" ")).not.toContain("senha-secreta");
+});
+
+test("lerTaxa aceita vírgula ou ponto e recusa lixo", () => {
+  expect(lerTaxa("10")).toBe(10);
+  expect(lerTaxa(" 7,5 ")).toBe(7.5);
+  expect(lerTaxa("7,55")).toBe(7.55);
+  expect(lerTaxa("7.5")).toBe(7.5);
+  expect(lerTaxa("0")).toBe(0);
+  for (const ruim of ["", "  ", "abc", "7,5,1", "1e1", "-1", "7,", ",5", "0x10", "Infinity"]) {
+    expect(lerTaxa(ruim)).toBeNull();
+  }
+});
+
+test("textoTaxa mostra vírgula e corta zeros", () => {
+  expect(textoTaxa(5)).toBe("5%");
+  expect(textoTaxa(7.5)).toBe("7,5%");
+  expect(textoTaxa(7.55)).toBe("7,55%");
+  expect(textoTaxa(0)).toBe("0%");
 });

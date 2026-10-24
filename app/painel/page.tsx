@@ -7,7 +7,6 @@ import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { textoCamera, urlDaArena } from "./apresentacao";
 import { ImprimirQr } from "./imprimir-qr";
-import { FormularioNovaQuadra } from "./nova-quadra";
 import { exigirSessao } from "./sessao-atual";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +31,7 @@ export default async function PaginaPainel() {
       <h1 className="nao-imprimir">Quadras</h1>
 
       {quadras.length === 0 ? (
-        <p className="painel-vazio nao-imprimir">Nenhuma quadra cadastrada.</p>
+        <p className="painel-vazio nao-imprimir">Nenhuma quadra cadastrada. A Strukti cadastra as quadras da sua arena.</p>
       ) : (
         <ul className="cartoes nao-imprimir">
           {quadras.map((q) => (
@@ -59,11 +58,7 @@ export default async function PaginaPainel() {
         </ul>
       )}
 
-      <section className="secao nao-imprimir">
-        <FormularioNovaQuadra />
-      </section>
-
-      {/* O QR da arena fica no fim da tela, depois da lista e do formulário. */}
+      {/* O QR da arena fica no fim da tela, depois da lista. */}
       <QrDaArena arena={sessao.arenaNome} slug={slug} />
     </main>
   );

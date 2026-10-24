@@ -322,3 +322,17 @@ export async function apagarClipe(
   );
   return d.rows.length === 1;
 }
+
+// Troca o nome de uma quadra da arena dada (mesma regra de criarQuadra: 1 a 60).
+// false se a quadra não é dessa arena.
+export async function renomearQuadra(db: Db, arenaId: string, quadraId: string, nome: string): Promise<boolean> {
+  const limpo = typeof nome === "string" ? nome.trim() : "";
+  if (limpo.length < 1 || limpo.length > 60) throw new ErroPainel("nome inválido");
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return false;
+  const r = await db.query("update quadras set nome = $3 where id = $1 and arena_id = $2 returning id", [
+    quadraId,
+    arenaId,
+    limpo,
+  ]);
+  return r.rows.length === 1;
+}
