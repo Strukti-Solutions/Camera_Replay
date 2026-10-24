@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { cookieDoTema, lerTema, proximoTema } from "../app/componentes/tema";
+import { cookieDoTema, lerTema, proximoTema, raioAteOsCantos } from "../app/componentes/tema";
 
 test("lerTema só aceita claro e escuro", () => {
   expect(lerTema("claro")).toBe("claro");
@@ -41,4 +41,19 @@ test("o media escuro não vale quando o tema escolhido é claro", () => {
 test("color-scheme acompanha a escolha", () => {
   expect(css).toMatch(/:root\[data-tema="claro"\][^{]*\{[^}]*color-scheme: light;/);
   expect(css).toMatch(/:root\[data-tema="escuro"\][^{]*\{[^}]*color-scheme: dark;/);
+});
+
+test("raioAteOsCantos alcança o canto mais distante do ponto", () => {
+  expect(raioAteOsCantos(0, 0, 300, 400)).toBe(500);
+  expect(raioAteOsCantos(300, 400, 300, 400)).toBe(500);
+  expect(raioAteOsCantos(150, 200, 300, 400)).toBe(250);
+});
+
+test("atributo hidden sempre esconde, mesmo em elementos com display próprio", () => {
+  expect(css).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/);
+});
+
+test("a troca de tema animada respeita quem pede menos movimento", () => {
+  expect(css).toContain("::view-transition-new(root)");
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[^@]*view-transition/);
 });

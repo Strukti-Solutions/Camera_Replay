@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cookieDoTema, lerTema, proximoTema, type Tema } from "./tema";
+import { flushSync } from "react-dom";
+import { cookieDoTema, lerTema, proximoTema, raioAteOsCantos, type Tema } from "./tema";
 
 function temaEfetivo(): Tema {
   const marcado = lerTema(document.documentElement.dataset.tema);
@@ -46,11 +47,33 @@ export function BotaoTema({ inicial = null }: { inicial?: Tema | null }) {
     setTema(temaEfetivo());
   }, []);
 
-  function alternar() {
+  function alternar(e: React.MouseEvent<HTMLButtonElement>) {
     const novo = proximoTema(tema ?? temaEfetivo());
-    document.documentElement.dataset.tema = novo;
-    document.cookie = cookieDoTema(novo);
-    setTema(novo);
+    const aplicar = () => {
+      document.documentElement.dataset.tema = novo;
+      document.cookie = cookieDoTema(novo);
+      setTema(novo);
+    };
+    // Sem View Transitions ou com "menos movimento" no aparelho: troca na hora.
+    const semAnimacao = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!document.startViewTransition || semAnimacao) {
+      aplicar();
+      return;
+    }
+    // O círculo nasce no centro do botão (no teclado, clientX/Y vêm zerados).
+    const caixa = e.currentTarget.getBoundingClientRect();
+    const x = caixa.left + caixa.width / 2;
+    const y = caixa.top + caixa.height / 2;
+    const raio = raioAteOsCantos(x, y, window.innerWidth, window.innerHeight);
+    const transicao = document.startViewTransition(() => flushSync(aplicar));
+    transicao.ready
+      .then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${raio}px at ${x}px ${y}px)`] },
+          { duration: 550, easing: "ease-in-out", pseudoElement: "::view-transition-new(root)" },
+        );
+      })
+      .catch(() => {});
   }
 
   return (
