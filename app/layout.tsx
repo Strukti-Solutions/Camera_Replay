@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   title: { default: "Replay", template: "%s – Replay" },
 };
 
-// Fundo de cada tema (--fundo no globals.css). Com tema escolhido pelo cookie,
+// Cor do topo em cada tema (--superficie no globals.css), que é o que o navegador pinta. Com tema escolhido pelo cookie,
 // vale a cor dele; sem cookie, a do esquema do aparelho.
-const FUNDO = { claro: "#f1f5f8", escuro: "#0e1c2b" } as const;
+const FUNDO = { claro: "#ffffff", escuro: "#15273b" } as const;
 
 export async function generateViewport(): Promise<Viewport> {
   const escolhido = lerTema((await cookies()).get("tema")?.value);

@@ -16,8 +16,8 @@ export async function Topo({ children, rotulo }: { children?: ReactNode; rotulo?
         {rotulo && <p className="topo-rotulo">{rotulo}</p>}
         <div className="topo-acoes">
           {children}
-          <BotaoTema inicial={tema} />
         </div>
+        <BotaoTema inicial={tema} />
       </div>
     </header>
   );

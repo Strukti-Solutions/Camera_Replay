@@ -9,8 +9,6 @@ function temaEfetivo(): Tema {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "escuro" : "claro";
 }
 
-// No servidor não se sabe o tema do aparelho (sem cookie): o botão sai neutro
-// e se corrige ao montar, sem mudar de tamanho (o ícone ocupa a mesma caixa).
 // Ícones em SVG: glifos de texto (☀ ☾ ◐) somem em fontes sem esses símbolos.
 // Mesma caixa de 20 px nos três estados, então o botão não muda de tamanho.
 function Icone({ tema }: { tema: Tema | null }) {
@@ -39,6 +37,8 @@ function Icone({ tema }: { tema: Tema | null }) {
 }
 
 // `inicial` (cookie lido no servidor) faz o servidor já desenhar o ícone certo.
+// No servidor não se sabe o tema do aparelho (sem cookie): o botão sai neutro
+// e se corrige ao montar, sem mudar de tamanho (o ícone ocupa a mesma caixa).
 export function BotaoTema({ inicial = null }: { inicial?: Tema | null }) {
   const [tema, setTema] = useState<Tema | null>(inicial);
 

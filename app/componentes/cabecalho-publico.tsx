@@ -9,7 +9,7 @@ import { linksDoCabecalhoPublico } from "./topo-links";
 export function CabecalhoPublico({ sessao, voltar = null }: { sessao: SessaoJogador | null; voltar?: string | null }) {
   return (
     <Topo>
-      <nav className="cabecalho-links" aria-label="Conta">
+      <nav className="cabecalho-links" aria-label="Principal">
         {linksDoCabecalhoPublico(sessao !== null, voltar).map((l) => (
           <Link key={l.href} href={l.href}>
             {l.texto}
