@@ -13,3 +13,8 @@ export function proximoTema(atual: Tema): Tema {
 export function cookieDoTema(tema: Tema): string {
   return `tema=${tema}; Path=/; Max-Age=31536000; SameSite=Lax`;
 }
+
+// Raio do círculo que, nascendo em (x, y), cobre a tela inteira de w × h.
+export function raioAteOsCantos(x: number, y: number, w: number, h: number): number {
+  return Math.hypot(Math.max(x, w - x), Math.max(y, h - y));
+}

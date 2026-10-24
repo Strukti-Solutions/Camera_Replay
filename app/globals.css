@@ -116,6 +116,25 @@
   box-sizing: border-box;
 }
 
+/* Classes com display próprio (.botao é inline-flex) venciam o hidden do navegador. */
+[hidden] {
+  display: none !important;
+}
+
+/* Troca de tema: o tema novo cresce num círculo a partir do botão (BotaoTema
+   anima o clip-path). Sem animação padrão de fade entre as duas imagens. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
