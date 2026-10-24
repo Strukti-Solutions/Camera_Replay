@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diaDaSemana, diaValido, diasDisponiveis, hojeLocal, horasOcupadas, iniciosLivres, precoEscolha } from "../app/lib/disponibilidade";
+import { diaDaSemana, diaValido, diasDisponiveis, hojeLocal, horasOcupadas, instanteDoMinuto, iniciosLivres, partesDoInstante, precoEscolha } from "../app/lib/disponibilidade";
 import type { Faixa } from "../app/lib/precos";
 
 const AGORA = new Date("2026-10-23T21:30:00Z"); // sexta 18h30 em São Paulo
@@ -91,5 +91,14 @@ describe("disponibilidade", () => {
     // fim exato numa hora cheia não ocupa a hora seguinte
     expect([...horasOcupadas([{ inicio: new Date("2026-10-30T18:00:00-03:00"), fim: new Date("2026-10-30T20:00:00-03:00") }], "2026-10-30")])
       .toEqual([18, 19]);
+  });
+});
+
+describe("instanteDoMinuto e partesDoInstante", () => {
+  it("converte minuto local em instante e volta", () => {
+    expect(instanteDoMinuto("2026-10-26", 930)).toBe(Date.parse("2026-10-26T15:30:00-03:00"));
+    expect(instanteDoMinuto("2026-10-26", 1440)).toBe(Date.parse("2026-10-27T00:00:00-03:00"));
+    expect(partesDoInstante(new Date("2026-10-26T15:30:00-03:00"))).toEqual({ dia: "2026-10-26", minuto: 930 });
+    expect(partesDoInstante(new Date("2026-10-26T00:00:00-03:00"))).toEqual({ dia: "2026-10-26", minuto: 0 });
   });
 });

@@ -10,10 +10,10 @@ const SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function partesLocais(agora: Date) {
   const f = new Intl.DateTimeFormat("en-CA", {
-    timeZone: FUSO, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
+    timeZone: FUSO, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
   const p = Object.fromEntries(f.formatToParts(agora).map((x) => [x.type, x.value]));
-  return { dia: `${p.year}-${p.month}-${p.day}`, hora: Number(p.hour) };
+  return { dia: `${p.year}-${p.month}-${p.day}`, hora: Number(p.hour), minuto: Number(p.minute) };
 }
 
 export function hojeLocal(agora: Date): string {
@@ -99,19 +99,31 @@ export function precoEscolha(
   return { hora, horas, porHora, totalCentavos: porHora.reduce((s, x) => s + x.precoCentavos, 0) };
 }
 
-// Início (UTC) da hora local `hora` do dia `dia` em São Paulo. Começa no palpite
-// de UTC-3 e corrige pela hora local observada (vale se o fuso voltar a ter
-// horário de verão).
-export function instanteLocal(dia: string, hora: number): number {
+// Instante (UTC, em ms) do minuto local `minuto` (desde 00:00; 1440 = meia-noite
+// seguinte) do dia `dia` em São Paulo. Começa no palpite de UTC-3 e corrige pelo
+// horário local observado (vale se o fuso voltar a ter horário de verão).
+export function instanteDoMinuto(dia: string, minuto: number): number {
   const [a, m, d] = dia.split("-").map(Number);
-  let t = Date.UTC(a, m - 1, d, hora + 3);
+  const alvo = Date.UTC(a, m - 1, d, 0, minuto);
+  let t = alvo + 3 * 3_600_000;
   for (let i = 0; i < 2; i++) {
     const p = partesLocais(new Date(t));
-    const diff = (emUtc(p.dia).getTime() + p.hora * 3_600_000) - Date.UTC(a, m - 1, d, hora);
+    const diff = (emUtc(p.dia).getTime() + (p.hora * 60 + p.minuto) * 60_000) - alvo;
     if (diff === 0) break;
     t -= diff;
   }
   return t;
+}
+
+// Início (UTC) da hora local `hora` do dia `dia`.
+export function instanteLocal(dia: string, hora: number): number {
+  return instanteDoMinuto(dia, hora * 60);
+}
+
+// Dia (AAAA-MM-DD) e minuto desde 00:00 locais de um instante.
+export function partesDoInstante(d: Date): { dia: string; minuto: number } {
+  const p = partesLocais(d);
+  return { dia: p.dia, minuto: p.hora * 60 + p.minuto };
 }
 
 // Horas locais (0–23) do dia tocadas por algum período [inicio, fim).

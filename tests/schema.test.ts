@@ -210,7 +210,7 @@ test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem
       [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
     const sete = await inserir(7), um = await inserir(1);
 
-    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql"]);
+    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql", "0017_horarios.sql"]);
 
     const ar = await db.query("select id, dias_retencao from arenas");
     expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
@@ -233,7 +233,7 @@ test("migração 0008 dá slug próprio às arenas existentes; slug é único, o
     const db = await novoBanco(pasta);
     await db.query("insert into arenas (nome) values ('A'), ('B')");
 
-    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql"]);
+    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql", "0017_horarios.sql"]);
 
     const r = await db.query<{ slug: string }>("select slug from arenas order by nome");
     expect(r.rows).toHaveLength(2);
@@ -264,7 +264,7 @@ test("migração 0009 normaliza status_assinatura antigo para ativa e preserva a
       `insert into arenas (nome, slug, status_assinatura)
        values ('A', 'a'||repeat('x', 21), 'ativa'), ('B', 'b'||repeat('x', 21), 'trial'), ('C', 'c'||repeat('x', 21), 'suspensa')`);
 
-    expect(await migrar(db)).toEqual(["0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql"]);
+    expect(await migrar(db)).toEqual(["0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql", "0017_horarios.sql"]);
 
     const r = await db.query("select nome, status_assinatura from arenas order by nome");
     expect(r.rows).toEqual([
@@ -319,7 +319,7 @@ test("migrações 0010 a 0013 com dados: contas preservadas, alunos fora, só te
       [rs.rows[0].id, al.rows[0].id, a.id]);
     await db.query("insert into tentativas_login (email, ip) values ('aluno:x', '1.1.1.1'), ('dono:y', '1.1.1.1')");
 
-    expect(await migrar(db)).toEqual(["0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql"]);
+    expect(await migrar(db)).toEqual(["0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql", "0014_fase2.sql", "0015_geocodificacao_tentada.sql", "0016_reservas.sql", "0017_horarios.sql"]);
 
     const ids = async (t: string) => (await db.query<{ id: string }>(`select id from ${t}`)).rows.map((x) => x.id);
     expect(await ids("arenas")).toEqual([a.id]);
@@ -430,3 +430,45 @@ test("bloqueio exige motivo e não tem jogador", async () => {
     [a.id, q.id, i, f])).rejects.toThrow(/check/i);
   await db.query(BLOQUEIO, [a.id, q.id, null, i, f, "Reserva por telefone — João"]);
 });
+
+const HORARIO = "insert into horarios_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1, $2, $3, $4, $5, 8000)";
+
+test("0017: horários não se sobrepõem no mesmo dia e quadra, mas podem encostar", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const b = await criarArena(db);
+  const q = await criarQuadra(db, a.id);
+  const qb = await criarQuadra(db, b.id);
+  await db.query(HORARIO, [a.id, q.id, 1, 420, 480]);
+  await db.query(HORARIO, [a.id, q.id, 1, 480, 540]); // encostado
+  await db.query(HORARIO, [a.id, q.id, 2, 420, 480]); // outro dia
+  await expect(db.query(HORARIO, [a.id, q.id, 1, 450, 510])).rejects.toThrow(/exclusion/i);
+  await expect(db.query(HORARIO, [a.id, qb.id, 1, 420, 480])).rejects.toThrow(/foreign key/i);
+  await expect(db.query(HORARIO, [a.id, q.id, 3, 600, 610])).rejects.toThrow(/check/i);
+  await db.query("delete from quadras where id = $1", [q.id]);
+  const n = await db.query("select 1 from horarios_quadra");
+  expect(n.rows).toHaveLength(0);
+});
+
+test("migração 0017 copia cada faixa de precos_quadra em horários de 1 hora", async () => {
+  const pasta = mkdtempSync(join(tmpdir(), "mig-"));
+  try {
+    const todas = join(__dirname, "..", "db", "migrations");
+    for (const f of readdirSync(todas).filter((x) => x < "0017")) cpSync(join(todas, f), join(pasta, f));
+    const db = await novoBanco(pasta);
+    const a = await criarArena(db);
+    const q = await criarQuadra(db, a.id);
+    await db.query(
+      "insert into precos_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1, $2, 1, 7, 9, 8000)",
+      [a.id, q.id]);
+    expect(await migrar(db)).toEqual(["0017_horarios.sql"]);
+    const r = await db.query("select dia_semana, inicio, fim, preco_centavos from horarios_quadra order by inicio");
+    expect(r.rows).toEqual([
+      { dia_semana: 1, inicio: 420, fim: 480, preco_centavos: 8000 },
+      { dia_semana: 1, inicio: 480, fim: 540, preco_centavos: 8000 },
+    ]);
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+});
+
