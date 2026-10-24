@@ -108,6 +108,7 @@
 - Consumes: `agendaDaArena`, `cancelarPeloDono`, `bloquearHorario` (Task 2).
 - Tela: agenda dos próximos 14 dias por dia (padrão hoje; filtro por quadra), cada item com horário, quadra, jogador (ou "Conta apagada"), valor, situação, "Cancelar" (motivo opcional) para futuros; bloqueios com o motivo e "Remover"; formulário "Bloquear horário" (quadra, dia, início, fim, motivo). Histórico dos últimos 30 dias abaixo.
 - Mensagem ao apagar conta com reservas futuras: exatamente "Cancele suas reservas futuras antes de apagar a conta." (teste em `jogador-telas.test.ts`).
+- Feito (24/10), mudanças em `app/lib/reservas.ts`: `ItemAgenda` ganhou `quadraId`, `esporte` e `motivoCancelamento` (filtro por id, porque nome de quadra não é único); `reservasDoJogador` devolve `motivoCancelamento`; novo `removerBloqueio(db, arenaId, id, agora)` (só `tipo = 'bloqueio'`, futuro, da arena).
 - [ ] **Step 1–4:** testes da mensagem; typecheck, testes; prévia: bloquear um horário, ver que some da página pública, cancelar a reserva de um jogador pelo painel.
 - [ ] **Step 5:** commit `feat(painel): agenda de reservas e bloqueio de horário`.
 

@@ -1,6 +1,6 @@
-# Onde paramos — 23/10/2026 (fase 2 no ar, fase 3 pronta sem merge)
+# Onde paramos — 24/10/2026 (fases 1 a 3 no ar, fase 4a pronta sem merge)
 
-Fase 3 na branch `feat/fase3-busca-mapa`, **sem merge e sem push**. Fases 1 e 2 **no ar**: migrações até a 0014 aplicadas, `main` 7cd5d76 em camera-replay.vercel.app. Spec: `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`.
+Fase 4a na branch `feat/fase4a-reservas`, **sem merge e sem push**. Fases 1 a 3 **no ar**: migrações até a 0015 aplicadas, `main` 1e90ae3 em camera-replay.vercel.app. Spec: `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`.
 
 ## Fase 1 feita e no ar (login único e conta do jogador)
 - Migração 0010: alunos por arena e reservas criadas pelo dono removidos.
@@ -29,25 +29,35 @@ No ar desde 23/10: migração 0014 aplicada em produção, `main` 7cd5d76.
 - Dono no painel: não cria mais quadras, câmeras nem botões. Em `/painel/arena` ajusta nome e endereço (geocodificado; se não achar, salva sem coordenadas e avisa). Na página da quadra define nome, esporte e tabela de preços por dia da semana e faixas de hora cheia (sobreposição rejeitada, faixas adjacentes aceitas).
 - Nominatim (OpenStreetMap): política de uso de 1 requisição por segundo e User-Agent identificado. Só salvar um endereço chama o serviço; nenhuma outra tela consulta.
 
-## Fase 3 pronta (branch feat/fase3-busca-mapa, sem merge)
-Sem merge e sem push. Spec: `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`.
+## Fase 3 feita e NO AR (busca com mapa)
+No ar desde 23/10: migração 0015 aplicada em produção, `main` 1e90ae3.
 - Migração 0015: `arenas.geocodificacao_tentada_em`. O geocodificador roda no máximo 1 vez por minuto por arena; barrado pelo limite, o dono lê "salve de novo daqui a 1 minuto" (não "endereço não existe").
 - Quadra: nome e esporte salvos num único UPDATE. Botões aparecem só leitura na página da quadra do dono (decisão do dono, 23/10: a Strukti instala os botões).
 - Módulo puro de disponibilidade: de hoje até +30 dias, horas cheias, só depois de agora, de 1 a 4 horas, preço por hora.
 - Busca pública por nome e endereço, sem diferenciar acento nem maiúscula; sugestões em `GET /api/arenas/sugestoes`.
-- Página pública da arena `/a/<slug>`: endereço, "Como chegar", por quadra um formulário GET (dia, início, duração) com total e detalhe por hora; "Reservar" desabilitado com "Reservas pelo site em breve".
+- Página pública da arena `/a/<slug>`: endereço, "Como chegar", por quadra um formulário GET (dia, início, duração) com total e detalhe por hora; "Reservar" desabilitado na fase 3 (na 4a leva ao resumo).
 - Home "Encontre uma quadra": busca, sugestões e mapa Leaflet com OpenStreetMap (botão de tela cheia).
 - Nova dependência: `leaflet` 1.9.4 (e `@types/leaflet` em dev).
 - Política de uso dos tiles do OpenStreetMap: manter a atribuição visível no mapa e o referrer de origem enviado (sem `no-referrer`); uso leve, sem pré-carga em massa. Se o tráfego crescer, trocar por provedor de tiles próprio.
 - Contrato da URL da escolha para a fase 4: `/a/<slug>?quadra=<id>&dia=<YYYY-MM-DD>&inicio=<h>&horas=<n>`.
 
-## Para produção (fase 3, nesta ordem)
-1. Ok do dono.
-2. Migrar produção (aplica a 0015): `npx tsx --env-file=C:/Users/anton/replay-producao.env db/migrar-cli.ts`.
-3. Merge na `main` e push.
-4. Smoke: home, busca (com e sem acento), mapa, página da arena (horários e preço).
+## Fase 4a pronta (branch feat/fase4a-reservas, sem merge)
+Reserva pelo site **sem pagamento online** (emenda no spec de 23/10, decisão do dono: "pagamento fica para depois"). Toda reserva nasce confirmada como "pagar na arena", com taxa 0. Plano: `docs/superpowers/plans/2026-10-23-fase4a-reservas.md`.
+- Migração 0016: extensão `btree_gist` e tabela `reservas` (reserva de jogador e bloqueio do dono). Uma restrição de exclusão (`quadra_id` igual e `periodo` sobreposto, só entre `segurada` e `confirmada`) impede dois jogos no mesmo horário mesmo com cliques simultâneos; o conflito vira "Esse horário não está mais disponível." No Supabase a `btree_gist` está disponível (conferido em 23/10); a migração a cria.
+- Página da arena: horários ocupados somem; "Reservar" abre `/reservar?quadra=&dia=&inicio=&horas=` com o resumo. Sem login, vai a `/entrar` e volta ao resumo. Na página da arena, duração que não cabe é reduzida com o aviso "Duração reduzida para N h."; no resumo, duração além do que cabe é recusada.
+- Limite provisório: 2 reservas futuras por arena e 5 no total por jogador (o dono pode mudar).
+- `/minhas-reservas`: próximas e histórico, lances da reserva, cancelamento grátis até 24 h antes. Cancelada pela arena mostra o motivo.
+- Painel do dono, aba "Reservas" (`/painel/reservas`): agenda dos próximos 14 dias por dia, filtro por quadra, cancelar reserva (motivo opcional, até 120 caracteres), bloquear horário (motivo de 1 a 60) e remover bloqueio, histórico dos últimos 30 dias.
+- Apagar a conta com reservas futuras é recusado: "Cancele suas reservas futuras antes de apagar a conta."
 
-## Próxima: fase 4 (reserva paga com Asaas)
+## Para produção (fase 4a, nesta ordem)
+1. Ok do dono.
+2. Migrar produção (aplica a 0016): `node node_modules/tsx/dist/cli.mjs --env-file=C:/Users/anton/replay-producao.env db/migrar-cli.ts`.
+3. Merge na `main` e push (a Vercel publica sozinha).
+4. Smoke: reservar, cancelar como jogador, bloquear e cancelar como dono.
+
+## Próxima: fase 4b (pagamento com Asaas)
+Falta a conta Asaas do dono. Pesquisa em `docs/pesquisa/asaas.md` (Checkout com split e webhook). Antes de implementar, o dono decide os conflitos com o spec listados lá: o split sai do valor líquido (não do bruto), a tarifa do estorno sai da conta da Strukti, o saldo da subconta no estorno, o walletId de conta já existente e a URL de retorno no domínio cadastrado.
 
 ---
 
