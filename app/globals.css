@@ -221,7 +221,6 @@ video {
 
 :root {
   --largura-larga: 64rem;
-  --altura-marca: 28px;
 }
 
 .miolo-largo {
@@ -286,7 +285,6 @@ video {
   gap: 0.35rem;
   font-size: 0.75rem;
   color: var(--tinta-suave);
-  opacity: 0.8;
 }
 
 .marca-replay-strukti img {
@@ -696,14 +694,6 @@ video {
 .botao:disabled {
   opacity: 0.7;
   cursor: progress;
-}
-
-.painel-arena {
-  font-family: var(--fonte-titulo);
-  font-size: 1.5rem;
-  font-weight: 720;
-  font-variation-settings: "SHRP" 100;
-  overflow-wrap: anywhere;
 }
 
 /* ---------- Painel: quadras, câmera, botões e clipes ---------- */
