@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { BuscaArenas } from "@/app/componentes/busca-arenas";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
-import { LIMITE_PUBLICO, listarArenasPublicas } from "@/app/lib/arenas-publicas";
+import { MapaArenas } from "@/app/componentes/mapa-arenas";
+import { arenasNoMapa, LIMITE_PUBLICO, listarArenasPublicas } from "@/app/lib/arenas-publicas";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
 import { termoDaBusca } from "./escolha-arena";
@@ -8,20 +10,21 @@ import { termoDaBusca } from "./escolha-arena";
 // A lista segue o status das arenas (suspensa sai na hora): nada de cache.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Escolha sua arena" };
+export const metadata: Metadata = { title: "Encontre uma quadra" };
 
 type Props = { searchParams: Promise<{ busca?: string | string[]; ok?: string | string[] }> };
 
-// Porta de entrada pública: o jogador escolhe a arena e segue para /a/<slug>.
-// Só nome e slug das arenas ativas aparecem aqui. A busca é um formulário GET
-// comum, então funciona sem JavaScript.
+// Porta de entrada pública: o jogador busca a arena e segue para /a/<slug>.
+// Só dados de vitrine das arenas ativas aparecem aqui. A busca é um formulário
+// GET comum, então funciona sem JavaScript; sugestões e mapa são extras.
 export default async function EscolhaDaArena({ searchParams }: Props) {
   const params = await searchParams;
   const busca = termoDaBusca(params.busca);
   // Texto fixo: só o valor exato do redirecionamento liga o aviso, nada é refletido.
   const contaApagada = params.ok === "conta-apagada";
   const sessao = await sessaoJogadorAtual();
-  const arenas = await listarArenasPublicas(poolCompartilhado(), busca);
+  const db = poolCompartilhado();
+  const [arenas, pontos] = await Promise.all([listarArenasPublicas(db, busca), arenasNoMapa(db)]);
 
   return (
     <>
@@ -32,16 +35,9 @@ export default async function EscolhaDaArena({ searchParams }: Props) {
             Conta apagada.
           </p>
         )}
-        <h1>Escolha sua arena</h1>
-        <form action="/" method="get" role="search" className="escolha-busca">
-          <div className="campo">
-            <label htmlFor="busca">Buscar arena</label>
-            <input id="busca" name="busca" type="search" defaultValue={busca} maxLength={80} autoComplete="off" />
-          </div>
-          <button type="submit" className="botao">
-            Buscar
-          </button>
-        </form>
+        <h1>Encontre uma quadra</h1>
+        <BuscaArenas busca={busca} />
+        <MapaArenas pontos={pontos} />
 
         {arenas.length === 0 ? (
           <p className="escolha-vazia">Nenhuma arena encontrada.</p>
@@ -49,7 +45,10 @@ export default async function EscolhaDaArena({ searchParams }: Props) {
           <ul className="escolha-lista">
             {arenas.map((a) => (
               <li key={a.slug}>
-                <a href={`/a/${a.slug}`}>{a.nome}</a>
+                <a href={`/a/${a.slug}`}>
+                  <span>{a.nome}</span>
+                  {a.cidade && <span className="escolha-cidade">{a.cidade}</span>}
+                </a>
               </li>
             ))}
           </ul>

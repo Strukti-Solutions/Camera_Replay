@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "aws4fetch": "1.0.20",
+    "leaflet": "1.9.4",
     "next": "15.5.26",
     "pg": "8.23.0",
     "qrcode": "1.5.4",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
+    "@types/leaflet": "1.9.22",
     "@types/node": "24.13.6",
     "@types/pg": "8.23.1",
     "@types/qrcode": "1.5.6",

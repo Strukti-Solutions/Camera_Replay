@@ -1271,6 +1271,157 @@ video {
   border-color: var(--borda-campo);
 }
 
+/* Nome e cidade: a cidade desce no celular estreito. */
+.escolha-lista a {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 1rem;
+}
+
+.escolha-cidade {
+  color: var(--tinta-suave);
+  font-weight: 400;
+}
+
+/* Sugestões da busca (só com JavaScript): lista sob o campo. */
+.busca-campo {
+  position: relative;
+}
+
+.busca-sugestoes {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: var(--superficie);
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio-campo);
+  box-shadow: 0 6px 18px rgb(8 18 29 / 0.18);
+}
+
+.busca-sugestoes[hidden] {
+  display: none;
+}
+
+.busca-sugestao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 1rem;
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.busca-sugestao-nome {
+  font-weight: 600;
+}
+
+.busca-sugestao-cidade {
+  color: var(--tinta-suave);
+}
+
+.busca-sugestao:hover,
+.busca-sugestao.ativa {
+  background: var(--primario);
+  color: var(--sobre-primario);
+}
+
+.busca-sugestao:hover .busca-sugestao-cidade,
+.busca-sugestao.ativa .busca-sugestao-cidade {
+  color: inherit;
+}
+
+/* Mapa das arenas (só com JavaScript): 240 px sob a busca, tela cheia ao abrir. */
+.mapa-arenas {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.mapa-area {
+  height: 240px;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio);
+  overflow: hidden;
+  /* Abaixo das sugestões da busca. */
+  z-index: 0;
+  position: relative;
+}
+
+.mapa-ver {
+  justify-self: start;
+}
+
+.mapa-arenas.aberto {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  margin: 0;
+  background: var(--fundo);
+}
+
+.mapa-arenas.aberto .mapa-area {
+  height: auto;
+  border: 0;
+  border-radius: 0;
+}
+
+.mapa-barra {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem var(--gutter);
+  background: var(--faixa);
+}
+
+.mapa-barra[hidden] {
+  display: none;
+}
+
+.mapa-barra .botao {
+  color: var(--sobre-faixa);
+}
+
+.mapa-barra .botao:focus-visible {
+  outline-color: var(--faixa-foco);
+}
+
+html.mapa-tela-cheia {
+  overflow: hidden;
+}
+
+/* Ponto da arena: cor da marca, contorno claro para destacar sobre o mapa. */
+.leaflet-container path.mapa-ponto {
+  fill: var(--electric-700);
+  stroke: #ffffff;
+}
+
+.leaflet-container {
+  font-family: var(--fonte);
+}
+
+.mapa-popup {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 1rem;
+}
+
+.mapa-popup a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  font-weight: 600;
+  color: var(--electric-700);
+}
+
 .escolha-vazia {
   color: var(--tinta-suave);
 }
@@ -1411,6 +1562,19 @@ video {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: 1rem;
+}
+
+/* O select não passa da coluna (o texto longo da opção cortava "16h · R$ 80,00"). */
+.quadra-campos select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Celular: Início e Duração um sob o outro. */
+@media (max-width: 30rem) {
+  .quadra-campos {
+    grid-template-columns: 1fr;
+  }
 }
 
 .quadra-escolha .botao {
