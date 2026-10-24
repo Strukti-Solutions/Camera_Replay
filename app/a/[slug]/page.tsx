@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
 import { MENSAGEM_ARENA_SUSPENSA } from "@/app/entrar/mensagens";
@@ -8,6 +9,9 @@ import { hojeLocal } from "@/app/lib/disponibilidade";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { lerEscolha, linhaEndereco, linkComoChegar } from "./apresentacao";
 import { EscolhaDaQuadra } from "./escolha";
+
+// generateMetadata e a página pedem a mesma arena: uma consulta por requisição.
+const arenaDaRequisicao = cache((slug: string) => arenaPublica(poolCompartilhado(), slug));
 
 // Página pública da arena (QR code e busca). Status, horários e preços mudam a
 // qualquer hora e o "agora" decide os horários livres: nada de cache.
@@ -20,7 +24,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const arena = await arenaPublica(poolCompartilhado(), slug);
+  const arena = await arenaDaRequisicao(slug);
   if (!arena) return { title: "Arena não encontrada", robots: { index: false, follow: false } };
   return {
     title: arena.nome,
@@ -31,7 +35,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PaginaDaArena({ params, searchParams }: Props) {
   const { slug } = await params;
-  const arena = await arenaPublica(poolCompartilhado(), slug);
+  const arena = await arenaDaRequisicao(slug);
   if (!arena) notFound();
   const sessao = await sessaoJogadorAtual();
 

@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import type { Map as MapaLeaflet } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { limitesDoMapa, type PontoArena } from "./mapa-arenas-calculo";
+import { irmaosAtrasDoMapa, limitesDoMapa, valido, type PontoArena } from "./mapa-arenas-calculo";
 
 const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 // Texto fixo (não vem de dado de arena), então pode ir como HTML.
@@ -29,6 +29,7 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
   const limites = useMemo(() => limitesDoMapa(pontos), [pontos]);
   const [montado, setMontado] = useState(false);
   const [aberto, setAberto] = useState(false);
+  const secao = useRef<HTMLElement>(null);
   const area = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaLeaflet | null>(null);
   const botaoVer = useRef<HTMLButtonElement>(null);
@@ -52,7 +53,7 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
         referrerPolicy: "strict-origin-when-cross-origin",
       }).addTo(m);
       for (const p of pontos) {
-        if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) continue;
+        if (!valido(p)) continue;
         L.circleMarker([p.latitude, p.longitude], {
           radius: 11,
           weight: 3,
@@ -81,6 +82,11 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
       jaAbriu.current = true;
       botaoFechar.current?.focus();
       document.documentElement.classList.add("mapa-tela-cheia");
+      // Atrás do overlay nada recebe foco (WCAG 2.4.11): só marca o que ainda não era inert.
+      const atras = secao.current
+        ? irmaosAtrasDoMapa<Element>(secao.current, document.body).filter((el) => !el.hasAttribute("inert"))
+        : [];
+      for (const el of atras) el.setAttribute("inert", "");
       const esc = (e: globalThis.KeyboardEvent) => {
         if (e.key === "Escape") setAberto(false);
       };
@@ -88,6 +94,7 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
       return () => {
         cancelAnimationFrame(quadro);
         document.removeEventListener("keydown", esc);
+        for (const el of atras) el.removeAttribute("inert");
         document.documentElement.classList.remove("mapa-tela-cheia");
       };
     }
@@ -98,7 +105,7 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
   if (!montado || !limites) return null;
 
   return (
-    <section className={aberto ? "mapa-arenas aberto" : "mapa-arenas"} aria-label="Mapa das arenas">
+    <section ref={secao} className={aberto ? "mapa-arenas aberto" : "mapa-arenas"} aria-label="Mapa das arenas">
       <div className="mapa-barra" hidden={!aberto}>
         <button ref={botaoFechar} type="button" className="botao" onClick={() => setAberto(false)}>
           Fechar mapa

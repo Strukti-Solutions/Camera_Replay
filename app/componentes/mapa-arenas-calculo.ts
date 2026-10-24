@@ -8,7 +8,7 @@ export type Limites = { centro: LatLng; zoom: number } | { bounds: [LatLng, LatL
 
 export const ZOOM_UM_PONTO = 14;
 
-const valido = (p: PontoArena) =>
+export const valido = (p: PontoArena) =>
   Number.isFinite(p.latitude) &&
   Number.isFinite(p.longitude) &&
   Math.abs(p.latitude) <= 90 &&
@@ -32,4 +32,22 @@ export function limitesDoMapa(pontos: PontoArena[]): Limites | null {
       [norte, leste],
     ],
   };
+}
+
+// Nó mínimo do DOM para achar o que fica atrás da tela cheia (testável no Node).
+export type NoArvore = { parentElement: NoArvore | null; children: ArrayLike<NoArvore> };
+
+// Do mapa até o <body>, todo irmão de um ancestral (ou do próprio mapa) fica
+// atrás do overlay e precisa de `inert`. O mapa e seus ancestrais ficam de fora.
+export function irmaosAtrasDoMapa<T extends NoArvore>(mapa: T, corpo: T): T[] {
+  const lista: T[] = [];
+  let atual: NoArvore = mapa;
+  while (atual !== corpo && atual.parentElement) {
+    const pai: NoArvore = atual.parentElement;
+    for (let i = 0; i < pai.children.length; i++) {
+      if (pai.children[i] !== atual) lista.push(pai.children[i] as T);
+    }
+    atual = pai;
+  }
+  return lista;
 }

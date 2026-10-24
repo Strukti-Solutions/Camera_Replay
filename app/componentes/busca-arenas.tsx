@@ -56,7 +56,10 @@ export function BuscaArenas({ busca }: { busca: string }) {
           // Pedido cancelado ou rede fora: as sugestões são extra, a busca segue.
         });
     }, ESPERA_MS);
-    return () => clearTimeout(espera);
+    return () => {
+      clearTimeout(espera);
+      pedido.current?.abort();
+    };
   }, [termo]);
 
   useEffect(
@@ -122,6 +125,7 @@ export function BuscaArenas({ busca }: { busca: string }) {
           }}
           onBlur={() => {
             // Pequena espera para o toque numa sugestão chegar antes de a lista sumir.
+            if (fechar.current) clearTimeout(fechar.current);
             fechar.current = setTimeout(() => {
               setAberto(false);
               setAtivo(-1);
