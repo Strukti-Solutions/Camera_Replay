@@ -4,9 +4,11 @@ import { diaPorExtenso } from "@/app/a/[slug]/apresentacao";
 
 // Textos de Minhas reservas, sem cookie nem banco para poder testar direto.
 
-export function rotuloSituacao(situacao: string, canceladaPor: string | null): string {
+// O motivo só aparece quando foi a arena que cancelou (é o texto do dono).
+export function rotuloSituacao(situacao: string, canceladaPor: string | null, motivo: string | null = null): string {
   if (situacao !== "cancelada") return "Confirmada";
-  return canceladaPor === "jogador" ? "Cancelada por você" : "Cancelada pela arena";
+  if (canceladaPor === "jogador") return "Cancelada por você";
+  return canceladaPor === "dono" && motivo ? `Cancelada pela arena · ${motivo}` : "Cancelada pela arena";
 }
 
 // Mensagens fixas por valor exato de ?ok=; o que vier na URL nunca é exibido.

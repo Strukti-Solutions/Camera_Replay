@@ -8,6 +8,13 @@ test("situação: confirmada, cancelada por você ou pela arena", () => {
   expect(rotuloSituacao("cancelada", null)).toBe("Cancelada pela arena");
 });
 
+test("situação: motivo do cancelamento só quando quem cancelou foi a arena", () => {
+  expect(rotuloSituacao("cancelada", "dono", "Chuva forte")).toBe("Cancelada pela arena · Chuva forte");
+  expect(rotuloSituacao("cancelada", "dono", null)).toBe("Cancelada pela arena");
+  expect(rotuloSituacao("cancelada", "jogador", "qualquer")).toBe("Cancelada por você");
+  expect(rotuloSituacao("confirmada", null, "qualquer")).toBe("Confirmada");
+});
+
 test("?ok= só aceita os valores exatos e nunca devolve o que veio na URL", () => {
   expect(mensagemOk("reservada")).toBe("Reserva confirmada.");
   expect(mensagemOk("cancelada")).toBe("Reserva cancelada.");

@@ -27,7 +27,7 @@ function Item({ r }: { r: ReservaJogador }) {
           <Link href={`/a/${r.arena.slug}`}>{r.arena.nome}</Link> · {r.quadra}
         </h3>
         <p className="lance-meta">
-          <span className="selo">{rotuloSituacao(r.situacao, r.canceladaPor)}</span>
+          <span className="selo">{rotuloSituacao(r.situacao, r.canceladaPor, r.motivoCancelamento)}</span>
         </p>
       </div>
       <p>{textoPeriodo(r.inicio, r.fim)}</p>

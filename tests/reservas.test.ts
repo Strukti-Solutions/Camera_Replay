@@ -4,7 +4,7 @@ import { criarContaJogador, apagarContaJogador } from "../app/lib/jogadores";
 import { adicionarFaixas } from "../app/lib/precos-quadra";
 import {
   LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
-  criarReserva, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador,
+  criarReserva, removerBloqueio, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador,
 } from "../app/lib/reservas";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
@@ -122,7 +122,7 @@ test("reserva ocupa e libera ao cancelar", async () => {
   const antes = await reservasDoJogador(db, ana, AGORA);
   expect(antes.proximas).toEqual([{
     id, arena: { nome: "Arena A", slug: arena.slug }, quadra: "Quadra 1", inicio: h(18), fim: h(20),
-    totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", canceladaPor: null, podeCancelar: true, lances: 0,
+    totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", canceladaPor: null, motivoCancelamento: null, podeCancelar: true, lances: 0,
   }]);
   expect(antes.historico).toEqual([]);
 
@@ -178,6 +178,8 @@ test("dono cancela a qualquer momento e o motivo fica", async () => {
   // histórico: canceladas e passadas, mais recentes primeiro
   expect(hist.historico.map((r) => r.id).slice(0, 2).sort()).toEqual([id, sem].sort());
   expect(hist.historico[2]).toMatchObject({ id: passada, situacao: "confirmada", podeCancelar: false });
+  expect(hist.historico.find((r) => r.id === id)).toMatchObject({ canceladaPor: "dono", motivoCancelamento: "Chuva forte" });
+  expect(hist.historico.find((r) => r.id === sem)).toMatchObject({ canceladaPor: "dono", motivoCancelamento: null });
 });
 
 test("bloqueio: sobre reserva recusa, encostado aceita, sem motivo recusa, de outra arena recusa", async () => {
@@ -259,7 +261,7 @@ test("agenda mostra nome do jogador ou Conta apagada", async () => {
   ]);
   expect(ag.find((i) => i.id === ra)).toMatchObject({
     tipo: "reserva", quadraId: quadra.id, quadra: "Quadra 1", esporte: expect.any(String), inicio: h(18), fim: h(20), situacao: "confirmada",
-    totalCentavos: 20000, motivo: null, canceladaPor: null,
+    totalCentavos: 20000, motivo: null, canceladaPor: null, motivoCancelamento: null,
   });
   expect(ag.find((i) => i.tipo === "bloqueio")).toMatchObject({ motivo: "Aula", totalCentavos: null });
   expect(ag.some((i) => i.id === fora.rows[0].id)).toBe(false);
@@ -373,4 +375,32 @@ test("jogador inexistente não reserva", async () => {
   expect(await criarReserva(db, "00000000-0000-4000-8000-000000000009", { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 1 }, AGORA))
     .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
   expect(await contar(db)).toBe(0);
+});
+
+test("agenda devolve o motivo do cancelamento", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const id = await reservar(db, ana, quadra.id, 18, 1);
+  expect(await cancelarPeloDono(db, arena.id, id, "Chuva forte", AGORA)).toBe(true);
+  const ag = await agendaDaArena(db, arena.id, AGORA, { de: DIA, ate: DIA });
+  expect(ag.find((i) => i.id === id)).toMatchObject({ situacao: "cancelada", canceladaPor: "dono", motivoCancelamento: "Chuva forte" });
+});
+
+test("removerBloqueio só remove bloqueio futuro da própria arena", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const outra = await criarArena(db, "B");
+  const reserva = await reservar(db, ana, quadra.id, 18, 1);
+  await bloquearHorario(db, arena.id, { quadraId: quadra.id, dia: DIA, inicio: 8, fim: 10, motivo: "Aula" }, AGORA);
+  const bloqueio = (await db.query<{ id: string }>("select id from reservas where tipo = 'bloqueio'")).rows[0].id;
+  expect(await removerBloqueio(db, arena.id, reserva, AGORA)).toBe(false); // reserva de jogador: recusa
+  expect(await removerBloqueio(db, outra.id, bloqueio, AGORA)).toBe(false);
+  expect(await removerBloqueio(db, arena.id, bloqueio, h(9))).toBe(false); // já começou
+  expect(await removerBloqueio(db, arena.id, "lixo", AGORA)).toBe(false);
+  expect(await removerBloqueio(db, arena.id, bloqueio, AGORA)).toBe(true);
+  const s = await db.query("select id, situacao, cancelada_por from reservas order by tipo");
+  expect(s.rows).toEqual([
+    { id: bloqueio, situacao: "cancelada", cancelada_por: "dono" },
+    { id: reserva, situacao: "confirmada", cancelada_por: null },
+  ]);
 });

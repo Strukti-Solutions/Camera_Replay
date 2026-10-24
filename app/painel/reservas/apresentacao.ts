@@ -39,18 +39,29 @@ export function intervaloAgenda(agora: Date): { de: string; ate: string; dias: s
   return { de: somaDias(hojeLocal(agora), -DIAS_HISTORICO), ate: dias[dias.length - 1], dias };
 }
 
-// Próximas: confirmadas que ainda não terminaram (em ordem). Histórico: o resto
-// (passadas e canceladas), mais recentes primeiro.
+// Próximas: tudo que ainda não terminou, em ordem (canceladas ficam no dia, sem
+// botão). Histórico: só as passadas, mais recentes primeiro.
 export function dividirAgenda(itens: ItemAgenda[], agora: Date): { proximas: ItemAgenda[]; historico: ItemAgenda[] } {
-  const proxima = (i: ItemAgenda) => i.situacao === "confirmada" && i.fim.getTime() > agora.getTime();
+  const proxima = (i: ItemAgenda) => i.fim.getTime() > agora.getTime();
   return {
     proximas: itens.filter(proxima),
     historico: itens.filter((i) => !proxima(i)).sort((a, b) => b.inicio.getTime() - a.inicio.getTime()),
   };
 }
 
+// Botões Cancelar/Remover: só em item confirmado que ainda não começou.
+export function podeAgir(i: ItemAgenda): boolean {
+  return i.futura && i.situacao === "confirmada";
+}
+
+// Agrupa pelo dia local do início; o que começou antes do primeiro dia (jogo de
+// ontem 23h–1h ainda em andamento) entra no primeiro dia.
 export function porDia(dias: string[], itens: ItemAgenda[]): { dia: string; itens: ItemAgenda[] }[] {
-  return dias.map((dia) => ({ dia, itens: itens.filter((i) => hojeLocal(i.inicio) === dia) }));
+  const diaDo = (i: ItemAgenda) => {
+    const d = hojeLocal(i.inicio);
+    return d < dias[0] ? dias[0] : d;
+  };
+  return dias.map((dia) => ({ dia, itens: itens.filter((i) => diaDo(i) === dia) }));
 }
 
 const HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", hourCycle: "h23" });
@@ -62,7 +73,8 @@ export function rotuloQuadra(nome: string, esporte: string): string {
 
 function situacaoDono(i: ItemAgenda): string {
   if (i.situacao !== "cancelada") return "Confirmada";
-  return i.canceladaPor === "jogador" ? "Cancelada pelo jogador" : "Cancelada pela arena";
+  const quem = i.canceladaPor === "jogador" ? "Cancelada pelo jogador" : "Cancelada pela arena";
+  return i.motivoCancelamento ? `${quem} · ${i.motivoCancelamento}` : quem;
 }
 
 // "16h–18h · Quadra 1 — Padel · Ana · R$ 200,00 · Confirmada" ou

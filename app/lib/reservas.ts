@@ -164,6 +164,19 @@ export async function cancelarPeloDono(
   return r.rows.length === 1;
 }
 
+// Dono remove um bloqueio da arena que ainda não começou. Reserva de jogador,
+// de outra arena ou inexistente: false (para cancelar reserva, cancelarPeloDono).
+export async function removerBloqueio(db: Db, arenaId: string, bloqueioId: string, agora: Date): Promise<boolean> {
+  if (!ehUuid(arenaId) || !ehUuid(bloqueioId)) return false;
+  const r = await db.query(
+    `update reservas set situacao = 'cancelada', cancelada_em = now(), cancelada_por = 'dono'
+      where id = $1 and arena_id = $2 and tipo = 'bloqueio' and situacao = 'confirmada' and inicio > $3::timestamptz
+      returning id`,
+    [bloqueioId, arenaId, agora],
+  );
+  return r.rows.length === 1;
+}
+
 export async function bloquearHorario(
   db: Db,
   arenaId: string,
@@ -212,6 +225,7 @@ export type ReservaJogador = {
   pagamento: string;
   situacao: string;
   canceladaPor: string | null;
+  motivoCancelamento: string | null;
   podeCancelar: boolean;
   lances: number;
 };
@@ -225,9 +239,10 @@ export async function reservasDoJogador(
   const { rows } = await db.query<{
     id: string; arena_nome: string; arena_slug: string; quadra: string; inicio: Date; fim: Date;
     total_centavos: number; pagamento: string; situacao: string; cancelada_por: string | null; lances: number;
+    motivo_cancelamento: string | null;
   }>(
     `select r.id, a.nome as arena_nome, a.slug as arena_slug, q.nome as quadra, r.inicio, r.fim,
-            r.total_centavos, r.pagamento, r.situacao, r.cancelada_por,
+            r.total_centavos, r.pagamento, r.situacao, r.cancelada_por, r.motivo_cancelamento,
             case when r.situacao = 'confirmada' then (select count(*)::int ${CLIPES_DA_JANELA}) else 0 end as lances
        from reservas r
        join arenas a on a.id = r.arena_id
@@ -248,6 +263,7 @@ export async function reservasDoJogador(
       pagamento: r.pagamento,
       situacao: r.situacao,
       canceladaPor: r.cancelada_por,
+      motivoCancelamento: r.motivo_cancelamento,
       podeCancelar: r.situacao === "confirmada" && podeCancelarJogador(inicio, agora),
       lances: Number(r.lances),
     };
@@ -269,6 +285,7 @@ export type ItemAgenda = {
   totalCentavos: number | null;
   motivo: string | null;
   canceladaPor: string | null;
+  motivoCancelamento: string | null;
   futura: boolean; // ainda não começou: o dono pode cancelar
 };
 
@@ -281,10 +298,11 @@ export async function agendaDaArena(
   const { rows } = await db.query<{
     id: string; tipo: "reserva" | "bloqueio"; quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date; situacao: string;
     jogador: string | null; total_centavos: number | null; motivo: string | null; cancelada_por: string | null;
+    motivo_cancelamento: string | null;
   }>(
     `select r.id, r.tipo, r.quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim, r.situacao,
             case when r.tipo = 'reserva' then coalesce(j.nome, 'Conta apagada') end as jogador,
-            r.total_centavos, r.motivo, r.cancelada_por
+            r.total_centavos, r.motivo, r.cancelada_por, r.motivo_cancelamento
        from reservas r
        join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
        left join jogadores j on j.id = r.jogador_id
@@ -306,6 +324,7 @@ export async function agendaDaArena(
     totalCentavos: r.total_centavos === null ? null : Number(r.total_centavos),
     motivo: r.motivo,
     canceladaPor: r.cancelada_por,
+    motivoCancelamento: r.motivo_cancelamento,
     futura: new Date(r.inicio).getTime() > agora.getTime(),
   }));
 }

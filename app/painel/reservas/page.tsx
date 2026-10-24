@@ -7,7 +7,7 @@ import { agendaDaArena } from "@/app/lib/reservas";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { removerBloqueioAction } from "./actions";
-import { dividirAgenda, intervaloAgenda, linhaItem, mensagemOkAgenda, porDia, quadraDoFiltro } from "./apresentacao";
+import { dividirAgenda, intervaloAgenda, linhaItem, mensagemOkAgenda, podeAgir, porDia, quadraDoFiltro } from "./apresentacao";
 import { CancelarReservaDono, FormularioBloqueio } from "./formularios";
 
 export const dynamic = "force-dynamic";
@@ -72,8 +72,8 @@ export default async function PaginaReservas({ searchParams }: Props) {
                   return (
                     <li key={i.id} className="faixa-preco">
                       <span>{linha}</span>
-                      {i.futura && i.tipo === "reserva" && <CancelarReservaDono reservaId={i.id} descricao={linha} />}
-                      {i.futura && i.tipo === "bloqueio" && (
+                      {podeAgir(i) && i.tipo === "reserva" && <CancelarReservaDono reservaId={i.id} descricao={linha} />}
+                      {podeAgir(i) && i.tipo === "bloqueio" && (
                         <Confirmar
                           acao={removerBloqueioAction}
                           campo="reservaId"

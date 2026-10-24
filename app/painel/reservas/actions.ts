@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { MOTIVO_CANCELAMENTO_MAX, bloquearHorario, cancelarPeloDono } from "@/app/lib/reservas";
+import { MOTIVO_CANCELAMENTO_MAX, bloquearHorario, cancelarPeloDono, removerBloqueio } from "@/app/lib/reservas";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import {
   MSG_BLOQUEIO_NAO_REMOVIDO,
@@ -40,7 +40,7 @@ export async function removerBloqueioAction(_e: EstadoAgenda, form: FormData): P
   const { arenaId } = await exigirSessao();
   let ok = false;
   try {
-    ok = await cancelarPeloDono(poolCompartilhado(), arenaId, campo(form, "reservaId"), undefined, new Date());
+    ok = await removerBloqueio(poolCompartilhado(), arenaId, campo(form, "reservaId"), new Date());
   } catch {
     return { erro: MSG_TENTE_DE_NOVO };
   }
