@@ -189,3 +189,19 @@ test("deadlock ou serialização ao usar o link responde link, outros erros sobe
   expect(await redefinirSenha(comErro("40001"), t, "nova-senha-1")).toEqual({ ok: false, erro: "link" });
   await expect(redefinirSenha(comErro("23505"), t, "nova-senha-1")).rejects.toThrow("falhou");
 });
+
+test("redefinir a senha apaga as falhas de login da conta: 5 erros, link, e a senha nova entra", async () => {
+  const { db } = await preparar();
+  for (const [email, tipo] of [["j@x.com", "jogador"], ["d@x.com", "dono"], ["a@x.com", "admin"]]) {
+    for (let i = 0; i < 5; i++) expect((await entrarUnico(db, email, "errada-errada", IP)).ok).toBe(false);
+    await db.query("insert into tentativas_login (email, ip) values ('outro:z@x.com', $1)", [IP]);
+    const t = await pedirToken(db, email);
+    expect(await redefinirSenha(db, t, "nova-senha-muito-longa-1")).toMatchObject({ ok: true, tipo });
+    const r = await db.query("select 1 from tentativas_login where email = $1", [`${tipo}:${email}`]);
+    expect(r.rows).toHaveLength(0);
+    expect((await entrarUnico(db, email, "nova-senha-muito-longa-1", IP)).ok).toBe(true);
+  }
+  // Outras chaves (e o pedido de recuperação) ficam.
+  const outras = await db.query("select 1 from tentativas_login where email = 'outro:z@x.com'");
+  expect(outras.rows).toHaveLength(3);
+});

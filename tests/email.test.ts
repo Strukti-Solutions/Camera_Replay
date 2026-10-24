@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { criarEnvioEmail } from "../app/lib/email";
+import { criarEnvioEmail, envioEmailConfigurado } from "../app/lib/email";
 
 const MSG = { para: "a@b.com", assunto: "Assunto", texto: "Texto com link https://x/redefinir-senha?t=abc" };
 const CHAVE = "re_chave_secreta_123";
@@ -45,4 +45,14 @@ test("sem configuração fora de produção mostra o texto no terminal", async (
   await criarEnvioEmail({ NODE_ENV: "development", EMAIL_REMETENTE: "r@x.com" }, fetcher)(MSG);
   expect(fetcher).not.toHaveBeenCalled();
   expect(info.mock.calls.flat().join(" ")).toContain(MSG.texto);
+});
+
+test("envioEmailConfigurado: em produção exige chave e remetente; fora de produção sempre", () => {
+  expect(envioEmailConfigurado({ NODE_ENV: "production" })).toBe(false);
+  expect(envioEmailConfigurado({ NODE_ENV: "production", RESEND_API_KEY: CHAVE })).toBe(false);
+  expect(envioEmailConfigurado({ NODE_ENV: "production", EMAIL_REMETENTE: "r@x.com" })).toBe(false);
+  expect(envioEmailConfigurado({ NODE_ENV: "production", RESEND_API_KEY: " ", EMAIL_REMETENTE: "r@x.com" })).toBe(false);
+  expect(envioEmailConfigurado({ NODE_ENV: "production", RESEND_API_KEY: CHAVE, EMAIL_REMETENTE: "r@x.com" })).toBe(true);
+  expect(envioEmailConfigurado({ NODE_ENV: "development" })).toBe(true);
+  expect(envioEmailConfigurado({})).toBe(true);
 });

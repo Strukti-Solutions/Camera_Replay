@@ -15,6 +15,7 @@ export type ResultadoEntrarUnico =
   | { ok: false; motivo: "credenciais" | "suspensa" };
 
 const CAMINHO_MAX = 512;
+const EMAIL_MAX = 254;
 
 type Conta = { id: string; senhaHash: string; arenaId?: string; arenaAtiva?: boolean };
 
@@ -42,7 +43,8 @@ async function buscarConta(db: Db, tipo: TipoConta, email: string): Promise<Cont
 }
 
 export async function entrarUnico(db: Db, email: string, senha: string, ip: string): Promise<ResultadoEntrarUnico> {
-  const emailNorm = String(email ?? "").trim().toLowerCase();
+  // Cortado como no cadastro e no "Esqueci a senha": a chave da tentativa fica curta.
+  const emailNorm = String(email ?? "").trim().toLowerCase().slice(0, EMAIL_MAX);
   const senhaTexto = typeof senha === "string" ? senha : "";
 
   // Limpeza oportunista: tentativas com mais de 1 dia.

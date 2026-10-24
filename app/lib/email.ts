@@ -9,6 +9,14 @@ type Buscar = (url: string, init: RequestInit) => Promise<Response>;
 
 const URL_RESEND = "https://api.resend.com/emails";
 
+// Em produção o envio só existe com chave e remetente; sem eles a tela de
+// entrar esconde o "Esqueci a senha". Fora de produção vale sempre: o link
+// aparece no terminal do next dev.
+export function envioEmailConfigurado(env: Ambiente = process.env): boolean {
+  if (env.NODE_ENV !== "production") return true;
+  return Boolean(env.RESEND_API_KEY?.trim() && env.EMAIL_REMETENTE?.trim());
+}
+
 export function criarEnvioEmail(env: Ambiente = process.env, fetcher: Buscar = fetch): EnviarEmail {
   const chave = env.RESEND_API_KEY?.trim();
   const remetente = env.EMAIL_REMETENTE?.trim();

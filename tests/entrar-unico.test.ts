@@ -222,3 +222,11 @@ test("caminhoSeguro só aceita caminho interno", () => {
     expect(caminhoSeguro(v)).toBeNull();
   }
 });
+
+test("e-mail longo: a chave da tentativa usa o e-mail cortado em 254", async () => {
+  const { db } = await preparar();
+  const longo = "  " + "A".repeat(300) + "@x.com";
+  expect((await entrarUnico(db, longo, SENHA, "1.1.1.1")).ok).toBe(false);
+  const r = await db.query<{ email: string }>("select email from tentativas_login");
+  expect(r.rows).toEqual([{ email: `jogador:${"a".repeat(254)}` }]);
+});

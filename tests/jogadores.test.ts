@@ -84,3 +84,17 @@ test("contas_email acompanha insert, update e delete de donos e admins", async (
   await db.query("delete from super_admins");
   expect(await tipos()).toEqual([{ email: "d2@x.com", tipo: "dono" }]);
 });
+
+test("trocar senha apaga os links pendentes de Esqueci a senha do jogador", async () => {
+  const db = await novoBanco();
+  const r = await criarContaJogador(db, conta("a@x.com"));
+  const o = await criarContaJogador(db, conta("b@x.com"));
+  if (!r.ok || !o.ok) throw new Error("conta");
+  const s1 = await criarSessaoJogador(db, r.jogadorId);
+  const link = `insert into tokens_senha (tipo, conta_id, token_hash, expira_em) values ('jogador', $1, $2, now() + interval '1 hour')`;
+  await db.query(link, [r.jogadorId, "t1"]);
+  await db.query(link, [o.jogadorId, "t2"]);
+  expect(await trocarSenhaJogador(db, r.jogadorId, SENHA, "nova-senha-1", s1.token)).toEqual({ ok: true });
+  const t = await db.query<{ token_hash: string }>("select token_hash from tokens_senha");
+  expect(t.rows).toEqual([{ token_hash: "t2" }]);
+});

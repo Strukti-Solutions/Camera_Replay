@@ -116,6 +116,14 @@ async function criarUsuario(db: Awaited<ReturnType<typeof novoBanco>>, arenaId: 
   return r.rows[0].id;
 }
 
+async function criarUsuarioCom(db: Awaited<ReturnType<typeof novoBanco>>, arenaId: string, email: string) {
+  const r = await db.query<{ id: string }>(
+    "insert into usuarios (arena_id, email, senha_hash, papel) values ($1, $2, 'h', 'dono') returning id",
+    [arenaId, email],
+  );
+  return r.rows[0].id;
+}
+
 const SESSAO = `insert into sessoes (arena_id, usuario_id, token_hash, expira_em)
   values ($1, $2, $3, now() + interval '7 days')`;
 
@@ -202,7 +210,7 @@ test("migração 0007 reduz arena de 7 dias e clipe com expira_em de 7 dias, sem
       [a.id, (await db.query<{ id: string }>(APERTO, [a.id, bt.id])).rows[0].id, c.id, dias])).rows[0].id;
     const sete = await inserir(7), um = await inserir(1);
 
-    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql"]);
+    expect(await migrar(db)).toEqual(["0007_retencao_3_dias.sql", "0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql"]);
 
     const ar = await db.query("select id, dias_retencao from arenas");
     expect(Object.fromEntries(ar.rows.map((x) => [x.id, x.dias_retencao]))).toEqual({ [a.id]: 3, [b.id]: 2 });
@@ -225,7 +233,7 @@ test("migração 0008 dá slug próprio às arenas existentes; slug é único, o
     const db = await novoBanco(pasta);
     await db.query("insert into arenas (nome) values ('A'), ('B')");
 
-    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql"]);
+    expect(await migrar(db)).toEqual(["0008_arena_slug.sql", "0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql"]);
 
     const r = await db.query<{ slug: string }>("select slug from arenas order by nome");
     expect(r.rows).toHaveLength(2);
@@ -256,7 +264,7 @@ test("migração 0009 normaliza status_assinatura antigo para ativa e preserva a
       `insert into arenas (nome, slug, status_assinatura)
        values ('A', 'a'||repeat('x', 21), 'ativa'), ('B', 'b'||repeat('x', 21), 'trial'), ('C', 'c'||repeat('x', 21), 'suspensa')`);
 
-    expect(await migrar(db)).toEqual(["0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql"]);
+    expect(await migrar(db)).toEqual(["0009_super_admin.sql", "0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql"]);
 
     const r = await db.query("select nome, status_assinatura from arenas order by nome");
     expect(r.rows).toEqual([
@@ -283,4 +291,59 @@ test("0011 cria contas_email, jogadores e sessoes_jogador", async () => {
     const r = await db.query<{ r: string | null }>("select to_regclass($1)::text as r", [t]);
     expect(r.rows[0].r, t).not.toBeNull();
   }
+});
+
+test("migrações 0010 a 0013 com dados: contas preservadas, alunos fora, só tentativas aluno: apagadas", async () => {
+  // Banco parado na 0009, com o formato antigo (alunos e reservas do dono).
+  const pasta = mkdtempSync(join(tmpdir(), "mig-"));
+  try {
+    const todas = join(__dirname, "..", "db", "migrations");
+    for (const f of readdirSync(todas).filter((x) => x < "0010")) cpSync(join(todas, f), join(pasta, f));
+    const db = await novoBanco(pasta);
+
+    const a = await criarArena(db);
+    const dono = await criarUsuarioCom(db, a.id, "dono@x.com");
+    const adm = await db.query<{ id: string }>(
+      "insert into super_admins (email, senha_hash) values ('adm@x.com', 'h') returning id");
+    const q = await criarQuadra(db, a.id);
+    const c = await criarCamera(db, a.id, q.id);
+    const bt = await criarBotao(db, a.id, q.id, c.id);
+    const ap = await db.query<{ id: string }>(APERTO, [a.id, bt.id]);
+    const cl = await db.query<{ id: string }>(CLIPE, [a.id, ap.rows[0].id, c.id]);
+    const al = await db.query<{ id: string }>(
+      "insert into alunos (arena_id, nome, email, senha_hash) values ($1, 'Al', 'al@x.com', 'h') returning id", [a.id]);
+    const rs = await db.query<{ id: string }>(
+      "insert into reservas (arena_id, quadra_id, inicio, fim) values ($1, $2, now(), now() + interval '1 hour') returning id",
+      [a.id, q.id]);
+    await db.query("insert into reserva_alunos (reserva_id, aluno_id, arena_id) values ($1, $2, $3)",
+      [rs.rows[0].id, al.rows[0].id, a.id]);
+    await db.query("insert into tentativas_login (email, ip) values ('aluno:x', '1.1.1.1'), ('dono:y', '1.1.1.1')");
+
+    expect(await migrar(db)).toEqual(["0010_sem_alunos.sql", "0011_contas.sql", "0012_tokens_senha.sql", "0013_usuarios_email_minusculo.sql"]);
+
+    const ids = async (t: string) => (await db.query<{ id: string }>(`select id from ${t}`)).rows.map((x) => x.id);
+    expect(await ids("arenas")).toEqual([a.id]);
+    expect(await ids("usuarios")).toEqual([dono]);
+    expect(await ids("super_admins")).toEqual([adm.rows[0].id]);
+    expect(await ids("quadras")).toEqual([q.id]);
+    expect(await ids("cameras")).toEqual([c.id]);
+    expect(await ids("clipes")).toEqual([cl.rows[0].id]);
+    const contas = await db.query("select email, tipo from contas_email order by email");
+    expect(contas.rows).toEqual([{ email: "adm@x.com", tipo: "admin" }, { email: "dono@x.com", tipo: "dono" }]);
+    for (const t of ["alunos", "reserva_alunos", "clipe_alunos", "sessoes_aluno", "reservas"]) {
+      const r = await db.query<{ r: string | null }>("select to_regclass($1)::text as r", [t]);
+      expect(r.rows[0].r, t).toBeNull();
+    }
+    const tent = await db.query("select email from tentativas_login");
+    expect(tent.rows).toEqual([{ email: "dono:y" }]);
+  } finally {
+    rmSync(pasta, { recursive: true, force: true });
+  }
+});
+
+test("0013: e-mail do dono só em minúsculas", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  await expect(criarUsuarioCom(db, a.id, "Dono@X.com")).rejects.toThrow(/check/i);
+  await criarUsuarioCom(db, a.id, "dono@x.com");
 });

@@ -93,12 +93,18 @@ export async function trocarSenhaJogador(
   const hash = await hashDoJogador(db, jogadorId);
   if (!hash || !(await conferirSenha(String(atual ?? ""), hash))) return { ok: false, erro: "senha_atual" };
   if (typeof nova !== "string" || nova.length < SENHA_JOGADOR_MIN) return { ok: false, erro: "senha" };
-  await db.query("update jogadores set senha_hash = $2 where id = $1", [jogadorId, await hashSenha(nova)]);
-  // Derruba todas as sessões, menos a de quem acabou de trocar a senha.
-  await db.query("delete from sessoes_jogador where jogador_id = $1 and token_hash <> $2", [
-    jogadorId,
-    FORMATO_TOKEN.test(tokenAtual ?? "") ? hashToken(tokenAtual) : "",
-  ]);
+  // Um comando só (CTEs), tudo ou nada: troca o hash, derruba todas as sessões
+  // menos a de quem acabou de trocar a senha e apaga os links pendentes de
+  // "Esqueci a senha" (um link pedido antes não pode desfazer a troca).
+  await db.query(
+    `with j as (
+       update jogadores set senha_hash = $2 where id = $1 returning id
+     ), s as (
+       delete from sessoes_jogador where jogador_id in (select id from j) and token_hash <> $3
+     )
+     delete from tokens_senha where tipo = 'jogador' and conta_id in (select id from j)`,
+    [jogadorId, await hashSenha(nova), FORMATO_TOKEN.test(tokenAtual ?? "") ? hashToken(tokenAtual) : ""],
+  );
   return { ok: true };
 }
 

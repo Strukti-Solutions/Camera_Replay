@@ -88,8 +88,9 @@ export async function redefinirSenha(db: Db, token: string, novaSenha: string): 
   if (typeof novaSenha !== "string" || novaSenha.length < conta.minimo) return { ok: false, erro: "senha" };
   const hash = await hashSenha(novaSenha);
 
-  // Um comando só (CTEs): marca o uso, troca o hash, apaga as sessões e os outros
-  // links da conta, tudo ou nada. A condição do "t" se repete para que dois usos
+  // Um comando só (CTEs): marca o uso, troca o hash, apaga as sessões, os outros
+  // links e as falhas de login da conta (chave `<tipo>:<email>`), tudo ou nada.
+  // Sem apagar as falhas, quem errou 5 vezes e redefiniu ficaria bloqueado. A condição do "t" se repete para que dois usos
   // simultâneos do mesmo link não troquem a senha duas vezes. Conta apagada não
   // casa no "c": nada muda e o link é recusado.
   let feito: { rows: { n: number }[] };
@@ -102,11 +103,13 @@ export async function redefinirSenha(db: Db, token: string, novaSenha: string): 
        ), c as (
          update ${conta.tabela} set senha_hash = $2
           where id in (select conta_id from t)
-          returning id
+          returning id, email
        ), s as (
          delete from ${conta.sessoes} where ${conta.coluna} in (select id from c)
        ), o as (
          delete from tokens_senha where tipo = $3 and conta_id in (select id from c) and id <> $1
+       ), f as (
+         delete from tentativas_login where email in (select $3 || ':' || email from c)
        )
        select count(*)::int as n from c`,
       [l.id, hash, l.tipo],

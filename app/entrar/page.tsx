@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MarcaDaFaixa } from "@/app/componentes/marca";
 import { LinkVoltar } from "@/app/componentes/voltar";
+import { envioEmailConfigurado } from "@/app/lib/email";
 import { caminhoSeguro, destinoDoTipo } from "@/app/lib/entrar-unico";
 import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
 import { sessaoAtual } from "@/app/painel/sessao-atual";
@@ -39,7 +40,8 @@ export default async function PaginaEntrar({ searchParams }: Props) {
         <FormularioEntrar voltar={voltar} />
         <p className="entrar-links">
           <Link href={criarConta}>Criar conta</Link>
-          <Link href="/esqueci-a-senha">Esqueci a senha</Link>
+          {/* Em produção, sem envio de e-mail configurado, o link não aparece. */}
+          {envioEmailConfigurado() && <Link href="/esqueci-a-senha">Esqueci a senha</Link>}
         </p>
       </main>
     </>

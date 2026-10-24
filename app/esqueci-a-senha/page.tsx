@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
 import { LinkVoltar } from "@/app/componentes/voltar";
+import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
 import { FormularioEsqueci } from "./formulario";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Esqueci a senha",
@@ -10,10 +13,11 @@ export const metadata: Metadata = {
 };
 
 // Vale para jogador, dono e admin: o e-mail diz o tipo da conta.
-export default function PaginaEsqueci() {
+export default async function PaginaEsqueci() {
+  const sessao = await sessaoJogadorAtual();
   return (
     <>
-      <CabecalhoPublico sessao={null} />
+      <CabecalhoPublico sessao={sessao} />
       <main className="miolo entrar">
         <LinkVoltar href="/entrar" />
         <h1>Esqueci a senha</h1>
