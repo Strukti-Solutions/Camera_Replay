@@ -49,6 +49,11 @@ Reserva pelo site **sem pagamento online** (emenda no spec de 23/10, decisão do
 - `/minhas-reservas`: próximas e histórico, lances da reserva, cancelamento grátis até 24 h antes. Cancelada pela arena mostra o motivo.
 - Painel do dono, aba "Reservas" (`/painel/reservas`): agenda dos próximos 14 dias por dia, filtro por quadra, cancelar reserva (motivo opcional, até 120 caracteres), bloquear horário (motivo de 1 a 60) e remover bloqueio, histórico dos últimos 30 dias.
 - Apagar a conta com reservas futuras é recusado: "Cancele suas reservas futuras antes de apagar a conta."
+- O admin vê, na confirmação de suspender, quantas reservas futuras confirmadas a arena tem.
+
+### Riscos aceitos da fase 4a
+- **Sem pagamento e sem verificação de e-mail:** várias contas podem segurar 2 horários cada por arena. Hoje o dono cancela. Antes de o tráfego crescer, pensar num teto de reservas por IP ou em verificar o e-mail antes de reservar.
+- **Conflito de exclusão (23P01) descarta a conexão do pool** (`emTransacao` em `app/lib/db.ts` faz `release(erro)` em qualquer erro). Inofensivo no volume atual.
 
 ## Para produção (fase 4a, nesta ordem)
 1. Ok do dono.
