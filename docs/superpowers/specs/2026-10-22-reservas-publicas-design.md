@@ -89,6 +89,8 @@ Cada fase é entregue, revisada e publicada antes da próxima.
 
 ## Fase 4 — Reserva paga
 
+> **Emenda de 23/10/2026 (decisão do dono: "pagamento fica para depois, faz todo o resto"):** a fase 4 é feita em duas partes. **4a (agora):** tudo, menos o pagamento online — horário reservado sem sobreposição no banco, bloqueio de horário pelo dono, volta à escolha após o login, confirmação, "Minhas reservas" com os lances, cancelamento e agenda do dono. Sem provedor de pagamento configurado, a reserva é **confirmada na hora como "pagar na arena"** (o dono recebe pessoalmente; a Strukti não cobra taxa nessas reservas) **(decisão nossa)**. O código já nasce com o estado `segurada` e o prazo de 10 minutos, prontos para a 4b. **4b (quando houver conta Asaas):** cobrança com split, página de pagamento do Asaas, webhook, estorno — como descrito abaixo; a partir daí "pagar na arena" deixa de ser oferecido (ou vira opção do dono, a decidir). Pesquisa da API em `docs/pesquisa/asaas.md`.
+
 ### Fluxo
 
 1. Na página da arena, o jogador escolhe quadra, dia, início e horas, e clica em **Reservar**.

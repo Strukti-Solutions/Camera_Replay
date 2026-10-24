@@ -1,6 +1,8 @@
 import type { Db } from "./db";
 import type { Faixa } from "./precos";
 import { SLUG_VALIDO } from "./clipes";
+import { horasOcupadas } from "./disponibilidade";
+import { periodosOcupados } from "./reservas";
 
 // Dados públicos das arenas (home, busca, mapa e /a/<slug>). Fica fora de
 // plataforma.ts de propósito: é o dado que cruza arenas sem sessão. Só sai o que
@@ -138,4 +140,28 @@ export async function arenaPublica(db: Db, slug: string): Promise<ArenaPublica |
     ...base,
     quadras: q.rows.map((x) => ({ id: x.id, nome: x.nome, esporte: x.esporte, faixas: faixas.get(x.id) ?? [] })),
   };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ehUuid = (id: unknown): id is string => typeof id === "string" && UUID.test(id);
+
+// Slug da arena dona da quadra (para /reservar voltar à página certa). Id que
+// não é uuid não toca o banco.
+export async function slugDaQuadra(db: Db, quadraId: string): Promise<string | null> {
+  if (!ehUuid(quadraId)) return null;
+  const { rows } = await db.query<{ slug: string }>(
+    "select a.slug from quadras q join arenas a on a.id = q.arena_id where q.id = $1",
+    [quadraId],
+  );
+  return rows[0]?.slug ?? null;
+}
+
+// Horas locais do dia já tomadas por reserva ou bloqueio na quadra. Só as horas:
+// quem reservou não sai daqui.
+export async function ocupadasPublicas(db: Db, quadraId: string, dia: string): Promise<Set<number>> {
+  if (!ehUuid(quadraId)) return new Set();
+  const q = await db.query<{ arena_id: string }>("select arena_id from quadras where id = $1", [quadraId]);
+  const arenaId = q.rows[0]?.arena_id;
+  if (!arenaId) return new Set();
+  return horasOcupadas(await periodosOcupados(db, arenaId, quadraId, dia), dia);
 }

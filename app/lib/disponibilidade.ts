@@ -1,5 +1,5 @@
-// Horários livres e preço da escolha (sem banco). Hoje só a tabela de preços
-// define a disponibilidade; reservas futuras entram como horas ocupadas.
+// Horários livres e preço da escolha (sem banco). A tabela de preços define as
+// horas abertas; reservas e bloqueios entram como horas ocupadas.
 import type { Faixa } from "./precos";
 
 export const DIAS_A_FRENTE = 30;
@@ -65,15 +65,17 @@ function precosDoDia(faixas: Faixa[], dia: string): Map<number, number> {
 
 export type Inicio = { hora: number; horasMax: number };
 
-export function iniciosLivres(faixas: Faixa[], dia: string, agora: Date): Inicio[] {
+// Hora livre: tem preço na tabela e não está ocupada por reserva ou bloqueio.
+export function iniciosLivres(faixas: Faixa[], dia: string, agora: Date, ocupadas: Set<number> = new Set()): Inicio[] {
   const precos = precosDoDia(faixas, dia);
+  const livre = (h: number) => precos.has(h) && !ocupadas.has(h);
   const local = partesLocais(agora);
   const primeira = dia === local.dia ? local.hora + 1 : dia < local.dia ? 24 : 0;
   const saida: Inicio[] = [];
   for (let h = Math.max(primeira, 0); h < 24; h++) {
-    if (!precos.has(h)) continue;
+    if (!livre(h)) continue;
     let n = 0;
-    while (n < HORAS_MAX && precos.has(h + n)) n++;
+    while (n < HORAS_MAX && livre(h + n)) n++;
     saida.push({ hora: h, horasMax: n });
   }
   return saida;
@@ -86,11 +88,38 @@ export type Escolha = {
   totalCentavos: number;
 };
 
-export function precoEscolha(faixas: Faixa[], dia: string, hora: number, horas: number, agora: Date): Escolha | null {
+export function precoEscolha(
+  faixas: Faixa[], dia: string, hora: number, horas: number, agora: Date, ocupadas: Set<number> = new Set(),
+): Escolha | null {
   if (!Number.isInteger(hora) || !Number.isInteger(horas) || horas < 1) return null;
-  const inicio = iniciosLivres(faixas, dia, agora).find((i) => i.hora === hora);
+  const inicio = iniciosLivres(faixas, dia, agora, ocupadas).find((i) => i.hora === hora);
   if (!inicio || horas > inicio.horasMax) return null;
   const precos = precosDoDia(faixas, dia);
   const porHora = Array.from({ length: horas }, (_, i) => ({ hora: hora + i, precoCentavos: precos.get(hora + i)! }));
   return { hora, horas, porHora, totalCentavos: porHora.reduce((s, x) => s + x.precoCentavos, 0) };
+}
+
+// Início (UTC) da hora local `hora` do dia `dia` em São Paulo. Começa no palpite
+// de UTC-3 e corrige pela hora local observada (vale se o fuso voltar a ter
+// horário de verão).
+export function instanteLocal(dia: string, hora: number): number {
+  const [a, m, d] = dia.split("-").map(Number);
+  let t = Date.UTC(a, m - 1, d, hora + 3);
+  for (let i = 0; i < 2; i++) {
+    const p = partesLocais(new Date(t));
+    const diff = (emUtc(p.dia).getTime() + p.hora * 3_600_000) - Date.UTC(a, m - 1, d, hora);
+    if (diff === 0) break;
+    t -= diff;
+  }
+  return t;
+}
+
+// Horas locais (0–23) do dia tocadas por algum período [inicio, fim).
+export function horasOcupadas(periodos: { inicio: Date; fim: Date }[], dia: string): Set<number> {
+  const saida = new Set<number>();
+  for (let h = 0; h < 24; h++) {
+    const de = instanteLocal(dia, h), ate = de + 3_600_000;
+    if (periodos.some((p) => p.inicio.getTime() < ate && p.fim.getTime() > de)) saida.add(h);
+  }
+  return saida;
 }

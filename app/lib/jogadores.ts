@@ -1,4 +1,4 @@
-import type { Db } from "./db";
+import { emTransacao, type Db } from "./db";
 import { conferirSenha, hashSenha } from "./senha";
 import { hashToken, novoToken } from "./segredos";
 
@@ -110,16 +110,31 @@ export async function trocarSenhaJogador(
 
 // Apaga a conta: sessões saem por cascata, o trigger libera o e-mail e os links
 // de "Esqueci a senha" saem junto (tokens_senha não tem chave estrangeira).
-// A regra de reservas futuras entra na fase 4.
+// Com reserva confirmada que ainda não terminou, recusa; as passadas ficam com
+// jogador_id null (o dono vê "Conta apagada"). Concorrência: a transação trava
+// a linha do jogador (for update) e só depois, em comando separado (snapshot
+// novo em read committed), confere as reservas; criarReserva trava a mesma
+// linha antes de inserir, então nenhuma reserva futura fica órfã.
 export async function apagarContaJogador(
   db: Db, jogadorId: string, senha: string,
-): Promise<{ ok: true } | { ok: false; erro: "senha" }> {
+): Promise<{ ok: true } | { ok: false; erro: "senha" | "reservas_futuras" }> {
   const hash = await hashDoJogador(db, jogadorId);
   if (!hash || !(await conferirSenha(String(senha ?? ""), hash))) return { ok: false, erro: "senha" };
-  await db.query(
-    `with j as (delete from jogadores where id = $1 returning id)
-     delete from tokens_senha where tipo = 'jogador' and conta_id in (select id from j)`,
-    [jogadorId],
-  );
-  return { ok: true };
+  return emTransacao(db, async (tx) => {
+    const j = await tx.query("select id from jogadores where id = $1 for update", [jogadorId]);
+    if (j.rows.length === 0) return { ok: false as const, erro: "senha" as const };
+    const f = await tx.query(
+      `select 1 from reservas
+        where jogador_id = $1 and tipo = 'reserva' and situacao = 'confirmada' and fim > now()
+        limit 1`,
+      [jogadorId],
+    );
+    if (f.rows.length > 0) return { ok: false as const, erro: "reservas_futuras" as const };
+    await tx.query(
+      `with j as (delete from jogadores where id = $1 returning id)
+       delete from tokens_senha where tipo = 'jogador' and conta_id in (select id from j)`,
+      [jogadorId],
+    );
+    return { ok: true as const };
+  });
 }

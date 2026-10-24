@@ -6,7 +6,7 @@ import { ipDoCliente } from "@/app/entrar/ip";
 import { apagarContaComLimite, trocarSenhaComLimite } from "@/app/lib/cadastro-jogador";
 import { atualizarNomeJogador } from "@/app/lib/jogadores";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { MENSAGEM_MUITAS_TENTATIVAS, mensagemMinhaConta } from "@/app/jogador/mensagens";
+import { MENSAGEM_MUITAS_TENTATIVAS, mensagemApagarConta, mensagemMinhaConta } from "@/app/jogador/mensagens";
 import { COOKIE_JOGADOR, exigirJogador } from "@/app/jogador/sessao-jogador";
 
 // Estado dos três formulários: `erro` e `ok` nunca vêm juntos.
@@ -37,7 +37,7 @@ export async function apagarContaAction(_e: EstadoConta, form: FormData): Promis
   }
   const ip = ipDoCliente(await headers());
   const r = await apagarContaComLimite(poolCompartilhado(), jogadorId, String(form.get("senha") ?? ""), ip);
-  if (!r.ok) return { erro: r.erro === "limite" ? MENSAGEM_MUITAS_TENTATIVAS : "Senha incorreta.", ok: null };
+  if (!r.ok) return { erro: mensagemApagarConta(r.erro), ok: null };
   (await cookies()).delete(COOKIE_JOGADOR);
   redirect("/?ok=conta-apagada");
 }

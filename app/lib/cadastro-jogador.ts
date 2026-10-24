@@ -19,25 +19,28 @@ export async function criarContaComLimite(
 
 // Troca de senha e apagar conta conferem a senha atual: quem roubar o cookie
 // não pode forçá-la. Limite por jogador e por IP antes de conferir; bloqueado,
-// nada é conferido nem mudado. Sucesso zera as tentativas do jogador.
+// nada é conferido nem mudado. Só a senha errada (`erroSenha`) conta: qualquer
+// outro resultado (sucesso, reserva futura, senha nova curta) teve a senha
+// certa e zera as tentativas do jogador, senão a recusa repetida viraria
+// "muitas tentativas" e esconderia o motivo real.
 export type ResultadoComLimite<E extends string> = { ok: true } | { ok: false; erro: E | "limite" };
 
 async function comLimiteDeSenha<E extends string>(
-  db: Db, jogadorId: string, ip: string, operacao: () => Promise<{ ok: true } | { ok: false; erro: E }>,
+  db: Db, jogadorId: string, ip: string, erroSenha: E, operacao: () => Promise<{ ok: true } | { ok: false; erro: E }>,
 ): Promise<ResultadoComLimite<E>> {
   const chave = `senha-jogador:${jogadorId}`;
   if (await registrarTentativa(db, chave, ip)) return { ok: false, erro: "limite" };
   const r = await operacao();
-  if (r.ok) await db.query("delete from tentativas_login where email = $1", [chave]);
+  if (r.ok || r.erro !== erroSenha) await db.query("delete from tentativas_login where email = $1", [chave]);
   return r;
 }
 
 export function trocarSenhaComLimite(
   db: Db, jogadorId: string, atual: string, nova: string, tokenAtual: string, ip: string,
 ) {
-  return comLimiteDeSenha(db, jogadorId, ip, () => trocarSenhaJogador(db, jogadorId, atual, nova, tokenAtual));
+  return comLimiteDeSenha(db, jogadorId, ip, "senha_atual", () => trocarSenhaJogador(db, jogadorId, atual, nova, tokenAtual));
 }
 
 export function apagarContaComLimite(db: Db, jogadorId: string, senha: string, ip: string) {
-  return comLimiteDeSenha(db, jogadorId, ip, () => apagarContaJogador(db, jogadorId, senha));
+  return comLimiteDeSenha(db, jogadorId, ip, "senha", () => apagarContaJogador(db, jogadorId, senha));
 }

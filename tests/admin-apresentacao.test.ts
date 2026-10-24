@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { ERRO_SENHA_LONGA, lerTaxa, textoTaxa, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoStatusArena } from "../app/admin/apresentacao";
+import { ERRO_SENHA_LONGA, lerTaxa, textoTaxa, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoReservasFuturas, textoStatusArena } from "../app/admin/apresentacao";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -68,4 +68,10 @@ test("textoTaxa mostra vírgula e corta zeros", () => {
   expect(textoTaxa(7.5)).toBe("7,5%");
   expect(textoTaxa(7.55)).toBe("7,55%");
   expect(textoTaxa(0)).toBe("0%");
+});
+
+test("reservas futuras na confirmação de suspender: singular, plural e nenhuma", () => {
+  expect(textoReservasFuturas(0)).toBe("Nenhuma reserva futura confirmada.");
+  expect(textoReservasFuturas(1)).toBe("Esta arena tem 1 reserva futura confirmada.");
+  expect(textoReservasFuturas(2)).toBe("Esta arena tem 2 reservas futuras confirmadas.");
 });

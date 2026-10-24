@@ -99,3 +99,10 @@ export function caminhoSeguro(v: unknown): string | null {
   if (/[\u0000-\u001f\u007f]/.test(v)) return null;
   return v;
 }
+
+// Tela de entrar que volta para `voltar` depois do login (e oferece criar conta
+// com o mesmo `voltar`). Caminho que não passa em caminhoSeguro é descartado.
+export function destinoEntrar(voltar: unknown): string {
+  const v = caminhoSeguro(voltar);
+  return v ? `/entrar?voltar=${encodeURIComponent(v)}` : "/entrar";
+}

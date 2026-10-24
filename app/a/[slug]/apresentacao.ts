@@ -1,4 +1,4 @@
-import { HORAS_MAX, diaValido, hojeLocal } from "@/app/lib/disponibilidade";
+import { FUSO, HORAS_MAX, diaValido, hojeLocal } from "@/app/lib/disponibilidade";
 import { formatarHorario } from "@/app/lib/formato";
 
 // Regras de texto da página da arena (/a/<slug-da-arena>). Sem acesso a cookie nem a
@@ -73,4 +73,40 @@ export function lerEscolha(
     inicio: inteiroEntre(primeiro(params.inicio), 0, 23),
     horas: inteiroEntre(primeiro(params.horas), 1, HORAS_MAX) ?? 1,
   };
+}
+
+// Escolha completa para /reservar: aqui nada volta ao padrão. Quadra fora da
+// lista, dia fora da janela, início ou duração ausentes ou inválidos → null.
+export function lerReserva(
+  params: Parametros,
+  quadraIds: string[],
+  agora: Date,
+): { quadra: string; dia: string; inicio: number; horas: number } | null {
+  const e = lerEscolha(params, quadraIds, agora);
+  const horas = inteiroEntre(primeiro(params.horas), 1, HORAS_MAX);
+  if (e.quadra === null || e.inicio === null || horas === null) return null;
+  if (diaValido(primeiro(params.dia), agora) === null) return null;
+  return { quadra: e.quadra, dia: e.dia, inicio: e.inicio, horas };
+}
+
+// URL do resumo da reserva (contrato: /reservar?quadra=&dia=&inicio=&horas=).
+// Aceita valores crus da URL: tudo vai codificado.
+export function hrefReservar(e: {
+  quadra: string;
+  dia: string;
+  inicio: number | string;
+  horas: number | string;
+}): string {
+  const q = new URLSearchParams({ quadra: e.quadra, dia: e.dia, inicio: String(e.inicio), horas: String(e.horas) });
+  return `/reservar?${q.toString()}`;
+}
+
+const DIA_EXTENSO = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "long", day: "numeric", month: "long" });
+
+// "Segunda-feira, 26 de outubro" para o dia AAAA-MM-DD (meio-dia em São Paulo).
+export function diaPorExtenso(dia: string): string {
+  const [a, m, d] = dia.split("-").map(Number);
+  const p = Object.fromEntries(DIA_EXTENSO.formatToParts(new Date(Date.UTC(a, m - 1, d, 15))).map((x) => [x.type, x.value]));
+  const semana = p.weekday.charAt(0).toUpperCase() + p.weekday.slice(1);
+  return `${semana}, ${p.day} de ${p.month}`;
 }

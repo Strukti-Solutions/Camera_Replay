@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
-import { linkComoChegar, lerEscolha, textoDia, textoLances } from "../app/a/[slug]/apresentacao";
+import {
+  diaPorExtenso, hrefReservar, lerEscolha, lerReserva, linkComoChegar, textoDia, textoLances,
+} from "../app/a/[slug]/apresentacao";
 
 // 17/10/2026, 17:00 em São Paulo.
 const agora = new Date("2026-10-17T20:00:00Z");
@@ -45,4 +47,32 @@ test("linkComoChegar", () => {
   });
   expect(porEndereco).toContain(`query=${encodeURIComponent("Rua A, 10 - Centro, Fortaleza - CE")}`);
   expect(linkComoChegar({ latitude: null, longitude: null, endereco: null })).toBeNull();
+});
+
+test("hrefReservar monta a URL do contrato", () => {
+  expect(hrefReservar({ quadra: "q1", dia: "2026-10-26", inicio: 16, horas: 2 })).toBe(
+    "/reservar?quadra=q1&dia=2026-10-26&inicio=16&horas=2",
+  );
+  // Valor cru da URL é codificado, nunca vira outro parâmetro.
+  expect(hrefReservar({ quadra: "a&b=c", dia: "x y", inicio: "1#", horas: "" })).toBe(
+    "/reservar?quadra=a%26b%3Dc&dia=x+y&inicio=1%23&horas=",
+  );
+});
+
+test("dia por extenso em pt-BR", () => {
+  expect(diaPorExtenso("2026-10-26")).toBe("Segunda-feira, 26 de outubro");
+  expect(diaPorExtenso("2026-11-01")).toBe("Domingo, 1 de novembro");
+  expect(diaPorExtenso("2026-12-05")).toBe("Sábado, 5 de dezembro");
+});
+
+test("lerReserva exige a escolha completa e não troca nada pelo padrão", () => {
+  const ids = ["q1", "q2"];
+  const ok = { quadra: "q2", dia: "2026-10-20", inicio: "16", horas: "2" };
+  expect(lerReserva(ok, ids, agora)).toEqual({ quadra: "q2", dia: "2026-10-20", inicio: 16, horas: 2 });
+  expect(lerReserva({ ...ok, quadra: "q9" }, ids, agora)).toBeNull();
+  expect(lerReserva({ ...ok, dia: "2026-10-16" }, ids, agora)).toBeNull();
+  expect(lerReserva({ ...ok, dia: undefined }, ids, agora)).toBeNull();
+  expect(lerReserva({ ...ok, inicio: "24" }, ids, agora)).toBeNull();
+  expect(lerReserva({ ...ok, horas: "9" }, ids, agora)).toBeNull();
+  expect(lerReserva({ ...ok, horas: undefined }, ids, agora)).toBeNull();
 });

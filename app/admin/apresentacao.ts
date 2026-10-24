@@ -23,6 +23,12 @@ export function textoStatusArena(status: "ativa" | "suspensa"): string {
   return status === "ativa" ? "Ativa" : "Suspensa";
 }
 
+// Linha da confirmação de suspender (o spec pede mostrar antes de suspender).
+export function textoReservasFuturas(n: number): string {
+  if (n === 0) return "Nenhuma reserva futura confirmada.";
+  return n === 1 ? "Esta arena tem 1 reserva futura confirmada." : `Esta arena tem ${n} reservas futuras confirmadas.`;
+}
+
 // plataforma.ts (e criarArenaComDono) lançam Error com mensagens fixas. As
 // conhecidas viram texto para a equipe; qualquer outra vira a genérica e vai
 // para o log só com contexto, nome, código e mensagem. Nunca o objeto inteiro
