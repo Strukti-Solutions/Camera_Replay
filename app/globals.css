@@ -868,6 +868,63 @@ video {
   color: var(--sobre-perigo);
 }
 
+/* Tabela de preços da quadra (painel do dono). */
+.faixas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.faixa-preco {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding-block: 0.25rem;
+  border-bottom: 1px solid var(--borda);
+  font-variant-numeric: tabular-nums;
+}
+
+.remover-faixa {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: end;
+}
+
+/* Caixas dos dias: a linha inteira (48 px) é o alvo de toque. */
+.dias {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+
+.dias legend {
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 0.35rem;
+}
+
+.dia {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--alvo);
+  cursor: pointer;
+}
+
+.dia input {
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: 0;
+  accent-color: var(--primario);
+}
+
 /* No painel os clipes ficam dentro de seção: sem o respiro da página do jogador. */
 .secao .lances {
   padding: 0;

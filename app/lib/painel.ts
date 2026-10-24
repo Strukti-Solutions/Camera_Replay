@@ -102,12 +102,13 @@ export async function detalheQuadra(
   id: string;
   nome: string;
   slug: string;
+  esporte: string;
   camera: CameraPainel | null;
   botoes: { id: string; criadoEm: Date; vistoEm: Date | null; revogadoEm: Date | null }[];
 } | null> {
   if (!ehUuid(arenaId) || !ehUuid(quadraId)) return null;
-  const { rows } = await db.query<LinhaCamera & { id: string; nome: string; slug: string }>(
-    `select q.id, q.nome, q.slug, ${COLUNAS_CAMERA}
+  const { rows } = await db.query<LinhaCamera & { id: string; nome: string; slug: string; esporte: string }>(
+    `select q.id, q.nome, q.slug, q.esporte, ${COLUNAS_CAMERA}
        from quadras q
        ${CAMERA_RECENTE}
       where q.id = $1 and q.arena_id = $2`,
@@ -126,6 +127,7 @@ export async function detalheQuadra(
     id: q.id,
     nome: q.nome,
     slug: q.slug,
+    esporte: q.esporte,
     camera: paraCamera(q),
     botoes: b.rows.map((x) => ({
       id: x.id,
@@ -330,6 +332,25 @@ export async function renomearQuadra(db: Db, arenaId: string, quadraId: string, 
   if (limpo.length < 1 || limpo.length > 60) throw new ErroPainel("nome inválido");
   if (!ehUuid(arenaId) || !ehUuid(quadraId)) return false;
   const r = await db.query("update quadras set nome = $3 where id = $1 and arena_id = $2 returning id", [
+    quadraId,
+    arenaId,
+    limpo,
+  ]);
+  return r.rows.length === 1;
+}
+
+// Esporte da quadra (texto livre de 0 a 40 após trim; vazio limpa). false se
+// inválido ou se a quadra não é dessa arena.
+export async function definirEsporteQuadra(
+  db: Db,
+  arenaId: string,
+  quadraId: string,
+  esporte: string,
+): Promise<boolean> {
+  const limpo = typeof esporte === "string" ? esporte.trim() : "";
+  if (typeof esporte !== "string" || limpo.length > 40) return false;
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return false;
+  const r = await db.query("update quadras set esporte = $3 where id = $1 and arena_id = $2 returning id", [
     quadraId,
     arenaId,
     limpo,
