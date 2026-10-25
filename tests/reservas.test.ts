@@ -664,3 +664,34 @@ test("buscarNaAgenda: parte do nome sem acento, só reservas desta arena, em pá
   expect(await buscarNaAgenda(espiao, arena.id, "x".repeat(61), 1, AGORA)).toEqual({ itens: [], total: 0 });
   expect(await buscarNaAgenda(espiao, "x", "ana", 1, AGORA)).toEqual({ itens: [], total: 0 });
 });
+
+test("buscarNaAgenda: com quadra, conta e pagina só a quadra dela", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const q2 = await criarQuadra(db, arena.id);
+  await criarHorariosDeHora(db, arena.id, q2.id, [0, 1, 2, 3, 4, 5, 6], 7, 20, 10000);
+  const r1 = await reservar(db, ana, quadra.id, 8, 1);
+  const r2 = await reservar(db, ana, q2.id, 9, 1);
+  const so2 = await buscarNaAgenda(db, arena.id, "ana", 1, AGORA, q2.id);
+  expect(so2.total).toBe(1);
+  expect(so2.itens.map((i) => i.id)).toEqual([r2]);
+  expect((await buscarNaAgenda(db, arena.id, "ana", 1, AGORA, quadra.id)).itens.map((i) => i.id)).toEqual([r1]);
+  expect((await buscarNaAgenda(db, arena.id, "ana", 1, AGORA, null)).total).toBe(2);
+  const espiao = { query: () => { throw new Error("não devia consultar"); } } as unknown as Db;
+  expect(await buscarNaAgenda(espiao, arena.id, "ana", 1, AGORA, "x")).toEqual({ itens: [], total: 0 });
+});
+
+test("bloquearHorarios: horário que só existe em outra quadra ou em outro dia da semana é pulado", async () => {
+  const db = await novoBanco();
+  const { arena } = await base(db);
+  const q2 = await criarQuadra(db, arena.id);
+  // q2 só tem 21h–22h, e só às segundas.
+  await criarHorariosDeHora(db, arena.id, q2.id, [1], 21, 22, 10000);
+  const r = await bloquearHorarios(
+    db, arena.id,
+    { quadraId: q2.id, dia: DIA, horarios: [{ inicio: 8 * 60, fim: 9 * 60 }, { inicio: 21 * 60, fim: 22 * 60 }], motivo: "Aula" },
+    AGORA,
+  );
+  // 8h existe só na outra quadra; 21h existe em q2 só na segunda (DIA não é segunda).
+  expect(r).toEqual({ ok: true, bloqueados: 0, pulados: 2 });
+});

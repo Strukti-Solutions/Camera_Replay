@@ -401,28 +401,29 @@ const BUSCA_MAX = 60;
 // Só reservas de jogador desta arena. Termo curto ou longo demais: vazio, sem
 // consultar o banco.
 export async function buscarNaAgenda(
-  db: Pick<Db, "query">, arenaId: string, termo: string, pagina: number, agora: Date,
+  db: Pick<Db, "query">, arenaId: string, termo: string, pagina: number, agora: Date, quadraId: string | null = null,
 ): Promise<{ itens: ItemAgenda[]; total: number }> {
   const vazio = { itens: [], total: 0 };
-  if (!ehUuid(arenaId) || typeof termo !== "string") return vazio;
+  if (!ehUuid(arenaId) || typeof termo !== "string" || (quadraId !== null && !ehUuid(quadraId))) return vazio;
   const cru = termo.trim();
   if (cru.length > BUSCA_MAX) return vazio;
   const t = normalizar(cru);
   if (t.length < BUSCA_MIN) return vazio;
   const p = Number.isInteger(pagina) && pagina > 0 ? pagina : 1;
   const filtro = `where r.arena_id = $1 and r.tipo = 'reserva' and r.situacao in ('confirmada', 'cancelada')
+        and ($3::uuid is null or r.quadra_id = $3)
         and position($2 in ${sqlNorm("j.nome")}) > 0`;
   const [linhas, conta] = await Promise.all([
     db.query<LinhaAgenda>(
       `${SELECT_AGENDA}
       ${filtro}
       order by r.inicio desc, r.id
-      limit ${BUSCA_POR_PAGINA} offset $3`,
-      [arenaId, t, (p - 1) * BUSCA_POR_PAGINA],
+      limit ${BUSCA_POR_PAGINA} offset $4`,
+      [arenaId, t, quadraId, (p - 1) * BUSCA_POR_PAGINA],
     ),
     db.query<{ n: number }>(
       `select count(*)::int as n from reservas r left join jogadores j on j.id = r.jogador_id ${filtro}`,
-      [arenaId, t],
+      [arenaId, t, quadraId],
     ),
   ]);
   return { itens: linhas.rows.map((r) => itemDaAgenda(r, agora)), total: Number(conta.rows[0]?.n ?? 0) };

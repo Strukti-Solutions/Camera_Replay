@@ -13,7 +13,7 @@ export function normalizar(busca: unknown): string {
     .trim()
     .slice(0, 80)
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
 

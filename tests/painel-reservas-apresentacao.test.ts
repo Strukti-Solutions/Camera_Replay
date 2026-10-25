@@ -256,3 +256,10 @@ test("voltaSegura: só caminhos da agenda; comAviso soma o aviso", () => {
   expect(comAviso("/painel/reservas?dia=2026-10-26&ok=velho", { bloqueados: "2", pulados: "0" }))
     .toBe("/painel/reservas?dia=2026-10-26&bloqueados=2&pulados=0");
 });
+
+test("voltaSegura: busca com espaço (+) e asterisco volta inteira", () => {
+  const volta = hrefAgenda({ dia: "2026-10-26", busca: "Ana Maria*", pagina: 2 });
+  expect(volta).toBe("/painel/reservas?dia=2026-10-26&busca=Ana+Maria*&pagina=2");
+  expect(voltaSegura(volta)).toBe(volta);
+  expect(voltaSegura("/painel/reservas?busca=a+b&x=//mal.com")).toBe("/painel/reservas");
+});

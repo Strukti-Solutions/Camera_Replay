@@ -41,14 +41,16 @@ function situacao(i: ItemAgenda): string {
 }
 
 // Uma caixinha do dia: reserva, bloqueio ou horário livre, com a ação dela.
-function CaixinhaDoDia({ c, quadraId, dia, volta }: { c: Caixinha; quadraId: string; dia: string; volta: string }) {
+function CaixinhaDoDia({
+  c, quadraId, quadra, dia, volta,
+}: { c: Caixinha; quadraId: string; quadra: string; dia: string; volta: string }) {
   const horario = intervalo(c.inicio, c.fim);
   if (c.tipo === "livre") {
     return (
       <li className="ag-cx ag-cx-livre">
         <strong>{horario}</strong>
         <span className="suave">Livre · {textoDeCentavos(c.precoCentavos)}</span>
-        <Bloquear quadraId={quadraId} dia={dia} horarios={[{ inicio: c.inicio, fim: c.fim }]} rotulo="Bloquear" descricao={horario} volta={volta} />
+        <Bloquear quadraId={quadraId} dia={dia} horarios={[{ inicio: c.inicio, fim: c.fim }]} rotulo="Bloquear" descricao={`${horario} na ${quadra}`} volta={volta} />
       </li>
     );
   }
@@ -75,7 +77,7 @@ function CaixinhaDoDia({ c, quadraId, dia, volta }: { c: Caixinha; quadraId: str
           valor={i.id}
           extras={{ volta }}
           rotulo="Desbloquear"
-          rotuloAcessivel={`Desbloquear ${horario}`}
+          rotuloAcessivel={`Desbloquear ${horario} na ${quadra}`}
           pergunta={`Desbloquear ${linhaItem(i)}? O horário volta a ficar livre.`}
           confirmar="Desbloquear"
         />
@@ -88,11 +90,23 @@ function Paginas({ pagina, paginas, href }: { pagina: number; paginas: number; h
   if (paginas <= 1) return null;
   return (
     <nav className="ag-paginas" aria-label="Páginas">
-      {pagina > 1 ? <a href={href(pagina - 1)}>‹ Anterior</a> : <span />}
+      {pagina > 1 ? (
+        <a href={href(pagina - 1)} aria-label="Página anterior">
+          ‹
+        </a>
+      ) : (
+        <span />
+      )}
       <span>
         Página {pagina} de {paginas}
       </span>
-      {pagina < paginas ? <a href={href(pagina + 1)}>Próxima ›</a> : <span />}
+      {pagina < paginas ? (
+        <a href={href(pagina + 1)} aria-label="Próxima página">
+          ›
+        </a>
+      ) : (
+        <span />
+      )}
     </nav>
   );
 }
@@ -125,7 +139,7 @@ export default async function PaginaReservas({ searchParams }: Props) {
         {quadra && <input type="hidden" name="quadra" value={quadra} />}
         <div className="campo">
           <label htmlFor="ag-busca">Buscar reserva pelo nome do jogador</label>
-          <input id="ag-busca" name="busca" type="search" maxLength={60} defaultValue={busca} autoComplete="off" />
+          <input id="ag-busca" name="busca" type="search" minLength={2} maxLength={60} defaultValue={busca} autoComplete="off" />
         </div>
         <button type="submit" className="botao">
           Buscar
@@ -138,11 +152,11 @@ export default async function PaginaReservas({ searchParams }: Props) {
       </form>
       {quadras.length > 1 && (
         <nav className="hm-esportes" aria-label="Filtrar por quadra">
-          <a href={hrefAgenda({ dia, mes, busca })} aria-current={quadra === null ? "page" : undefined}>
+          <a href={hrefAgenda({ dia, mes, busca, ver: verMes ? "mes" : null })} aria-current={quadra === null ? "page" : undefined}>
             Todas
           </a>
           {quadras.map((q) => (
-            <a key={q.id} href={hrefAgenda({ quadra: q.id, dia, mes, busca })} aria-current={quadra === q.id ? "page" : undefined}>
+            <a key={q.id} href={hrefAgenda({ quadra: q.id, dia, mes, busca, ver: verMes ? "mes" : null })} aria-current={quadra === q.id ? "page" : undefined}>
               {q.nome}
             </a>
           ))}
@@ -162,22 +176,26 @@ export default async function PaginaReservas({ searchParams }: Props) {
 
   // Busca pelo jogador: só os resultados, em páginas.
   if (busca) {
-    const r = await buscarNaAgenda(db, sessao.arenaId, busca, pagina, agora);
-    const itens = quadra ? r.itens.filter((i) => i.quadraId === quadra) : r.itens;
+    const curta = busca.length < 2;
+    const r = await buscarNaAgenda(db, sessao.arenaId, busca, pagina, agora, quadra);
     const paginas = Math.max(1, Math.ceil(r.total / BUSCA_POR_PAGINA));
     return (
       <main className="miolo-largo painel">
         {cabeca}
         <section aria-labelledby="ag-resultado">
           <h2 id="ag-resultado" className="hm-titulo">
-            {r.total === 0 ? "Nenhuma reserva encontrada." : r.total === 1 ? "1 reserva encontrada" : `${r.total} reservas encontradas`}
+            {curta ? "Digite pelo menos 2 letras do nome." : r.total === 0 ? "Nenhuma reserva encontrada." : r.total === 1 ? "1 reserva encontrada" : `${r.total} reservas encontradas`}
           </h2>
           <ul className="ag-caixinhas">
-            {itens.map((i) => (
+            {r.itens.map((i) => (
               <li key={i.id} className={`ag-cx ag-cx-reserva${i.situacao === "cancelada" ? " ag-cx-cancelada" : ""}`}>
-                <a className="ag-cx-dia" href={hrefAgenda({ quadra, dia: hojeLocal(i.inicio) })}>
-                  {diaPorExtenso(hojeLocal(i.inicio))}
-                </a>
+                {lerDiaDono(hojeLocal(i.inicio), agora) === hojeLocal(i.inicio) ? (
+                  <a className="ag-cx-dia" href={hrefAgenda({ quadra, dia: hojeLocal(i.inicio) })}>
+                    {diaPorExtenso(hojeLocal(i.inicio))}
+                  </a>
+                ) : (
+                  <span className="ag-cx-dia">{diaPorExtenso(hojeLocal(i.inicio))}</span>
+                )}
                 <strong>
                   {intervaloDoItem(i)} · {rotuloQuadra(i.quadra, i.esporte)}
                 </strong>
@@ -238,10 +256,11 @@ export default async function PaginaReservas({ searchParams }: Props) {
                   href={hrefAgenda({ quadra, dia: d })}
                   className={d === dia ? "ag-semana-dia ag-escolhido" : "ag-semana-dia"}
                   aria-current={d === dia ? "date" : undefined}
+                  aria-label={`${diaPorExtenso(d)}, ${n === 1 ? "1 reserva" : `${n} reservas`}`}
                 >
                   <span>{DIA_CURTO.format(new Date(`${d}T12:00:00Z`)).replace(".", "")}</span>
                   <strong>{Number(d.slice(8))}</strong>
-                  <em>{n > 0 ? n : "·"}</em>
+                  <em aria-hidden="true">{n > 0 ? n : "·"}</em>
                 </a>
               );
             })}
@@ -278,7 +297,7 @@ export default async function PaginaReservas({ searchParams }: Props) {
                 )}
               </span>
             </div>
-            <table className="ar-calendario ag-calendario">
+            <table className="ar-calendario ag-calendario" aria-label={nomeDoMes(mes)}>
               <thead>
                 <tr>
                   {SEMANA.map((s) => (
@@ -297,7 +316,7 @@ export default async function PaginaReservas({ searchParams }: Props) {
                           <a
                             href={hrefAgenda({ quadra, dia: d.dia, mes, ver: verMes ? "mes" : null })}
                             aria-current={d.escolhido ? "date" : undefined}
-                            aria-label={`${d.numero}${d.n > 0 ? `, ${d.n} ${d.n === 1 ? "reserva" : "reservas"}` : ""}`}
+                            aria-label={`${diaPorExtenso(d.dia)}${d.n > 0 ? `, ${d.n} ${d.n === 1 ? "reserva" : "reservas"}` : ""}`}
                             className={d.hoje ? "ag-hoje" : undefined}
                           >
                             {d.numero}
@@ -360,6 +379,7 @@ export default async function PaginaReservas({ searchParams }: Props) {
                         key={`${c.tipo}-${c.inicio}-${c.tipo === "livre" ? "" : c.item.id}`}
                         c={c}
                         quadraId={g.quadraId}
+                        quadra={g.quadra}
                         dia={dia}
                         volta={volta}
                       />

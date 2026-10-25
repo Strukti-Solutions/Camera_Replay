@@ -4083,10 +4083,12 @@ a.ar-quadra:focus-visible {
 }
 
 .ag-paginas a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--alvo);
-  padding: 0 0.75rem;
+  display: inline-grid;
+  place-items: center;
+  width: var(--alvo);
+  height: var(--alvo);
+  font-size: 1.4rem;
+  line-height: 1;
   border: 1.5px solid var(--borda-campo);
   border-radius: var(--raio-botao);
   color: var(--tinta);

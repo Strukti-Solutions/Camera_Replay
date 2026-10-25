@@ -238,7 +238,7 @@ export function hrefAgenda(p: {
   return s ? `/painel/reservas?${s}` : "/painel/reservas";
 }
 
-const VOLTA = /^\/painel\/reservas(\?[A-Za-z0-9=&%._-]*)?$/;
+const VOLTA = /^\/painel\/reservas(\?[A-Za-z0-9=&%._*+-]*)?$/;
 
 // Para onde a ação volta: só a própria agenda, com parâmetros simples (nada de
 // outro site nem de outro caminho).
