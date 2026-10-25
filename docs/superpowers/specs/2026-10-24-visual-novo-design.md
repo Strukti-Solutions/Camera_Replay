@@ -52,7 +52,7 @@ Sucesso: abrir no computador e no celular e as duas versões parecerem pensadas 
 ### Home (busca)
 - **Computador (opção B aprovada):** busca em cima; abaixo, lista de cards à esquerda e mapa sempre aberto à direita. Passar o mouse num card destaca o pino.
 - **Celular:** título, busca, botões de esporte para filtrar, carrossel horizontal de cards ("Arenas em destaque"); depois de buscar, os resultados viram lista vertical; botão flutuante "Ver no mapa" abre o mapa em tela cheia, com preço no pino; tocar num pino mostra o card da arena embaixo; "←" volta à lista.
-- **Card da arena:** fotos (passando), nome, bairro, "a partir de R$ X/h" (ou "a partir de R$ X" com horários de duração variável — ver Horários) e chips dos esportes.
+- **Card da arena:** fotos (deslizam com o dedo ou o mouse, sem troca automática — decisão do dono, 25/10), nome, bairro, "a partir de R$ X/h" (ou "a partir de R$ X" com horários de duração variável — ver Horários) e chips dos esportes.
 
 ### Página da arena (jogador)
 - **Balão do endereço:** nome da arena e endereço juntos num balão com fundo, ícone de pino e "Como chegar ›". O balão inteiro é o botão e abre o mapa com a rota (link atual do Google Maps).
