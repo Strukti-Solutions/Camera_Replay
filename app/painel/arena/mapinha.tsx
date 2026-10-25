@@ -43,5 +43,5 @@ export function MapinhaArena({ latitude, longitude, nome }: { latitude: number; 
     };
   }, [latitude, longitude, nome]);
 
-  return <div ref={area} className="ar-mapinha" />;
+  return <div ref={area} className="ar-mapinha" aria-label={`Mapa com a localização de ${nome}`} />;
 }

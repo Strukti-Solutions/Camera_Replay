@@ -37,6 +37,7 @@ test("geocodificador sem resultado: salva sem coordenadas e apaga as antigas", a
   const r = await atualizarArenaDono(db, a.id, { nome: "A", endereco: { ...end, numero: "99" } }, async () => null);
   expect(r).toEqual({ ok: true, localizada: false, motivo: "nao_encontrado" });
   expect(await coords(db, a.id)).toMatchObject({ latitude: null, longitude: null, endereco_rua: "Rua A" });
+  expect(await dadosArenaDono(db, a.id)).toMatchObject({ temCoordenadas: false, coordenadas: null });
 });
 
 test("geocodificador que lança também salva sem coordenadas", async () => {
