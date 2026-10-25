@@ -1,5 +1,5 @@
 import { FUSO, diaValido, hojeLocal, type HorarioDoDia } from "@/app/lib/disponibilidade";
-import { HORARIOS_SEGUIDOS_MAX } from "@/app/lib/horarios";
+import { DURACAO_MAX, HORARIOS_SEGUIDOS_MAX } from "@/app/lib/horarios";
 import { formatarHorario } from "@/app/lib/formato";
 
 // Regras de texto da página da arena (/a/<slug-da-arena>). Sem acesso a cookie nem a
@@ -119,7 +119,8 @@ export function hrefDoHorario(
   if (selecao && primeiroIdx >= 0) {
     const ultimo = primeiroIdx + selecao.qtd - 1;
     const colado = alvo === ultimo + 1 && dia[alvo].livre && dia[alvo].horario.inicio === dia[ultimo]?.horario.fim;
-    if (colado && selecao.qtd < HORARIOS_SEGUIDOS_MAX) {
+    const cabe = colado && dia[alvo].horario.fim - selecao.inicio <= DURACAO_MAX;
+    if (colado && cabe && selecao.qtd < HORARIOS_SEGUIDOS_MAX) {
       inicio = selecao.inicio;
       qtd = selecao.qtd + 1;
     } else if (alvo === ultimo && selecao.qtd > 1) {

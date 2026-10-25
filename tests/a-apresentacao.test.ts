@@ -109,6 +109,13 @@ test("hrefDoHorario: alvo livre colado ao fim da seleção soma um horário (at�
   expect(consulta(hrefDoHorario(base, seis, { inicio: 0, qtd: 4 }, 4))).toMatchObject({ inicio: "240", qtd: "1" });
 });
 
+test("hrefDoHorario: passar de 12 h recomeça no alvo", () => {
+  const longos = [mk(0, 420), mk(420, 840), mk(840, 1200)];
+  expect(consulta(hrefDoHorario(base, longos, { inicio: 0, qtd: 1 }, 1))).toMatchObject({ inicio: "420", qtd: "1" }); // 14 h
+  const seis = [mk(0, 360), mk(360, 720)];
+  expect(consulta(hrefDoHorario(base, seis, { inicio: 0, qtd: 1 }, 1))).toMatchObject({ inicio: "0", qtd: "2" }); // 12 h
+});
+
 test("hrefDoHorario: alvo colado mas ocupado não soma (e nem vira link na tela)", () => {
   expect(consulta(alvoHref({ inicio: 1080, qtd: 1 }, 3))).toMatchObject({ inicio: "1140", qtd: "1" });
 });

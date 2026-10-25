@@ -95,6 +95,13 @@ describe("disponibilidade", () => {
     expect(escolhaDeHorarios(sexta, "2026-10-23", 18 * 60, 1, AGORA, [])).toBeNull(); // já começou
   });
 
+  it("escolhaDeHorarios recusa seleção acima de 12 h e aceita exatamente 12 h", () => {
+    const longos = [hor(5, 0, 420), hor(5, 420, 840)];
+    expect(escolhaDeHorarios(longos, SEX, 0, 2, AGORA, [])).toBeNull(); // 14 h
+    const seis = [hor(5, 0, 360), hor(5, 360, 720)];
+    expect(escolhaDeHorarios(seis, SEX, 0, 2, AGORA, [])).toMatchObject({ inicio: 0, fim: 720 });
+  });
+
   it("escolhaDeHorarios aceita 23h–24h (fim 1440)", () => {
     const noite = [hor(5, 23 * 60, 1440, 9000)];
     expect(escolhaDeHorarios(noite, SEX, 23 * 60, 1, AGORA, [])).toMatchObject({ inicio: 1380, fim: 1440, totalCentavos: 9000 });

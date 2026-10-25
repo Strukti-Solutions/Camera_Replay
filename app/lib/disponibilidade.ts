@@ -1,6 +1,6 @@
 // Horários livres do dia e preço da escolha (sem banco). Os horários são os que
 // o dono criou; reservas e bloqueios entram como períodos ocupados.
-import { HORARIOS_SEGUIDOS_MAX, type HorarioComId } from "./horarios";
+import { DURACAO_MAX, HORARIOS_SEGUIDOS_MAX, type HorarioComId } from "./horarios";
 
 export const DIAS_A_FRENTE = 30;
 export const FUSO = "America/Sao_Paulo";
@@ -91,6 +91,8 @@ export function escolhaDeHorarios(
     itens.push({ inicio: h.inicio, fim: h.fim, precoCentavos: h.precoCentavos });
     ponta = h.fim;
   }
+  // A reserva inteira cabe em 12 h (check da tabela reservas).
+  if (ponta - inicio > DURACAO_MAX) return null;
   return { inicio, fim: ponta, itens, totalCentavos: itens.reduce((t, x) => t + x.precoCentavos, 0) };
 }
 
