@@ -42,7 +42,7 @@ export function EscolhaDaQuadra({
   const selecao = escolha ? { inicio: escolha.inicio, qtd: escolha.itens.length } : null;
   const base = { slug, quadra: quadra.id, dia };
   const algumLivre = doDia.some((x) => x.livre);
-  const podeSomar = selecao !== null && doDia.some((x, i) => x.livre && acaoDoHorario(doDia, selecao, i) === "somar");
+  const podeSomar = selecao !== null && doDia.some((_, i) => acaoDoHorario(doDia, selecao, i) === "somar");
 
   return (
     <div className="quadra-escolha">
