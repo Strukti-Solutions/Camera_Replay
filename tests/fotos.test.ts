@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { Db } from "../app/lib/db";
 import {
   apagarFoto, capaDaArena, capasDasQuadras, extensaoDoTipo, fotoParaServir, listarFotos, moverFoto, reservarFoto,
-  tipoDaImagem, usarComoCapa,
+  tipoDaImagem, usarComoCapa, type TipoFoto,
 } from "../app/lib/fotos";
 import { novoBanco } from "./db";
 import { criarArena, criarQuadra } from "./fixtures";
@@ -32,7 +32,7 @@ async function base(db: Db) {
   return { arena, quadra };
 }
 
-async function reservar(db: Db, arenaId: string, quadraId: string | null, tipo = "image/webp" as const) {
+async function reservar(db: Db, arenaId: string, quadraId: string | null, tipo: TipoFoto = "image/webp") {
   const r = await reservarFoto(db, arenaId, quadraId, tipo, 1000);
   if (!r.ok) throw new Error(r.erro);
   return r;

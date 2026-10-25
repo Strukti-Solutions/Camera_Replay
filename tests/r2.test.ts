@@ -158,3 +158,46 @@ test("baixarComo com caracteres fora de [A-Za-z0-9._-] é saneado", async () => 
   expect(cd).toMatch(/^attachment; filename="[A-Za-z0-9._-]+"$/);
   expect(cd).not.toMatch(/[\r\n]/);
 });
+
+test("enviar faz PUT assinado com o Content-Type e o corpo", async () => {
+  const fetcher = vi.fn(resposta(200));
+  const corpo = new Uint8Array([1, 2, 3]);
+  await criarR2(config, fetcher as unknown as typeof fetch).enviar("fotos/a/b.webp", corpo, "image/webp");
+  const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+  expect(init.method).toBe("PUT");
+  expect(new URL(url).host).toBe("conta123.r2.cloudflarestorage.com");
+  expect(new URL(url).pathname).toBe("/replays/fotos/a/b.webp");
+  const headers = new Headers(init.headers);
+  expect(headers.get("content-type")).toBe("image/webp");
+  expect(headers.get("authorization") ?? "").toMatch(/^AWS4-HMAC-SHA256 /);
+  expect(new Uint8Array(await new Response(init.body).arrayBuffer())).toEqual(corpo);
+});
+
+test("enviar: status de erro e falha de rede viram ErroR2", async () => {
+  const r500 = await criarR2(config, resposta(500) as unknown as typeof fetch)
+    .enviar("fotos/a/b.webp", new Uint8Array([1]), "image/webp")
+    .catch((e) => e);
+  expect(r500).toBeInstanceOf(ErroR2);
+  expect(r500.status).toBe(500);
+  const rede = await criarR2(config, (async () => { throw new Error("ECONNRESET"); }) as unknown as typeof fetch)
+    .enviar("fotos/a/b.webp", new Uint8Array([1]), "image/webp")
+    .catch((e) => e);
+  expect(rede).toBeInstanceOf(ErroR2);
+  expect(rede.status).toBe(0);
+});
+
+test("ler faz GET assinado; 404 é null; 500 e rede viram ErroR2", async () => {
+  const fetcher = vi.fn(async () => new Response("abc", { status: 200 }));
+  const res = await criarR2(config, fetcher as unknown as typeof fetch).ler("fotos/a/b.webp");
+  expect(await res?.text()).toBe("abc");
+  const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+  expect(init.method).toBe("GET");
+  expect(new URL(url).pathname).toBe("/replays/fotos/a/b.webp");
+  expect(new Headers(init.headers).get("authorization") ?? "").toMatch(/^AWS4-HMAC-SHA256 /);
+  expect(await criarR2(config, resposta(404) as unknown as typeof fetch).ler("x")).toBeNull();
+  const e500 = await criarR2(config, resposta(500) as unknown as typeof fetch).ler("x").catch((e) => e);
+  expect(e500).toBeInstanceOf(ErroR2);
+  expect(e500.status).toBe(500);
+  const rede = await criarR2(config, (async () => { throw new Error("x"); }) as unknown as typeof fetch).ler("x").catch((e) => e);
+  expect(rede.status).toBe(0);
+});
