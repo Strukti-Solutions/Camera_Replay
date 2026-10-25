@@ -4066,3 +4066,43 @@ a.ar-quadra:focus-visible {
     display: block;
   }
 }
+
+/* Paginação da agenda: Anterior | Página X de Y | Próxima, numa linha só. */
+.ag-paginas {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  white-space: nowrap;
+}
+
+.ag-paginas > span:nth-child(2) {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.ag-paginas a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  padding: 0 0.75rem;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio-botao);
+  color: var(--tinta);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ag-paginas a:first-child {
+  justify-self: start;
+}
+
+.ag-paginas a:last-child {
+  justify-self: end;
+}
+
+.ag-paginas a:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}

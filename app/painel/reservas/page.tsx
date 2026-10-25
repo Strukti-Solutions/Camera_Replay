@@ -87,7 +87,7 @@ function CaixinhaDoDia({ c, quadraId, dia, volta }: { c: Caixinha; quadraId: str
 function Paginas({ pagina, paginas, href }: { pagina: number; paginas: number; href: (p: number) => string }) {
   if (paginas <= 1) return null;
   return (
-    <nav className="rv-paginas" aria-label="Páginas">
+    <nav className="ag-paginas" aria-label="Páginas">
       {pagina > 1 ? <a href={href(pagina - 1)}>‹ Anterior</a> : <span />}
       <span>
         Página {pagina} de {paginas}
