@@ -1,5 +1,5 @@
 -- Worker não conecta em câmera de arena suspensa (dívida do multi-arena).
--- Mesma assinatura: as permissões dadas em 0004 continuam valendo.
+-- Mesma assinatura e retorno: create or replace mantém dono e permissões da função.
 create or replace function listar_cameras()
 returns table (camera_id uuid, arena_id uuid, sn text, credenciais text)
 language sql stable as $$

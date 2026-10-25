@@ -22,7 +22,7 @@ export function FaixaDeFotos({ fotos, nome }: { fotos: string[]; nome: string })
       <div
         ref={faixa}
         className="hm-faixa"
-        {...(fotos.length > 1 ? { tabIndex: 0, role: "region", "aria-label": `Fotos de ${nome}` } : {})}
+        {...(fotos.length > 1 ? { tabIndex: 0, role: "group", "aria-label": `Fotos de ${nome}` } : {})}
         onScroll={() => {
           const f = faixa.current;
           if (f && f.clientWidth > 0) setAtual(Math.round(f.scrollLeft / f.clientWidth));
