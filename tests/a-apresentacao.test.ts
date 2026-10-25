@@ -36,6 +36,10 @@ test("lerEscolha ignora o que não presta", () => {
   expect(lerEscolha({ inicio: "1439", qtd: "5" }, ids, agora)).toMatchObject({ inicio: 1439, qtd: 1 });
   expect(lerEscolha({ inicio: "7.5", qtd: "2.5" }, ids, agora)).toMatchObject({ inicio: null, qtd: 1 });
   expect(lerEscolha({ inicio: "12345", qtd: "1" }, ids, agora)).toMatchObject({ inicio: null });
+  // zero à esquerda não vale (0930 não é 930)
+  expect(lerEscolha({ inicio: "0930", qtd: "01" }, ids, agora)).toMatchObject({ inicio: null, qtd: 1 });
+  expect(lerEscolha({ inicio: "0", qtd: "1" }, ids, agora)).toMatchObject({ inicio: 0 });
+  expect(lerReserva({ quadra: "q1", dia: "2026-10-20", inicio: "0930", qtd: "2" }, ids, agora)).toBeNull();
   expect(
     lerEscolha({ quadra: ["q1", "q2"], dia: ["2026-10-18", "x"], inicio: ["480", "9"], qtd: ["3", "1"] }, ids, agora),
   ).toEqual({ quadra: "q1", dia: "2026-10-18", inicio: 480, qtd: 3 });

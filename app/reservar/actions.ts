@@ -10,7 +10,7 @@ export type EstadoReservar = { erro: string | null };
 
 const texto = (form: FormData, campo: string) => String(form.get(campo) ?? "");
 // Só inteiro de até 4 dígitos; o resto vira NaN e criarReserva recusa.
-const inteiro = (v: string) => (/^\d{1,4}$/.test(v) ? Number(v) : Number.NaN);
+const inteiro = (v: string) => (/^(0|[1-9]\d{0,3})$/.test(v) ? Number(v) : Number.NaN);
 
 // Confirma a reserva do resumo. Tudo vem de campos escondidos, então nada aqui é
 // confiável: criarReserva revalida dia, horários livres e quantidade e recusa o que não

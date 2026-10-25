@@ -515,5 +515,7 @@ test("reserva de 2 horários quebrados grava o período todo e os itens", async 
   }]);
   expect(await criarReserva(db, ana, { quadraId: q.id, dia: DIA, inicio: 1035, qtd: 1 }, AGORA)).toEqual({ ok: false, erro: MSG_INDISPONIVEL });
   expect((await criarReserva(db, ana, { quadraId: q.id, dia: DIA, inicio: 1080, qtd: 1 }, AGORA)).ok).toBe(true);
-  expect(await criarReserva(db, ana, { quadraId: q.id, dia: DIA, inicio: 930, qtd: 5 }, AGORA)).toEqual({ ok: false, erro: MSG_INDISPONIVEL });
+  // qtd acima de 4 com outro jogador, para não misturar com o limite de reservas de Ana
+  const bia = await jogador(db, "Bia");
+  expect(await criarReserva(db, bia, { quadraId: q.id, dia: DIA, inicio: 930, qtd: 5 }, AGORA)).toEqual({ ok: false, erro: MSG_INDISPONIVEL });
 });

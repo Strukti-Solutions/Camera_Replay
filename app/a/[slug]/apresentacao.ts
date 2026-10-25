@@ -5,7 +5,6 @@ import { formatarHorario } from "@/app/lib/formato";
 // Regras de texto da página da arena (/a/<slug-da-arena>). Sem acesso a cookie nem a
 // banco, para poder testar direto.
 
-
 // "hoje", "ontem" ou "15/10": a parte do dia de formatarHorario ("hoje, 14:32").
 export function textoDia(d: Date, agora: Date = new Date()): string {
   return formatarHorario(d, agora).split(",")[0];
@@ -55,7 +54,7 @@ function primeiro(v: string | string[] | undefined): string | undefined {
 }
 
 function inteiroEntre(v: string | undefined, min: number, max: number): number | null {
-  if (v === undefined || !/^\d{1,4}$/.test(v)) return null;
+  if (v === undefined || !/^(0|[1-9]\d{0,3})$/.test(v)) return null;
   const n = Number(v);
   return n >= min && n <= max ? n : null;
 }
@@ -135,7 +134,8 @@ export function hrefDoHorario(
     q.set("inicio", String(inicio));
     q.set("qtd", String(qtd));
   }
-  return `/a/${base.slug}?${q.toString()}#quadra-${base.quadra}`;
+  const quadra = encodeURIComponent(base.quadra);
+  return `/a/${encodeURIComponent(base.slug)}?${q.toString()}#quadra-${quadra}`;
 }
 
 const DIA_EXTENSO = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "long", day: "numeric", month: "long" });
