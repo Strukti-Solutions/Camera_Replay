@@ -1319,45 +1319,6 @@ video {
   width: 100%;
 }
 
-.escolha-lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
-
-/* A linha inteira é o alvo do toque. */
-.escolha-lista a {
-  display: flex;
-  align-items: center;
-  min-height: var(--alvo);
-  padding: 0.75rem 1rem;
-  background: var(--superficie);
-  border: 2px solid var(--borda);
-  border-radius: var(--raio);
-  color: var(--tinta);
-  font-weight: 600;
-  text-decoration: none;
-  overflow-wrap: anywhere;
-}
-
-.escolha-lista a:hover {
-  border-color: var(--borda-campo);
-}
-
-/* Nome e cidade: a cidade desce no celular estreito. */
-.escolha-lista a {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0 1rem;
-}
-
-.escolha-cidade {
-  color: var(--tinta-suave);
-  font-weight: 400;
-}
-
 /* Sugestões da busca (só com JavaScript): lista sob o campo. */
 .busca-campo {
   position: relative;
@@ -1413,46 +1374,350 @@ video {
   color: inherit;
 }
 
-/* Mapa das arenas (só com JavaScript): 240 px sob a busca, tela cheia ao abrir. */
-.mapa-arenas {
+/* ---------- Home: chips de esporte, cards e mapa ---------- */
+
+.escolha h1 {
+  margin-bottom: 1rem;
+}
+
+/* Chips de esporte: rolam de lado no celular, sem estourar a página. */
+.hm-esportes {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem 0.125rem 0.5rem;
+  margin: -0.5rem 0 1rem;
+  scrollbar-width: none;
+}
+
+.hm-esportes a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--tinta);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hm-esportes a:hover {
+  background: var(--realce);
+}
+
+.hm-esportes a[aria-current="page"] {
+  background: var(--tinta);
+  border-color: var(--tinta);
+  color: var(--fundo);
+}
+
+.hm-esportes a:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.hm-corpo {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.hm-resultado {
+  min-width: 0;
+}
+
+.hm-titulo {
+  font-size: 1.125rem;
+  margin: 0 0 0.75rem;
+}
+
+.hm-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
   gap: 0.75rem;
-  margin-bottom: 1.5rem;
+}
+
+/* Card em linha: foto à esquerda, texto à direita. */
+.hm-cartao {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgb(14 28 43 / 0.08);
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.hm-cartao:hover,
+.hm-cartao:focus-within {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgb(14 28 43 / 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-cartao {
+    transition: none;
+  }
+
+  .hm-cartao:hover,
+  .hm-cartao:focus-within {
+    transform: none;
+  }
+}
+
+.hm-fotos,
+.hm-sem-foto {
+  position: relative;
+  min-height: 7.5rem;
+  background: var(--realce);
+}
+
+.hm-faixa {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.hm-faixa img {
+  flex: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  scroll-snap-align: start;
+}
+
+.hm-bolinhas {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.4rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.3rem;
+  pointer-events: none;
+}
+
+.hm-bolinhas i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.6);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3);
+}
+
+.hm-bolinhas i.hm-bolinha-atual {
+  background: #ffffff;
+}
+
+.hm-sem-foto {
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--tinta-suave);
+  overflow-wrap: anywhere;
+}
+
+.hm-info {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  min-width: 0;
+}
+
+.hm-info h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+  overflow-wrap: anywhere;
+}
+
+.hm-link {
+  color: var(--tinta);
+  text-decoration: none;
+}
+
+/* O texto inteiro do card é o alvo do link (a faixa de fotos fica livre para rolar). */
+.hm-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.hm-link:focus-visible {
+  outline: none;
+}
+
+.hm-cartao:has(.hm-link:focus-visible) {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.hm-local {
+  margin: 0;
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.hm-preco {
+  margin: 0.2rem 0 0;
+  color: var(--link);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.hm-preco-off {
+  color: var(--tinta-suave);
+  font-weight: 400;
+}
+
+.hm-chips {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.hm-chips li {
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--realce);
+  color: var(--tinta);
+  font-size: 0.8rem;
+}
+
+/* Celular, sem busca: "em destaque" em carrossel de cards em pé. */
+@media (max-width: 55.99rem) {
+  .hm-vitrine {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin-inline: calc(-1 * var(--gutter));
+    padding: 0.25rem var(--gutter) 1rem;
+    scroll-padding-inline: var(--gutter);
+    scrollbar-width: none;
+  }
+
+  .hm-vitrine .hm-cartao {
+    flex: none;
+    width: min(78%, 18rem);
+    grid-template-columns: minmax(0, 1fr);
+    scroll-snap-align: start;
+  }
+
+  .hm-vitrine .hm-fotos,
+  .hm-vitrine .hm-sem-foto {
+    aspect-ratio: 16 / 10;
+    min-height: 0;
+  }
+}
+
+/* Mapa das arenas (só com JavaScript). */
+.mapa-arenas {
+  min-width: 0;
+}
+
+.mapa-palco {
+  position: relative;
 }
 
 .mapa-area {
-  height: 240px;
-  border: 1.5px solid var(--borda-campo);
-  border-radius: var(--raio);
+  border: 1px solid var(--borda);
+  border-radius: 14px;
   overflow: hidden;
   /* Abaixo das sugestões da busca. */
   z-index: 0;
   position: relative;
 }
 
-.mapa-ver {
-  justify-self: start;
+/* Celular: o mapa só aparece em tela cheia, pelo botão flutuante. */
+@media (max-width: 55.99rem) {
+  .mapa-arenas:not(.aberto) .mapa-palco {
+    display: none;
+  }
+
+  .mapa-ver {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    z-index: 900;
+    border-radius: 999px;
+    padding-inline: 1.5rem;
+    box-shadow: 0 6px 18px rgb(8 18 29 / 0.3);
+  }
+}
+
+/* Computador: mapa sempre aberto, preso ao rolar, na altura da tela. */
+@media (min-width: 56rem) {
+  .hm-corpo {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .hm-cartao {
+    grid-template-columns: 11rem minmax(0, 1fr);
+  }
+
+  .hm-fotos,
+  .hm-sem-foto {
+    min-height: 8.5rem;
+  }
+
+  .mapa-arenas:not(.aberto) {
+    position: sticky;
+    top: 1rem;
+    margin-top: 2.25rem;
+  }
+
+  .mapa-arenas:not(.aberto) .mapa-area {
+    height: min(calc(100vh - 6rem), 42rem);
+    min-height: 22rem;
+  }
+
+  .mapa-ver {
+    display: none;
+  }
 }
 
 .mapa-arenas.aberto {
   position: fixed;
   inset: 0;
   z-index: 1000;
+  display: grid;
   grid-template-rows: auto 1fr;
-  gap: 0;
-  margin: 0;
   background: var(--fundo);
 }
 
+.mapa-arenas.aberto .mapa-palco,
 .mapa-arenas.aberto .mapa-area {
-  height: auto;
+  height: 100%;
+}
+
+.mapa-arenas.aberto .mapa-area {
   border: 0;
   border-radius: 0;
 }
 
 .mapa-barra {
   display: flex;
-  justify-content: flex-end;
   padding: 0.5rem var(--gutter);
   background: var(--faixa);
 }
@@ -1473,28 +1738,116 @@ html.mapa-tela-cheia {
   overflow: hidden;
 }
 
-/* Ponto da arena: cor da marca, contorno claro para destacar sobre o mapa. */
-.leaflet-container path.mapa-ponto {
-  fill: var(--electric-700);
-  stroke: #ffffff;
-}
-
 .leaflet-container {
   font-family: var(--fonte);
 }
 
-.mapa-popup {
-  display: grid;
-  gap: 0.25rem;
-  font-size: 1rem;
+/* Pino com o preço: etiqueta com ponta, ancorada no ponto. */
+.mapa-pino-caixa {
+  background: none;
+  border: 0;
 }
 
-.mapa-popup a {
-  display: inline-flex;
+.mapa-pino {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, calc(-100% - 6px));
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--electric-700);
+  color: #ffffff;
+  font: 700 0.8rem/1.2 var(--fonte);
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgb(8 18 29 / 0.35);
+  border: 2px solid #ffffff;
+  transition: transform 0.15s ease;
+}
+
+.mapa-pino::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: #ffffff;
+}
+
+.mapa-pino-vazio {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+}
+
+.mapa-pino-destaque .mapa-pino,
+.leaflet-marker-icon:focus-visible .mapa-pino {
+  background: var(--navy-950);
+  transform: translate(-50%, calc(-100% - 6px)) scale(1.15);
+}
+
+.leaflet-marker-icon:focus-visible {
+  outline: none;
+}
+
+/* Card da arena tocada, sobre o pé do mapa. */
+.mapa-cartao {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 1.75rem;
+  z-index: 500;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
   align-items: center;
-  min-height: var(--alvo);
+  padding: 0.6rem;
+  background: var(--superficie);
+  color: var(--tinta);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgb(8 18 29 / 0.3);
+}
+
+.mapa-cartao img,
+.mapa-cartao-sem-foto {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--realce);
+}
+
+.mapa-cartao-texto {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mapa-cartao-preco {
+  color: var(--link);
   font-weight: 600;
-  color: var(--electric-700);
+  font-size: 0.9rem;
+}
+
+.mapa-cartao-texto a {
+  font-weight: 600;
+}
+
+.mapa-cartao-fechar {
+  align-self: start;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--tinta-suave);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.mapa-cartao-fechar:focus-visible {
+  outline: 3px solid var(--foco);
 }
 
 .escolha-vazia {
@@ -1719,7 +2072,7 @@ a.pj-slot-escolhido:hover {
 }
 
 /* Bolinha no canto: mostra que dá para marcar mais de um horário. */
-.pj-slot {
+a.pj-slot {
   position: relative;
   padding-right: 2.25rem;
 }

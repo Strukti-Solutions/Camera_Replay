@@ -1,7 +1,7 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import type { Map as MapaLeaflet } from "leaflet";
+import type { Map as MapaLeaflet, Marker } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { irmaosAtrasDoMapa, limitesDoMapa, valido, type PontoArena } from "./mapa-arenas-calculo";
 
@@ -9,29 +9,38 @@ const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 // Texto fixo (não vem de dado de arena), então pode ir como HTML.
 const ATRIBUICAO = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-// Conteúdo do popup montado com DOM e textContent: o nome da arena nunca vira HTML.
-function popupDaArena(p: PontoArena): HTMLElement {
-  const caixa = document.createElement("div");
-  caixa.className = "mapa-popup";
-  const nome = document.createElement("strong");
-  nome.textContent = p.nome;
-  const link = document.createElement("a");
-  link.href = `/a/${encodeURIComponent(p.slug)}`;
-  link.textContent = "Ver arena";
-  caixa.append(nome, link);
-  return caixa;
+// Ponto do mapa com o que o card de baixo mostra.
+export type PontoMapa = PontoArena & {
+  pino: string; // "R$ 80" ou "" (sem preço: só a bolinha)
+  local: string | null;
+  preco: string; // "a partir de R$ 80,00/h"
+  foto: string | null;
+};
+
+// Pino com o preço, montado com DOM e textContent: nada de dado vira HTML.
+function pinoDaArena(p: PontoMapa): HTMLElement {
+  const el = document.createElement("span");
+  el.className = p.pino ? "mapa-pino" : "mapa-pino mapa-pino-vazio";
+  el.textContent = p.pino;
+  return el;
 }
 
-// Mapa das arenas da home: 240 px abaixo da busca e "Ver no mapa" para a tela
-// inteira. É extra: sem JavaScript não aparece (nada é renderizado no
-// servidor) e a lista de resultados continua sendo o caminho principal.
-export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
+// Mapa das arenas da home. É extra: sem JavaScript não aparece e a lista
+// continua sendo o caminho principal.
+// - Computador: coluna da direita, sempre aberto; passar o mouse (ou focar)
+//   num card com `data-arena` destaca o pino.
+// - Celular: botão flutuante "Ver no mapa" abre a tela cheia.
+// Tocar num pino mostra o card da arena embaixo do mapa.
+export function MapaArenas({ pontos }: { pontos: PontoMapa[] }) {
   const limites = useMemo(() => limitesDoMapa(pontos), [pontos]);
   const [montado, setMontado] = useState(false);
   const [aberto, setAberto] = useState(false);
+  const [escolhido, setEscolhido] = useState<PontoMapa | null>(null);
+  const [destaque, setDestaque] = useState<string | null>(null);
   const secao = useRef<HTMLElement>(null);
   const area = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaLeaflet | null>(null);
+  const pinos = useRef(new Map<string, Marker>());
   const botaoVer = useRef<HTMLButtonElement>(null);
   const botaoFechar = useRef<HTMLButtonElement>(null);
   const jaAbriu = useRef(false);
@@ -42,6 +51,7 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
     if (!montado || !limites || !area.current) return;
     let cancelado = false;
     const div = area.current;
+    const lista = pinos.current;
     import("leaflet").then((mod) => {
       if (cancelado) return;
       const L = (mod as unknown as { default?: typeof mod }).default ?? mod;
@@ -54,25 +64,49 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
       }).addTo(m);
       for (const p of pontos) {
         if (!valido(p)) continue;
-        L.circleMarker([p.latitude, p.longitude], {
-          radius: 11,
-          weight: 3,
-          fillOpacity: 1,
-          className: "mapa-ponto",
+        const pino = L.marker([p.latitude, p.longitude], {
+          icon: L.divIcon({ html: pinoDaArena(p), className: "mapa-pino-caixa", iconSize: [0, 0] }),
+          title: p.nome,
+          keyboard: true,
         })
-          .bindPopup(popupDaArena(p))
+          .on("click", () => setEscolhido(p))
           .addTo(m);
+        lista.set(p.slug, pino);
       }
       if ("centro" in limites) m.setView(limites.centro, limites.zoom);
-      else m.fitBounds(limites.bounds, { padding: [24, 24], maxZoom: 15 });
+      else m.fitBounds(limites.bounds, { padding: [32, 32], maxZoom: 15 });
       mapa.current = m;
     });
     return () => {
       cancelado = true;
+      lista.clear();
       mapa.current?.remove();
       mapa.current = null;
     };
   }, [montado, limites, pontos]);
+
+  // Card da lista sob o mouse ou com o foco → pino em destaque.
+  useEffect(() => {
+    const achar = (e: Event) => (e.target as Element | null)?.closest?.("[data-arena]")?.getAttribute("data-arena") ?? null;
+    const entrar = (e: Event) => setDestaque(achar(e));
+    const sair = () => setDestaque(null);
+    document.addEventListener("pointerover", entrar);
+    document.addEventListener("focusin", entrar);
+    document.addEventListener("focusout", sair);
+    return () => {
+      document.removeEventListener("pointerover", entrar);
+      document.removeEventListener("focusin", entrar);
+      document.removeEventListener("focusout", sair);
+    };
+  }, []);
+
+  useEffect(() => {
+    for (const [slug, pino] of pinos.current) {
+      const el = pino.getElement();
+      el?.classList.toggle("mapa-pino-destaque", slug === destaque);
+      pino.setZIndexOffset(slug === destaque ? 1000 : 0);
+    }
+  }, [destaque]);
 
   // Troca de tamanho: o Leaflet precisa recalcular; o foco vai e volta com a tela cheia.
   useEffect(() => {
@@ -108,17 +142,32 @@ export function MapaArenas({ pontos }: { pontos: PontoArena[] }) {
     <section ref={secao} className={aberto ? "mapa-arenas aberto" : "mapa-arenas"} aria-label="Mapa das arenas">
       <div className="mapa-barra" hidden={!aberto}>
         <button ref={botaoFechar} type="button" className="botao" onClick={() => setAberto(false)}>
-          Fechar mapa
+          ← Voltar à lista
         </button>
       </div>
-      <div ref={area} className="mapa-area" />
-      <button
-        ref={botaoVer}
-        type="button"
-        className="botao mapa-ver"
-        hidden={aberto}
-        onClick={() => setAberto(true)}
-      >
+      <div className="mapa-palco">
+        <div ref={area} className="mapa-area" />
+        {escolhido && (
+          <div className="mapa-cartao" role="group" aria-label={escolhido.nome}>
+            {escolhido.foto ? (
+              // eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache
+              <img src={`/fotos/${escolhido.foto}`} alt="" />
+            ) : (
+              <span className="mapa-cartao-sem-foto" aria-hidden="true" />
+            )}
+            <span className="mapa-cartao-texto">
+              <strong>{escolhido.nome}</strong>
+              {escolhido.local && <span className="suave">{escolhido.local}</span>}
+              <span className="mapa-cartao-preco">{escolhido.preco}</span>
+              <a href={`/a/${encodeURIComponent(escolhido.slug)}`}>Ver horários ›</a>
+            </span>
+            <button type="button" className="mapa-cartao-fechar" aria-label="Fechar" onClick={() => setEscolhido(null)}>
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+      <button ref={botaoVer} type="button" className="botao botao-cheio mapa-ver" hidden={aberto} onClick={() => setAberto(true)}>
         Ver no mapa
       </button>
     </section>

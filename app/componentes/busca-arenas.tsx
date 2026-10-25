@@ -15,7 +15,7 @@ const linkDaArena = (slug: string) => `/a/${encodeURIComponent(slug)}`;
 // JavaScript; com JavaScript, o campo vira um combobox com até 8 sugestões de
 // /api/arenas/sugestoes depois de 2 caracteres. Enter sem sugestão ativa envia
 // o formulário normalmente.
-export function BuscaArenas({ busca }: { busca: string }) {
+export function BuscaArenas({ busca, esporte = null }: { busca: string; esporte?: string | null }) {
   const router = useRouter();
   const id = useId();
   const idLista = `${id}-lista`;
@@ -100,8 +100,10 @@ export function BuscaArenas({ busca }: { busca: string }) {
 
   return (
     <form action="/" method="get" role="search" className="escolha-busca">
+      {/* Buscar mantém o esporte escolhido nos chips. */}
+      {esporte && <input type="hidden" name="esporte" value={esporte} />}
       <div className="campo busca-campo">
-        <label htmlFor={`${id}-busca`}>Nome da arena ou endereço</label>
+        <label htmlFor={`${id}-busca`}>Arena, bairro, cidade ou esporte</label>
         <input
           id={`${id}-busca`}
           name="busca"
