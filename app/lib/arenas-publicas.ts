@@ -71,6 +71,108 @@ export async function sugestoesArenas(db: Db, termo: string): Promise<ArenaLista
   return buscar(db, norm, LIMITE_SUGESTOES);
 }
 
+// ---------- Cards da home ----------
+
+export type CartaoArena = {
+  nome: string;
+  slug: string;
+  bairro: string | null;
+  cidade: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  fotos: string[]; // até 5 fotos da arena (não das quadras), a capa primeiro
+  aPartirDe: number | null; // menor preço entre os horários (centavos)
+  porHora: boolean; // todos os horários têm 1 h: o preço vira "/h"
+  esportes: string[];
+};
+
+const FOTOS_NO_CARTAO = 5;
+
+// Esportes sem repetir pela forma normalizada; entre grafias iguais vale a que
+// começa com maiúscula. Ordem alfabética.
+function esportesUnicos(lista: string[]): string[] {
+  const porChave = new Map<string, string>();
+  for (const e of lista) {
+    const chave = normalizar(e);
+    if (!chave) continue;
+    const atual = porChave.get(chave);
+    if (atual === undefined || (atual[0] !== atual[0].toUpperCase() && e[0] === e[0].toUpperCase())) porChave.set(chave, e);
+  }
+  return [...porChave.values()].sort((x, y) => x.localeCompare(y, "pt-BR"));
+}
+
+// Cards da home: arenas ativas por nome, até 50. A busca casa nome, endereço e
+// esporte das quadras; o esporte filtra pela quadra (sem acento e sem maiúscula).
+// Fotos, preços e esportes vêm em lote, nunca uma consulta por arena.
+export async function cartoesDeArenas(db: Db, f: { busca?: string; esporte?: string }): Promise<CartaoArena[]> {
+  const termo = normalizar(f.busca);
+  const esporte = normalizar(f.esporte);
+  const { rows } = await db.query<{
+    id: string; nome: string; slug: string; bairro: string | null; cidade: string | null;
+    latitude: number | null; longitude: number | null;
+  }>(
+    `select a.id, a.nome, a.slug, a.endereco_bairro as bairro, a.endereco_cidade as cidade, a.latitude, a.longitude
+       from arenas a
+      where a.status_assinatura = 'ativa'
+        and ($1 = '' or position($1 in ${ALVO_BUSCA}) > 0
+             or exists (select 1 from quadras q where q.arena_id = a.id and position($1 in ${sqlNorm("q.esporte")}) > 0))
+        and ($2 = '' or exists (select 1 from quadras q where q.arena_id = a.id and ${sqlNorm("q.esporte")} = $2))
+      order by a.nome, a.id
+      limit ${LIMITE_PUBLICO}`,
+    [termo, esporte],
+  );
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+  const [fotos, precos, esportes] = await Promise.all([
+    db.query<{ arena_id: string; id: string }>(
+      `select arena_id, id from fotos where arena_id = any($1::uuid[]) and quadra_id is null order by arena_id, posicao`,
+      [ids],
+    ),
+    db.query<{ arena_id: string; minimo: number; por_hora: boolean }>(
+      `select arena_id, min(preco_centavos)::int as minimo, bool_and(fim - inicio = 60) as por_hora
+         from horarios_quadra where arena_id = any($1::uuid[]) group by arena_id`,
+      [ids],
+    ),
+    db.query<{ arena_id: string; esporte: string }>(
+      `select arena_id, esporte from quadras where arena_id = any($1::uuid[]) and esporte <> ''`,
+      [ids],
+    ),
+  ]);
+  const fotosPor = new Map<string, string[]>();
+  for (const r of fotos.rows) {
+    const l = fotosPor.get(r.arena_id) ?? [];
+    if (l.length < FOTOS_NO_CARTAO) l.push(r.id);
+    fotosPor.set(r.arena_id, l);
+  }
+  const precoPor = new Map(precos.rows.map((r) => [r.arena_id, r]));
+  const esportesPor = new Map<string, string[]>();
+  for (const r of esportes.rows) esportesPor.set(r.arena_id, [...(esportesPor.get(r.arena_id) ?? []), r.esporte]);
+  return rows.map((r) => {
+    const p = precoPor.get(r.id);
+    return {
+      nome: r.nome,
+      slug: r.slug,
+      bairro: r.bairro || null,
+      cidade: r.cidade || null,
+      latitude: r.latitude === null ? null : Number(r.latitude),
+      longitude: r.longitude === null ? null : Number(r.longitude),
+      fotos: fotosPor.get(r.id) ?? [],
+      aPartirDe: p ? Number(p.minimo) : null,
+      porHora: p ? p.por_hora === true : false,
+      esportes: esportesUnicos(esportesPor.get(r.id) ?? []),
+    };
+  });
+}
+
+// Esportes do filtro da home: os das quadras de arenas ativas, sem repetir.
+export async function esportesDasArenas(db: Db): Promise<string[]> {
+  const { rows } = await db.query<{ esporte: string }>(
+    `select distinct q.esporte from quadras q join arenas a on a.id = q.arena_id
+      where a.status_assinatura = 'ativa' and q.esporte <> ''`,
+  );
+  return esportesUnicos(rows.map((r) => r.esporte));
+}
+
 // Pontos do mapa: arenas ativas com latitude e longitude.
 export async function arenasNoMapa(
   db: Db,

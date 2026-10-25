@@ -2,12 +2,14 @@ import { expect, test } from "vitest";
 import { novoBanco } from "./db";
 import { criarArena, criarHorariosDeHora, criarQuadra } from "./fixtures";
 import {
-  arenaPublica, arenasNoMapa, listarArenasPublicas, periodosPublicos, periodosPublicosEntre, slugDaQuadra, sugestoesArenas,
+  arenaPublica, arenasNoMapa, cartoesDeArenas, esportesDasArenas, listarArenasPublicas, periodosPublicos, periodosPublicosEntre, slugDaQuadra, sugestoesArenas,
 } from "../app/lib/arenas-publicas";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { criarReserva } from "../app/lib/reservas";
+import { criarHorarios } from "../app/lib/horarios-quadra";
 import { reservarFoto, usarComoCapa } from "../app/lib/fotos";
 import type { Db } from "../app/lib/db";
+import { novoSlug } from "../app/lib/segredos";
 
 async function endereco(
   db: Db, id: string, e: { rua?: string; bairro?: string; cidade?: string; uf?: string; lat?: number; lng?: number },
@@ -198,4 +200,89 @@ test("periodosPublicosEntre: períodos que tocam os dias locais do intervalo", a
   expect(await periodosPublicosEntre(espiao, "nada", "2026-11-09", "2026-11-12")).toEqual([]);
   expect(await periodosPublicosEntre(espiao, q.id, "lixo", "2026-11-12")).toEqual([]);
   expect(await periodosPublicosEntre(db, q.id, "x", "2026-11-12")).toEqual([]);
+});
+
+// ---------- Fase 5: cards da home ----------
+
+async function quadraDe(db: Db, arenaId: string, nome: string, esporte: string) {
+  const r = await db.query<{ id: string }>(
+    "insert into quadras (arena_id, nome, slug, esporte) values ($1, $2, $3, $4) returning id",
+    [arenaId, nome, novoSlug(), esporte],
+  );
+  return r.rows[0].id;
+}
+
+test("cartoesDeArenas: foto, bairro, preço mínimo, por hora e esportes", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena Beira-Mar");
+  await endereco(db, a.id, { bairro: "Meireles", cidade: "Fortaleza", uf: "CE", lat: -3.72, lng: -38.5 });
+  const q1 = await quadraDe(db, a.id, "Q1", "Padel");
+  const q2 = await quadraDe(db, a.id, "Q2", "Futevôlei");
+  await criarHorariosDeHora(db, a.id, q1, [1], 7, 9, 9000);
+  await criarHorariosDeHora(db, a.id, q2, [2], 7, 8, 8000);
+  const fa = await reservarFoto(db, a.id, null, "image/webp", 1);
+  await reservarFoto(db, a.id, q1, "image/webp", 1); // foto de quadra não entra no card
+  const b = await criarArena(db, "Arena Sem Nada");
+  const c = await criarArena(db, "Arena Suspensa");
+  await quadraDe(db, c.id, "Q", "Padel");
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [c.id]);
+
+  const r = await cartoesDeArenas(db, {});
+  expect(r.map((x) => x.nome)).toEqual(["Arena Beira-Mar", "Arena Sem Nada"]);
+  expect(r[0]).toEqual({
+    nome: "Arena Beira-Mar", slug: a.slug, bairro: "Meireles", cidade: "Fortaleza", latitude: -3.72, longitude: -38.5,
+    fotos: [fa.ok ? fa.id : ""], aPartirDe: 8000, porHora: true, esportes: ["Futevôlei", "Padel"],
+  });
+  expect(r[1]).toMatchObject({ slug: b.slug, fotos: [], aPartirDe: null, porHora: false, esportes: [], latitude: null });
+  const json = JSON.stringify(r);
+  expect(json).not.toMatch(/taxa|dono|camera/i);
+});
+
+test("cartoesDeArenas: duração diferente de 1 h tira o /h; até 5 fotos em ordem", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena X");
+  const q = await quadraDe(db, a.id, "Q", "Padel");
+  await criarHorarios(db, a.id, q, [
+    { diaSemana: 1, inicio: 420, fim: 480, precoCentavos: 5000 },
+    { diaSemana: 1, inicio: 930, fim: 1035, precoCentavos: 11000 },
+  ]);
+  const ids: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const f = await reservarFoto(db, a.id, null, "image/webp", 1);
+    if (f.ok) ids.push(f.id);
+  }
+  const [c] = await cartoesDeArenas(db, {});
+  expect(c.porHora).toBe(false);
+  expect(c.aPartirDe).toBe(5000);
+  expect(c.fotos).toEqual(ids.slice(0, 5));
+});
+
+test("cartoesDeArenas: busca casa o esporte; filtro de esporte sem acento", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena A");
+  await quadraDe(db, a.id, "Q", "Padel");
+  const b = await criarArena(db, "Arena B");
+  await quadraDe(db, b.id, "Q", "Futevôlei");
+  await quadraDe(db, b.id, "Q2", "Beach tennis");
+  const nomes = async (f: { busca?: string; esporte?: string }) => (await cartoesDeArenas(db, f)).map((x) => x.nome);
+  expect(await nomes({ busca: "padel" })).toEqual(["Arena A"]);
+  expect(await nomes({ busca: "FUTEVOLEI" })).toEqual(["Arena B"]);
+  expect(await nomes({ esporte: "futevolei" })).toEqual(["Arena B"]);
+  expect(await nomes({ esporte: "Padel", busca: "arena" })).toEqual(["Arena A"]);
+  expect(await nomes({ esporte: "beach" })).toEqual([]); // filtro é o esporte inteiro
+  expect(await nomes({ busca: "%" })).toEqual([]);
+  expect(await nomes({ busca: "x'; drop table arenas; --" })).toEqual([]);
+});
+
+test("esportesDasArenas: sem repetir, sem vazio, só de arena ativa", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena A");
+  await quadraDe(db, a.id, "Q1", "Padel");
+  await quadraDe(db, a.id, "Q2", "padel");
+  await quadraDe(db, a.id, "Q3", "");
+  await quadraDe(db, a.id, "Q4", "Beach tennis");
+  const c = await criarArena(db, "Arena C");
+  await quadraDe(db, c.id, "Q", "Vôlei");
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [c.id]);
+  expect(await esportesDasArenas(db)).toEqual(["Beach tennis", "Padel"]);
 });
