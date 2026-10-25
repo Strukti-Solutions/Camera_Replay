@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import type { EstadoConfirmar } from "./actions";
 
 // Ação destrutiva em dois cliques: o primeiro abre o <details>, o segundo
@@ -26,9 +26,10 @@ export function Confirmar({
   confirmar: string;
 }) {
   const [estado, acao, pendente] = useActionState(acaoServidor, { erro: null });
+  const caixa = useRef<HTMLDetailsElement>(null);
   return (
     <div className="confirmar">
-      <details>
+      <details ref={caixa}>
         <summary className="botao botao-perigo" aria-label={rotuloAcessivel}>
           {rotulo}
         </summary>
@@ -38,9 +39,21 @@ export function Confirmar({
             <input key={nome} type="hidden" name={nome} value={v} />
           ))}
           <p>{pergunta}</p>
-          <button type="submit" className="botao botao-perigo-cheio" disabled={pendente}>
-            {pendente ? "Aguarde…" : confirmar}
-          </button>
+          <div className="confirmar-botoes">
+            <button type="submit" className="botao botao-perigo-cheio" disabled={pendente}>
+              {pendente ? "Aguarde…" : confirmar}
+            </button>
+            {/* Sem JavaScript, fecha clicando de novo no primeiro botão. */}
+            <button
+              type="button"
+              className="botao"
+              onClick={() => {
+                if (caixa.current) caixa.current.open = false;
+              }}
+            >
+              Fechar
+            </button>
+          </div>
         </form>
       </details>
       <p className="erro-form" role="alert">

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { CartaoInclinavel } from "@/app/componentes/cartao-inclinavel";
 import { AssinaturaStrukti } from "@/app/componentes/marca";
 import { slugDaArena } from "@/app/lib/arena-slug";
 import { listarQuadras } from "@/app/lib/painel";
@@ -36,8 +35,8 @@ export default async function PaginaPainel() {
       ) : (
         <ul className="cartoes nao-imprimir">
           {quadras.map((q) => (
-            <CartaoInclinavel key={q.id} className="cartao cartao-com-capa">
-              <div className="capa-quadra vidro" aria-hidden="true">
+            <li key={q.id} className="cartao cartao-com-capa">
+              <div className="capa-quadra" aria-hidden="true">
                 {q.capaId ? (
                   // eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache
                   <img src={`/fotos/${q.capaId}`} alt="" loading="lazy" />
@@ -62,7 +61,7 @@ export default async function PaginaPainel() {
                   <dd>{q.botoesAtivos}</dd>
                 </div>
               </dl>
-            </CartaoInclinavel>
+            </li>
           ))}
         </ul>
       )}
