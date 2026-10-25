@@ -131,6 +131,20 @@ Migração dos dados: cada faixa de `precos_quadra` vira horários de 1 hora com
 - Só o dono da arena (e a Strukti) envia e apaga fotos da própria arena.
 - Sem foto: a página e os cards mostram um fundo neutro com o esporte, nunca um espaço quebrado.
 
+### Fotos: decisões do construtor (25/10)
+
+- **Tabela `fotos`:** `id` (uuid), `arena_id`, `quadra_id` (nulo = foto da arena), `chave` no R2, `tipo` (`image/jpeg`, `image/png` ou `image/webp`), `bytes`, `posicao` e `criado_em`. A capa é a de menor `posicao`. A foto apaga junto com a quadra (cascade).
+- **Envio pelo servidor** (server action). Antes de enviar, o navegador reduz a foto para no máximo 1600 px no lado maior e a converte para WebP (qualidade 0,82). Sem JavaScript, ou se a redução falhar, vai o arquivo original.
+- **Validação no servidor:** até 2 MB por foto. O formato é conferido pelos primeiros bytes do arquivo (JPEG, PNG ou WebP); o nome e o tipo informados pelo navegador não contam.
+- **Chave no R2:** `fotos/<arenaId>/<fotoId>.<jpg|png|webp>`. O bucket continua privado.
+- **Leitura:** pela rota do site `/fotos/<fotoId>`, que busca no R2 e devolve com `Cache-Control: public, max-age=86400`. Uma foto apagada some do cache em até 1 dia. A URL só tem o id (uuid), que nunca é reaproveitado.
+- **Limites** (10 por arena, 6 por quadra) conferidos dentro de transação, com trava na linha da arena, para dois envios ao mesmo tempo não passarem do limite.
+- **Ordem:** botões "Mover para a esquerda", "Mover para a direita" e "Usar como capa" (funcionam sem JavaScript e no teclado). Arrastar fica para depois.
+- **Apagar:** apaga primeiro no R2 (404 conta como apagado) e depois a linha. Se o R2 falhar, nada muda e a tela avisa.
+- **Sem R2 configurado:** a tela mostra as fotos que houver e avisa que o envio está indisponível.
+- **Onde aparece na fase 3:** no painel (gestão das fotos da arena e de cada quadra, e a capa na lista de quadras) e em Minhas reservas (capa da quadra; sem ela, a capa da arena; sem as duas, o degradê). Página da arena e home usam as fotos nas fases 4 e 5.
+- **Strukti:** a tela de fotos do super admin fica para depois. Até lá, só o dono envia.
+
 ## Tema claro e escuro
 
 - Hoje o escuro segue só o sistema (`prefers-color-scheme`). Novo: segue o sistema por padrão e o botão ☀/☾ troca e lembra a escolha no aparelho (cookie, para o servidor já renderizar no tema certo e não piscar).
