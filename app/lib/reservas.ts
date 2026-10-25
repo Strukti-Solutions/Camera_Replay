@@ -1,5 +1,6 @@
 import { emTransacao, type Db } from "./db";
-import { diaValido, escolhaDeHorarios, instanteDoMinuto, instanteLocal } from "./disponibilidade";
+import { diaDaSemana, diaValido, escolhaDeHorarios, hojeLocal, instanteDoMinuto, instanteLocal } from "./disponibilidade";
+import { normalizar, sqlNorm } from "./texto-busca";
 import { listarHorarios } from "./horarios-quadra";
 import { paraClipePublico, type ClipePublico, type LeitorR2, type LinhaClipe } from "./clipes";
 
@@ -349,23 +350,32 @@ export async function agendaDaArena(
 ): Promise<ItemAgenda[]> {
   const { de, ate } = intervalo ?? {};
   if (!ehUuid(arenaId) || typeof de !== "string" || typeof ate !== "string" || !DIA.test(de) || !DIA.test(ate)) return [];
-  const { rows } = await db.query<{
-    id: string; tipo: "reserva" | "bloqueio"; quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date; situacao: string;
-    jogador: string | null; total_centavos: number | null; motivo: string | null; cancelada_por: string | null;
-    motivo_cancelamento: string | null;
-  }>(
-    `select r.id, r.tipo, r.quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim, r.situacao,
-            case when r.tipo = 'reserva' then coalesce(j.nome, 'Conta apagada') end as jogador,
-            r.total_centavos, r.motivo, r.cancelada_por, r.motivo_cancelamento
-       from reservas r
-       join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
-       left join jogadores j on j.id = r.jogador_id
+  const { rows } = await db.query<LinhaAgenda>(
+    `${SELECT_AGENDA}
       where r.arena_id = $1 and r.situacao in ('confirmada', 'cancelada')
         and r.inicio < $3::timestamptz and r.fim > $2::timestamptz
       order by r.inicio, q.nome, r.id`,
     [arenaId, new Date(instanteLocal(de, 0)), new Date(instanteLocal(ate, 24))],
   );
-  return rows.map((r) => ({
+  return rows.map((r) => itemDaAgenda(r, agora));
+}
+
+type LinhaAgenda = {
+  id: string; tipo: "reserva" | "bloqueio"; quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date; situacao: string;
+  jogador: string | null; total_centavos: number | null; motivo: string | null; cancelada_por: string | null;
+  motivo_cancelamento: string | null;
+};
+
+// Colunas da agenda do dono (alias r = reservas, q = quadras, j = jogadores).
+const SELECT_AGENDA = `select r.id, r.tipo, r.quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim, r.situacao,
+            case when r.tipo = 'reserva' then coalesce(j.nome, 'Conta apagada') end as jogador,
+            r.total_centavos, r.motivo, r.cancelada_por, r.motivo_cancelamento
+       from reservas r
+       join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
+       left join jogadores j on j.id = r.jogador_id`;
+
+function itemDaAgenda(r: LinhaAgenda, agora: Date): ItemAgenda {
+  return {
     id: r.id,
     tipo: r.tipo,
     quadraId: r.quadra_id,
@@ -380,7 +390,142 @@ export async function agendaDaArena(
     canceladaPor: r.cancelada_por,
     motivoCancelamento: r.motivo_cancelamento,
     futura: new Date(r.inicio).getTime() > agora.getTime(),
-  }));
+  };
+}
+
+export const BUSCA_POR_PAGINA = 10;
+const BUSCA_MIN = 2;
+const BUSCA_MAX = 60;
+
+// Busca do dono pelo nome do jogador, em qualquer dia, mais recentes primeiro.
+// Só reservas de jogador desta arena. Termo curto ou longo demais: vazio, sem
+// consultar o banco.
+export async function buscarNaAgenda(
+  db: Pick<Db, "query">, arenaId: string, termo: string, pagina: number, agora: Date,
+): Promise<{ itens: ItemAgenda[]; total: number }> {
+  const vazio = { itens: [], total: 0 };
+  if (!ehUuid(arenaId) || typeof termo !== "string") return vazio;
+  const cru = termo.trim();
+  if (cru.length > BUSCA_MAX) return vazio;
+  const t = normalizar(cru);
+  if (t.length < BUSCA_MIN) return vazio;
+  const p = Number.isInteger(pagina) && pagina > 0 ? pagina : 1;
+  const filtro = `where r.arena_id = $1 and r.tipo = 'reserva' and r.situacao in ('confirmada', 'cancelada')
+        and position($2 in ${sqlNorm("j.nome")}) > 0`;
+  const [linhas, conta] = await Promise.all([
+    db.query<LinhaAgenda>(
+      `${SELECT_AGENDA}
+      ${filtro}
+      order by r.inicio desc, r.id
+      limit ${BUSCA_POR_PAGINA} offset $3`,
+      [arenaId, t, (p - 1) * BUSCA_POR_PAGINA],
+    ),
+    db.query<{ n: number }>(
+      `select count(*)::int as n from reservas r left join jogadores j on j.id = r.jogador_id ${filtro}`,
+      [arenaId, t],
+    ),
+  ]);
+  return { itens: linhas.rows.map((r) => itemDaAgenda(r, agora)), total: Number(conta.rows[0]?.n ?? 0) };
+}
+
+export type ResumoDoMes = { porDia: Map<string, number>; hoje: number; semana: number; aReceberCentavos: number };
+
+const MES = /^\d{4}-(0[1-9]|1[0-2])$/;
+const somaDiasLocal = (dia: string, n: number) => {
+  const [a, m, d] = dia.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+};
+
+// Números da agenda do dono (só reservas confirmadas de jogador, filtro de quadra opcional):
+// - porDia: quantas começam em cada dia do mês;
+// - hoje: começam hoje; semana: de hoje até domingo;
+// - aReceberCentavos: soma das de hoje em diante dentro do mês.
+export async function resumoDoMes(
+  db: Pick<Db, "query">, arenaId: string, quadraId: string | null, mes: string, agora: Date,
+): Promise<ResumoDoMes> {
+  const resumo: ResumoDoMes = { porDia: new Map(), hoje: 0, semana: 0, aReceberCentavos: 0 };
+  if (!ehUuid(arenaId) || (quadraId !== null && !ehUuid(quadraId)) || typeof mes !== "string" || !MES.test(mes)) return resumo;
+  const hoje = hojeLocal(agora);
+  const domingo = somaDiasLocal(hoje, (7 - diaDaSemana(hoje)) % 7);
+  const primeiro = `${mes}-01`;
+  const ultimo = somaDiasLocal(somaDiasLocal(primeiro, 31).slice(0, 7) + "-01", -1);
+  const de = primeiro < hoje ? primeiro : hoje;
+  const ate = ultimo > domingo ? ultimo : domingo;
+  const { rows } = await db.query<{ inicio: Date; total_centavos: number | null }>(
+    `select inicio, total_centavos from reservas
+      where arena_id = $1 and tipo = 'reserva' and situacao = 'confirmada'
+        and ($2::uuid is null or quadra_id = $2::uuid)
+        and inicio >= $3::timestamptz and inicio < $4::timestamptz`,
+    [arenaId, quadraId, new Date(instanteLocal(de, 0)), new Date(instanteLocal(ate, 24))],
+  );
+  for (const r of rows) {
+    const dia = hojeLocal(new Date(r.inicio));
+    const noMes = dia >= primeiro && dia <= ultimo;
+    if (noMes) resumo.porDia.set(dia, (resumo.porDia.get(dia) ?? 0) + 1);
+    if (dia === hoje) resumo.hoje++;
+    if (dia >= hoje && dia <= domingo) resumo.semana++;
+    if (noMes && dia >= hoje) resumo.aReceberCentavos += Number(r.total_centavos ?? 0);
+  }
+  return resumo;
+}
+
+export const BLOQUEIO_MAX_HORARIOS = 48;
+
+// Dono bloqueia um ou mais horários criados da quadra num dia (um bloqueio por
+// horário, mesmo motivo). Cada item precisa casar com um horário daquele dia da
+// semana e ainda não ter começado; o que não casa, já começou ou esbarra em
+// reserva ou bloqueio é pulado (savepoint por item) e entra na contagem.
+export async function bloquearHorarios(
+  db: Db,
+  arenaId: string,
+  e: { quadraId: string; dia: string; horarios: { inicio: number; fim: number }[]; motivo: string },
+  agora: Date,
+): Promise<{ ok: true; bloqueados: number; pulados: number } | { ok: false; erro: string }> {
+  if (!ehUuid(arenaId) || !ehUuid(e?.quadraId)) return { ok: false, erro: "Quadra não encontrada." };
+  const dia = diaValido(e.dia, agora);
+  if (!dia) return { ok: false, erro: "Dia inválido." };
+  if (!Array.isArray(e.horarios) || e.horarios.length === 0 || e.horarios.length > BLOQUEIO_MAX_HORARIOS) {
+    return { ok: false, erro: "Escolha os horários para bloquear." };
+  }
+  const motivo = typeof e.motivo === "string" ? e.motivo.trim() : "";
+  if (motivo.length < 1 || motivo.length > MOTIVO_BLOQUEIO_MAX) {
+    return { ok: false, erro: `Informe o motivo (até ${MOTIVO_BLOQUEIO_MAX} caracteres).` };
+  }
+
+  return emTransacao(db, async (tx) => {
+    const q = await tx.query("select 1 from quadras where id = $1 and arena_id = $2", [e.quadraId, arenaId]);
+    if (q.rows.length === 0) return { ok: false as const, erro: "Quadra não encontrada." };
+    const criados = await tx.query<{ inicio: number; fim: number }>(
+      "select inicio, fim from horarios_quadra where quadra_id = $1 and arena_id = $2 and dia_semana = $3",
+      [e.quadraId, arenaId, diaDaSemana(dia)],
+    );
+    const existe = new Set(criados.rows.map((h) => `${h.inicio}-${h.fim}`));
+    await expirarSeguradas(tx, e.quadraId);
+    let bloqueados = 0;
+    let pulados = 0;
+    for (const h of e.horarios) {
+      const de = Number.isInteger(h?.inicio) && Number.isInteger(h?.fim) ? instanteDoMinuto(dia, h.inicio) : Number.NaN;
+      if (!existe.has(`${h?.inicio}-${h?.fim}`) || !(de > agora.getTime())) {
+        pulados++;
+        continue;
+      }
+      await tx.query("savepoint bloqueio");
+      try {
+        await tx.query(
+          `insert into reservas (arena_id, quadra_id, tipo, situacao, inicio, fim, motivo)
+           values ($1, $2, 'bloqueio', 'confirmada', $3, $4, $5)`,
+          [arenaId, e.quadraId, new Date(de), new Date(instanteDoMinuto(dia, h.fim)), motivo],
+        );
+        await tx.query("release savepoint bloqueio");
+        bloqueados++;
+      } catch (err) {
+        if (!violouExclusao(err)) throw err;
+        await tx.query("rollback to savepoint bloqueio");
+        pulados++;
+      }
+    }
+    return { ok: true as const, bloqueados, pulados };
+  });
 }
 
 // Lances da reserva para o jogador dela (confirmada, inclusive depois do jogo).

@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
 import { criarContaJogador, apagarContaJogador } from "../app/lib/jogadores";
 import {
-  LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
+  LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, bloquearHorarios, buscarNaAgenda, cancelarPeloDono, cancelarPeloJogador, resumoDoMes,
   criarReserva, removerBloqueio, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador, reservasFuturasPorArena,
 } from "../app/lib/reservas";
 import { reservarFoto } from "../app/lib/fotos";
@@ -555,4 +555,112 @@ test("reserva de 2 horários quebrados grava o período todo e os itens", async 
   // qtd acima de 4 com outro jogador, para não misturar com o limite de reservas de Ana
   const bia = await jogador(db, "Bia");
   expect(await criarReserva(db, bia, { quadraId: q.id, dia: DIA, inicio: 930, qtd: 5 }, AGORA)).toEqual({ ok: false, erro: MSG_INDISPONIVEL });
+});
+
+// ---------- Fase 6: agenda do dono ----------
+
+test("bloquearHorarios: só horário criado, livre e futuro; o resto é pulado", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const outra = await criarArena(db, "B");
+  await reservar(db, ana, quadra.id, 18, 1);
+  const bloq = (horarios: { inicio: number; fim: number }[], e: Partial<{ dia: string; motivo: string; quadraId: string }> = {}, arenaId = arena.id) =>
+    bloquearHorarios(db, arenaId, { quadraId: quadra.id, dia: DIA, horarios, motivo: "Aula", ...e }, AGORA);
+
+  expect(await bloq([{ inicio: 480, fim: 540 }])).toEqual({ ok: true, bloqueados: 1, pulados: 0 });
+  // inexistente (8h30), ocupado (18h), já bloqueado (8h), válido (9h)
+  expect(await bloq([{ inicio: 510, fim: 570 }, { inicio: 1080, fim: 1140 }, { inicio: 480, fim: 540 }, { inicio: 540, fim: 600 }]))
+    .toEqual({ ok: true, bloqueados: 1, pulados: 3 });
+  // hoje: 9h já começou, 11h ainda não
+  expect(await bloq([{ inicio: 540, fim: 600 }, { inicio: 660, fim: 720 }], { dia: "2026-11-09" }))
+    .toEqual({ ok: true, bloqueados: 1, pulados: 1 });
+  expect(await bloq([{ inicio: 600, fim: 660 }], {}, outra.id)).toEqual({ ok: false, erro: "Quadra não encontrada." });
+  expect(await bloq([{ inicio: 600, fim: 660 }], { motivo: "  " })).toMatchObject({ ok: false });
+  expect(await bloq([{ inicio: 600, fim: 660 }], { motivo: "x".repeat(61) })).toMatchObject({ ok: false });
+  expect(await bloq([{ inicio: 600, fim: 660 }], { dia: "2026-12-30" })).toMatchObject({ ok: false });
+  expect(await bloq(Array.from({ length: 49 }, () => ({ inicio: 600, fim: 660 })))).toMatchObject({ ok: false });
+  expect(await bloq([])).toMatchObject({ ok: false });
+  const espiao = { query: () => { throw new Error("não devia consultar"); } } as unknown as Db;
+  expect(await bloquearHorarios(espiao, "x", { quadraId: quadra.id, dia: DIA, horarios: [{ inicio: 600, fim: 660 }], motivo: "A" }, AGORA))
+    .toMatchObject({ ok: false });
+
+  const b = await db.query("select inicio, fim, motivo from reservas where tipo = 'bloqueio' order by inicio");
+  expect(b.rows).toEqual([
+    { inicio: h(11, "2026-11-09"), fim: h(12, "2026-11-09"), motivo: "Aula" },
+    { inicio: h(8), fim: h(9), motivo: "Aula" },
+    { inicio: h(9), fim: h(10), motivo: "Aula" },
+  ]);
+});
+
+test("resumoDoMes: contagem por dia, hoje, semana e a receber (com filtro de quadra)", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const q2 = await criarQuadra(db, arena.id);
+  await criarHorariosDeHora(db, arena.id, q2.id, [0, 1, 2, 3, 4, 5, 6], 7, 23, 5000);
+  const bia = await jogador(db, "Bia");
+  const caio = await jogador(db, "Caio");
+  const r = async (j: string, quadraId: string, dia: string, hora: number) => {
+    const x = await criarReserva(db, j, { quadraId, dia, inicio: hora * 60, qtd: 1 }, AGORA);
+    if (!x.ok) throw new Error(x.erro);
+    return x.reservaId;
+  };
+  await r(ana, quadra.id, "2026-11-09", 18); // hoje, R$ 100
+  await r(ana, quadra.id, "2026-11-10", 20); // semana, R$ 120
+  await r(bia, quadra.id, "2026-11-16", 18); // semana que vem, R$ 100
+  const cancelada = await r(bia, quadra.id, "2026-11-11", 18);
+  await cancelarPeloJogador(db, bia, cancelada, AGORA);
+  await r(caio, q2.id, "2026-11-10", 8); // outra quadra, R$ 50
+  await r(caio, quadra.id, "2026-12-01", 8); // outro mês
+  await reservaPassada(db, arena.id, quadra.id, ana, "2026-11-01");
+  await bloquearHorario(db, arena.id, { quadraId: quadra.id, dia: "2026-11-09", inicio: 15, fim: 16, motivo: "Aula" }, AGORA);
+
+  const todas = await resumoDoMes(db, arena.id, null, "2026-11", AGORA);
+  expect(Object.fromEntries(todas.porDia)).toEqual({ "2026-11-01": 1, "2026-11-09": 1, "2026-11-10": 2, "2026-11-16": 1 });
+  expect(todas).toMatchObject({ hoje: 1, semana: 3, aReceberCentavos: 10000 + 12000 + 10000 + 5000 });
+
+  const so1 = await resumoDoMes(db, arena.id, quadra.id, "2026-11", AGORA);
+  expect(Object.fromEntries(so1.porDia)).toEqual({ "2026-11-01": 1, "2026-11-09": 1, "2026-11-10": 1, "2026-11-16": 1 });
+  expect(so1).toMatchObject({ hoje: 1, semana: 2, aReceberCentavos: 32000 });
+
+  const outra = await criarArena(db, "B");
+  expect(await resumoDoMes(db, outra.id, null, "2026-11", AGORA)).toMatchObject({ hoje: 0, semana: 0, aReceberCentavos: 0 });
+  expect((await resumoDoMes(db, outra.id, quadra.id, "2026-11", AGORA)).porDia.size).toBe(0);
+  expect(await resumoDoMes(db, arena.id, null, "lixo", AGORA)).toMatchObject({ hoje: 0, semana: 0, aReceberCentavos: 0 });
+});
+
+test("resumoDoMes: semana de domingo vai só até o próprio domingo", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const domingo = new Date("2026-11-15T10:00:00-03:00");
+  const x = await criarReserva(db, ana, { quadraId: quadra.id, dia: "2026-11-16", inicio: 18 * 60, qtd: 1 }, domingo);
+  expect(x.ok).toBe(true);
+  const y = await criarReserva(db, ana, { quadraId: quadra.id, dia: "2026-11-15", inicio: 18 * 60, qtd: 1 }, domingo);
+  expect(y.ok).toBe(true);
+  expect(await resumoDoMes(db, arena.id, null, "2026-11", domingo)).toMatchObject({ hoje: 1, semana: 1 });
+});
+
+test("buscarNaAgenda: parte do nome sem acento, só reservas desta arena, em páginas", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  const joana = await jogador(db, "Joana");
+  const bia = await jogador(db, "Bia");
+  const ra = await reservar(db, ana, quadra.id, 18, 1);
+  const rj = await reservar(db, joana, quadra.id, 8, 1);
+  await reservar(db, bia, quadra.id, 10, 1);
+  const passada = await reservaPassada(db, arena.id, quadra.id, ana, "2026-10-01");
+  await bloquearHorario(db, arena.id, { quadraId: quadra.id, dia: DIA, inicio: 12, fim: 13, motivo: "Ana" }, AGORA);
+  const outra = await criarArena(db, "B");
+
+  const r = await buscarNaAgenda(db, arena.id, "ÂN", 1, AGORA);
+  expect(r.total).toBe(3);
+  expect(r.itens.map((i) => i.id)).toEqual([ra, rj, passada]); // mais recentes primeiro
+  expect(r.itens[0]).toMatchObject({ jogador: "Ana", tipo: "reserva" });
+  expect((await buscarNaAgenda(db, arena.id, "an", 2, AGORA)).itens).toEqual([]);
+  expect(await buscarNaAgenda(db, outra.id, "ana", 1, AGORA)).toEqual({ itens: [], total: 0 });
+  expect(await buscarNaAgenda(db, arena.id, "%_", 1, AGORA)).toEqual({ itens: [], total: 0 });
+  expect(await buscarNaAgenda(db, arena.id, "a'; --", 1, AGORA)).toEqual({ itens: [], total: 0 });
+  const espiao = { query: () => { throw new Error("não devia consultar"); } } as unknown as Db;
+  expect(await buscarNaAgenda(espiao, arena.id, "a", 1, AGORA)).toEqual({ itens: [], total: 0 });
+  expect(await buscarNaAgenda(espiao, arena.id, "x".repeat(61), 1, AGORA)).toEqual({ itens: [], total: 0 });
+  expect(await buscarNaAgenda(espiao, "x", "ana", 1, AGORA)).toEqual({ itens: [], total: 0 });
 });

@@ -5,6 +5,7 @@ import { SLUG_VALIDO } from "./clipes";
 import type { Periodo } from "./disponibilidade";
 import { capasDasQuadras, listarFotos } from "./fotos";
 import { periodosOcupadosEntre } from "./reservas";
+import { normalizar, sqlNorm } from "./texto-busca";
 
 // Dados públicos das arenas (home, busca, mapa e /a/<slug>). Fica fora de
 // plataforma.ts de propósito: é o dado que cruza arenas sem sessão. Só sai o que
@@ -13,26 +14,6 @@ import { periodosOcupadosEntre } from "./reservas";
 
 export const LIMITE_PUBLICO = 50;
 export const LIMITE_SUGESTOES = 8;
-
-// Minúsculas e maiúsculas na tabela: não depende da localidade do banco para o lower() das maiúsculas acentuadas.
-const ACENTOS = "áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ";
-const SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucn".repeat(2);
-
-// Termo sem NUL (o Postgres recusa), aparado, até 80 caracteres, minúsculo e sem
-// acento. Os dois lados da comparação passam pela mesma normalização.
-function normalizar(busca: unknown): string {
-  if (typeof busca !== "string") return "";
-  return busca
-    .replace(/\u0000/g, "")
-    .trim()
-    .slice(0, 80)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-// Expressão SQL equivalente para uma coluna de texto (nula vira vazio).
-const sqlNorm = (col: string) => `translate(lower(coalesce(${col}, '')), '${ACENTOS}', '${SEM_ACENTO}')`;
 
 const CAMPOS_BUSCA = ["nome", "endereco_rua", "endereco_bairro", "endereco_cidade", "endereco_uf"];
 // position() mantém % e _ como texto literal. O alvo junta os campos com \n,
