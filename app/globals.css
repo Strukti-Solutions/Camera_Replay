@@ -2197,3 +2197,325 @@ a.pj-slot-escolhido:hover {
   color: var(--perigo);
   text-decoration: line-through;
 }
+
+/* ---------- Minhas reservas (jogador) ---------- */
+.rv {
+  padding-block: 1.5rem 3rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.rv h1 {
+  margin: 0;
+}
+
+.rv-painel {
+  background: var(--realce);
+  border-radius: var(--raio);
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.rv-abas {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--raio);
+  background: var(--fundo);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.rv-abas a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  padding: 0 1rem;
+  border-radius: var(--raio-botao);
+  color: var(--tinta);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rv-abas a[aria-current="page"] {
+  background: var(--superficie);
+  box-shadow: 0 1px 3px rgb(8 18 29 / 0.3);
+}
+
+.rv-grade {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .rv-grade {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.rv-cartao,
+.rv-caixa {
+  background: var(--superficie);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgb(14 28 43 / 0.1);
+}
+
+.rv-cartao {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Foto da quadra (fase 3); até lá, um degradê. */
+.rv-foto {
+  flex: 0 0 5.5rem;
+  background: linear-gradient(135deg, var(--navy-700), var(--cyan-400));
+}
+
+.rv-foto-1 {
+  background: linear-gradient(135deg, var(--navy-400), var(--electric-800));
+}
+
+.rv-corpo {
+  flex: 1;
+  min-width: 0;
+  padding: 0.85rem 1rem 1rem;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.rv-cabeca {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.rv-cabeca > div {
+  min-width: 0;
+}
+
+.rv-data {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  min-width: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  background: var(--primario);
+  color: var(--sobre-primario);
+  line-height: 1.1;
+}
+
+.rv-data small {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.rv-data b {
+  font-size: 1.25rem;
+}
+
+.rv-data-passada {
+  background: var(--navy-400);
+  color: #ffffff;
+}
+
+.rv-arena {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.rv-arena a {
+  color: var(--tinta);
+  text-decoration: none;
+}
+
+.rv-arena a:hover {
+  text-decoration: underline;
+}
+
+.rv-quadra,
+.rv-nota {
+  margin: 0;
+  color: var(--tinta-suave);
+  font-size: 0.875rem;
+}
+
+.rv-nota:empty {
+  display: none;
+}
+
+.rv-linha {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-selos {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.rv-selo {
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--raio-campo);
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rv-selo-ok {
+  background: color-mix(in srgb, var(--sucesso) 14%, var(--superficie));
+  color: var(--sucesso);
+}
+
+.rv-selo-cancelada {
+  background: color-mix(in srgb, var(--perigo) 12%, var(--superficie));
+  color: var(--perigo);
+}
+
+.rv-selo-jogada,
+.rv-selo-lances {
+  background: var(--realce);
+  color: var(--link);
+}
+
+.rv-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.rv-acoes:empty {
+  display: none;
+}
+
+.rv-acoes .botao {
+  padding-inline: 1rem;
+  font-size: 0.9rem;
+}
+
+.rv-acoes .confirmar {
+  margin-top: 0;
+}
+
+.rv-vazio {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  padding: 1rem;
+  background: var(--superficie);
+  border-radius: 14px;
+}
+
+.rv-vazio p {
+  margin: 0;
+}
+
+.rv-paginas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.rv-paginas a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--alvo);
+  min-height: var(--alvo);
+  border-radius: var(--raio-botao);
+  background: var(--superficie);
+  color: var(--tinta);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rv-paginas a[aria-current="page"] {
+  background: var(--primario);
+  color: var(--sobre-primario);
+}
+
+@media (max-width: 40rem) {
+  .rv-painel {
+    padding: 0.75rem;
+  }
+
+  .rv-foto {
+    flex-basis: 0.75rem;
+  }
+}
+
+/* Detalhe da reserva: dados de um lado, lances do outro. */
+.rv-detalhe {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 48rem) {
+  .rv-detalhe {
+    grid-template-columns: 1fr 1.3fr;
+  }
+}
+
+.rv-detalhe .rv-arena {
+  font-size: 1.25rem;
+}
+
+.rv-dados {
+  margin: 0.5rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.rv-dados > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.rv-dados dt {
+  color: var(--tinta-suave);
+}
+
+.rv-dados dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-lances {
+  padding: 1rem;
+  min-width: 0;
+}
+
+.rv-lances h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.rv-lances h2 small {
+  color: var(--tinta-suave);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+/* A galeria traz o próprio .miolo; dentro da caixa ela ocupa a largura dela. */
+.rv-lances .miolo {
+  padding-inline: 0;
+  max-width: none;
+}
