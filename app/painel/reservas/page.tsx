@@ -256,7 +256,7 @@ export default async function PaginaReservas({ searchParams }: Props) {
                   href={hrefAgenda({ quadra, dia: d })}
                   className={d === dia ? "ag-semana-dia ag-escolhido" : "ag-semana-dia"}
                   aria-current={d === dia ? "date" : undefined}
-                  aria-label={`${diaPorExtenso(d)}, ${n === 1 ? "1 reserva" : `${n} reservas`}`}
+                  aria-label={`${diaPorExtenso(d)}${n > 0 ? `, ${n} ${n === 1 ? "reserva" : "reservas"}` : ""}`}
                 >
                   <span>{DIA_CURTO.format(new Date(`${d}T12:00:00Z`)).replace(".", "")}</span>
                   <strong>{Number(d.slice(8))}</strong>
