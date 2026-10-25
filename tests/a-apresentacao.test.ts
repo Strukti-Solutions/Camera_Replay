@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { HorarioDoDia } from "../app/lib/disponibilidade";
 import {
   calendarioDoMes, diaPorExtenso, estadoDoDia, hrefDoHorario, hrefPasso1, hrefPasso2, hrefPasso3, hrefReservar, lerEscolha,
-  lerMes, lerReserva, linkComoChegar, livresPorDia, mesesDaJanela, nomeDoMes, passoDaEscolha, textoDia, textoLances,
+  lerMes, lerReserva, linkComoChegar, livresPorDia, mesesDaJanela, nomeDoMes, passoDaEscolha, passoDaUrl, textoDia, textoLances,
 } from "../app/a/[slug]/apresentacao";
 import type { HorarioComId } from "../app/lib/horarios";
 
@@ -212,4 +212,16 @@ test("links dos passos: codificados e com a âncora do cartão", () => {
   expect(hrefPasso2("slug", "q&1")).toBe("/a/slug?quadra=q%261#reserva");
   expect(hrefPasso2("slug", "q1", "2026-11")).toBe("/a/slug?quadra=q1&mes=2026-11#reserva");
   expect(hrefPasso3("slug", "q1", "2026-10-26")).toBe("/a/slug?quadra=q1&dia=2026-10-26#reserva");
+});
+
+test("passoDaUrl: link velho e dia fora da janela abrem o passo 2", () => {
+  const ids = ["q1"];
+  // agora = 17/10/2026; a janela vai até 16/11.
+  expect(passoDaUrl({}, ids, agora)).toBe(1);
+  expect(passoDaUrl({ quadra: "q9", dia: "2026-10-20" }, ids, agora)).toBe(1);
+  expect(passoDaUrl({ quadra: "q1" }, ids, agora)).toBe(2);
+  expect(passoDaUrl({ quadra: "q1", dia: "2026-12-01" }, ids, agora)).toBe(2);
+  expect(passoDaUrl({ quadra: "q1", dia: "lixo" }, ids, agora)).toBe(2);
+  expect(passoDaUrl({ quadra: "q1", dia: "2026-10-20" }, ids, agora)).toBe(3);
+  expect(passoDaUrl({ quadra: "q1", dia: ["2026-10-20", "x"] }, ids, agora)).toBe(3);
 });

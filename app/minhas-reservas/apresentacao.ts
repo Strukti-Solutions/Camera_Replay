@@ -82,5 +82,5 @@ export function seloDaReserva(
 
 // Volta à página da arena com a mesma quadra escolhida.
 export function hrefReservarDeNovo(slug: string, quadraId: string): string {
-  return `/a/${encodeURIComponent(slug)}?quadra=${encodeURIComponent(quadraId)}`;
+  return `/a/${encodeURIComponent(slug)}?quadra=${encodeURIComponent(quadraId)}#reserva`;
 }

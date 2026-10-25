@@ -105,6 +105,6 @@ test("selo da reserva: confirmada, jogada ou cancelada (com o motivo da arena)",
 });
 
 test("reservar de novo: página da arena com a quadra escolhida", () => {
-  expect(hrefReservarDeNovo("SFGth-S7Bi", "q-1")).toBe("/a/SFGth-S7Bi?quadra=q-1");
-  expect(hrefReservarDeNovo("a b", "x&y")).toBe("/a/a%20b?quadra=x%26y");
+  expect(hrefReservarDeNovo("SFGth-S7Bi", "q-1")).toBe("/a/SFGth-S7Bi?quadra=q-1#reserva");
+  expect(hrefReservarDeNovo("a b", "x&y")).toBe("/a/a%20b?quadra=x%26y#reserva");
 });

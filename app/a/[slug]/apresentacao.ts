@@ -158,6 +158,15 @@ export function passoDaEscolha(e: { quadra: string | null; diaNaUrl: boolean }):
   return e.diaNaUrl ? 3 : 2;
 }
 
+// Passo da URL: a quadra tem de ser da arena e o dia, da janela. Link velho
+// (?quadra= sozinho) e dia fora da janela abrem o calendário.
+export function passoDaUrl(params: Parametros, quadraIds: string[], agora: Date): 1 | 2 | 3 {
+  return passoDaEscolha({
+    quadra: lerEscolha(params, quadraIds, agora).quadra,
+    diaNaUrl: diaValido(primeiro(params.dia), agora) !== null,
+  });
+}
+
 const somaDias = (dia: string, n: number) => {
   const [a, m, d] = dia.split("-").map(Number);
   return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);

@@ -111,10 +111,13 @@ test("arenaPublica devolve quadras com horários ordenados e nada privado", asyn
 test("arenaPublica: suspensa sem quadras; slug malformado sem consulta", async () => {
   const db = await novoBanco();
   const a = await criarArena(db, "Arena X");
-  await criarQuadra(db, a.id);
+  const q = await criarQuadra(db, a.id);
+  await reservarFoto(db, a.id, null, "image/webp", 1);
+  await reservarFoto(db, a.id, q.id, "image/webp", 1);
+  expect((await arenaPublica(db, a.slug))!.fotos).toHaveLength(1);
   await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [a.id]);
   const r = await arenaPublica(db, a.slug);
-  expect(r).toMatchObject({ nome: "Arena X", ativa: false, quadras: [] });
+  expect(r).toMatchObject({ nome: "Arena X", ativa: false, quadras: [], fotos: [] });
   expect(await arenaPublica(db, "x'; drop")).toBeNull();
   const espiao = { query: () => { throw new Error("não devia consultar"); } } as unknown as Db;
   expect(await arenaPublica(espiao, "curto")).toBeNull();
@@ -191,6 +194,8 @@ test("periodosPublicosEntre: períodos que tocam os dias locais do intervalo", a
   const p = await periodosPublicosEntre(db, q.id, "2026-11-09", "2026-11-11");
   expect(p).toEqual([{ inicio: new Date("2026-11-10T18:00:00-03:00"), fim: new Date("2026-11-10T20:00:00-03:00") }]);
   expect((await periodosPublicosEntre(db, q.id, "2026-11-09", "2026-11-12")).length).toBe(2);
-  expect(await periodosPublicosEntre(db, "nada", "2026-11-09", "2026-11-12")).toEqual([]);
+  const espiao = { query: () => { throw new Error("não devia consultar"); } } as unknown as Db;
+  expect(await periodosPublicosEntre(espiao, "nada", "2026-11-09", "2026-11-12")).toEqual([]);
+  expect(await periodosPublicosEntre(espiao, q.id, "lixo", "2026-11-12")).toEqual([]);
   expect(await periodosPublicosEntre(db, q.id, "x", "2026-11-12")).toEqual([]);
 });

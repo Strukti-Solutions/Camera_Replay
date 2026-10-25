@@ -6,11 +6,11 @@ import { LinkVoltar } from "@/app/componentes/voltar";
 import { MENSAGEM_ARENA_SUSPENSA } from "@/app/entrar/mensagens";
 import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
 import { arenaPublica, periodosPublicos, periodosPublicosEntre } from "@/app/lib/arenas-publicas";
-import { diasDisponiveis, diaValido } from "@/app/lib/disponibilidade";
+import { diasDisponiveis } from "@/app/lib/disponibilidade";
 import { poolCompartilhado } from "@/app/lib/pool";
 import {
   diaPorExtenso, hrefPasso1, hrefPasso2, lerEscolha, lerMes, linhaEndereco, linkComoChegar, livresPorDia,
-  mesesDaJanela, passoDaEscolha,
+  mesesDaJanela, passoDaUrl,
 } from "./apresentacao";
 import { EscolhaDaQuadra } from "./escolha";
 import { FotosDaArena } from "./fotos-arena";
@@ -72,9 +72,9 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
 
   const agora = new Date();
   const p = await searchParams;
-  const escolha = lerEscolha(p, arena.quadras.map((q) => q.id), agora);
-  const diaNaUrl = diaValido(Array.isArray(p.dia) ? p.dia[0] : p.dia, agora) !== null;
-  const passo = passoDaEscolha({ quadra: escolha.quadra, diaNaUrl });
+  const ids = arena.quadras.map((q) => q.id);
+  const escolha = lerEscolha(p, ids, agora);
+  const passo = passoDaUrl(p, ids, agora);
   const quadra = arena.quadras.find((q) => q.id === escolha.quadra) ?? null;
   const endereco = linhaEndereco(arena.endereco);
   const comoChegar = linkComoChegar(arena);
@@ -157,7 +157,7 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
               <FotoParada
                 id={quadra.capaId ?? arena.fotos[0] ?? null}
                 etiqueta={quadra.capaId || arena.fotos[0] ? etiquetaQuadra : quadra.esporte || quadra.nome}
-                alt={`Foto da ${quadra.nome}`}
+                alt={quadra.capaId ? `Foto da ${quadra.nome}` : `Foto da ${arena.nome}`}
               />
             )}
           </div>

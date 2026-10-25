@@ -133,8 +133,9 @@ export function Passo2({
                       {d.numero}
                     </Link>
                   ) : (
-                    <span aria-label={d.doMes ? `${d.numero}, indisponível` : undefined} aria-hidden={d.doMes ? undefined : true}>
+                    <span aria-hidden={d.doMes ? undefined : true}>
                       {d.numero}
+                      {d.doMes && <span className="so-leitor">, indisponível</span>}
                     </span>
                   )}
                 </td>

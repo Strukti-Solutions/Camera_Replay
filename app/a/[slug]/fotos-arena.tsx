@@ -9,13 +9,22 @@ const INTERVALO_MS = 5000;
 export function FotosDaArena({ fotos, nome }: { fotos: string[]; nome: string }) {
   const [atual, setAtual] = useState(0);
   const [parado, setParado] = useState(false);
+  const [calmo, setCalmo] = useState(false);
+
+  // "Menos movimento" pode mudar com a página aberta.
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const ler = () => setCalmo(m.matches);
+    ler();
+    m.addEventListener("change", ler);
+    return () => m.removeEventListener("change", ler);
+  }, []);
 
   useEffect(() => {
-    if (fotos.length < 2 || parado) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (fotos.length < 2 || parado || calmo) return;
     const t = window.setInterval(() => setAtual((i) => (i + 1) % fotos.length), INTERVALO_MS);
     return () => window.clearInterval(t);
-  }, [fotos.length, parado]);
+  }, [fotos.length, parado, calmo]);
 
   return (
     <div

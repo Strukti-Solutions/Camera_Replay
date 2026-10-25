@@ -170,8 +170,10 @@ export async function periodosPublicos(db: Db, quadraId: string, dia: string): P
 }
 
 // O mesmo para os dias locais de `de` a `ate` (o calendário da janela inteira).
+const DIA_AAAA_MM_DD = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function periodosPublicosEntre(db: Db, quadraId: string, de: string, ate: string): Promise<Periodo[]> {
-  if (!ehUuid(quadraId)) return [];
+  if (!ehUuid(quadraId) || !DIA_AAAA_MM_DD.test(String(de)) || !DIA_AAAA_MM_DD.test(String(ate))) return [];
   const q = await db.query<{ arena_id: string }>("select arena_id from quadras where id = $1", [quadraId]);
   const arenaId = q.rows[0]?.arena_id;
   if (!arenaId) return [];
