@@ -39,7 +39,10 @@ type Linha = {
 
 export async function dadosArenaDono(
   db: Db, arenaId: string,
-): Promise<{ nome: string; endereco: EnderecoArena | null; temCoordenadas: boolean } | null> {
+): Promise<{
+  nome: string; endereco: EnderecoArena | null; temCoordenadas: boolean;
+  coordenadas: { latitude: number; longitude: number } | null;
+} | null> {
   if (!ehUuid(arenaId)) return null;
   const r = await db.query<Linha>(
     `select nome, endereco_rua, endereco_numero, endereco_bairro, endereco_cidade, endereco_uf,
@@ -53,7 +56,10 @@ export async function dadosArenaDono(
     rua: l.endereco_rua, numero: l.endereco_numero ?? "", bairro: l.endereco_bairro ?? "",
     cidade: l.endereco_cidade ?? "", uf: l.endereco_uf ?? "", cep: l.endereco_cep ?? "",
   };
-  return { nome: l.nome, endereco, temCoordenadas: l.latitude !== null && l.longitude !== null };
+  const coordenadas = l.latitude === null || l.longitude === null
+    ? null
+    : { latitude: Number(l.latitude), longitude: Number(l.longitude) };
+  return { nome: l.nome, endereco, temCoordenadas: coordenadas !== null, coordenadas };
 }
 
 // Pula campos vazios (bairro é opcional).

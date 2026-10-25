@@ -26,7 +26,7 @@ test("salva endereço e coordenadas", async () => {
   expect(r).toEqual({ ok: true, localizada: true });
   expect(await coords(db, a.id)).toMatchObject({ latitude: -3.7, longitude: -38.5, nome: "Nova", endereco_rua: "Rua A" });
   const d = await dadosArenaDono(db, a.id);
-  expect(d).toEqual({ nome: "Nova", endereco: end, temCoordenadas: true });
+  expect(d).toEqual({ nome: "Nova", endereco: end, temCoordenadas: true, coordenadas: { latitude: -3.7, longitude: -38.5 } });
 });
 
 test("geocodificador sem resultado: salva sem coordenadas e apaga as antigas", async () => {

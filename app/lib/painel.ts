@@ -75,18 +75,28 @@ export async function listarQuadras(
   arenaId: string,
 ): Promise<{
   id: string; nome: string; slug: string; esporte: string; capaId: string | null; camera: CameraPainel | null; botoesAtivos: number;
+  fotos: number; aPartirDe: number | null; porHora: boolean; // aPartirDe: menor preço dos horários (centavos)
 }[]> {
   if (!ehUuid(arenaId)) return [];
   const { rows } = await db.query<LinhaCamera & {
     id: string; nome: string; slug: string; esporte: string; capa_id: string | null; botoes_ativos: number;
+    fotos: number; a_partir_de: number | null; por_hora: boolean | null;
   }>(
     `select q.id, q.nome, q.slug, q.esporte, ${COLUNAS_CAMERA},
             (select count(*) from botoes b
               where b.quadra_id = q.id and b.arena_id = q.arena_id and b.revogado_em is null)::int as botoes_ativos,
             (select f.id from fotos f
               where f.quadra_id = q.id and f.arena_id = q.arena_id
-              order by f.posicao, f.criado_em, f.id limit 1) as capa_id
+              order by f.posicao, f.criado_em, f.id limit 1) as capa_id,
+            (select count(*) from fotos f
+              where f.quadra_id = q.id and f.arena_id = q.arena_id)::int as fotos,
+            h.a_partir_de, h.por_hora
        from quadras q
+       left join lateral (
+         select min(hq.preco_centavos)::int as a_partir_de, bool_and(hq.fim - hq.inicio = 60) as por_hora
+           from horarios_quadra hq
+          where hq.quadra_id = q.id and hq.arena_id = q.arena_id
+       ) h on true
        ${CAMERA_RECENTE}
       where q.arena_id = $1
       order by q.nome, q.id`,
@@ -100,6 +110,9 @@ export async function listarQuadras(
     capaId: r.capa_id,
     camera: paraCamera(r),
     botoesAtivos: Number(r.botoes_ativos),
+    fotos: Number(r.fotos),
+    aPartirDe: r.a_partir_de === null ? null : Number(r.a_partir_de),
+    porHora: r.por_hora === true,
   }));
 }
 

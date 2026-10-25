@@ -330,3 +330,27 @@ test("lista de quadras traz o esporte e a capa (posição 0) de cada quadra", as
   const lista = await listarQuadras(db, a.id);
   expect(lista.map((q) => [q.id, q.esporte, q.capaId])).toEqual([[q1.id, "", f2.id], [q2.id, "Padel", null]]);
 });
+
+test("listarQuadras: contagem de fotos, menor preço e se é tudo por hora", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "A");
+  const q1 = await fxQuadra(db, a.id);
+  const q2 = await fxQuadra(db, a.id);
+  const outra = await criarArena(db, "B");
+  const qb = await fxQuadra(db, outra.id);
+  await reservarFoto(db, a.id, q1.id, "image/webp", 1);
+  await reservarFoto(db, a.id, q1.id, "image/webp", 1);
+  await reservarFoto(db, a.id, null, "image/webp", 1); // foto da arena não conta na quadra
+  await reservarFoto(db, outra.id, qb.id, "image/webp", 1);
+  const hq = "insert into horarios_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1,$2,$3,$4,$5,$6)";
+  await db.query(hq, [a.id, q1.id, 1, 420, 480, 9000]);
+  await db.query(hq, [a.id, q1.id, 2, 480, 540, 8000]);
+  await db.query(hq, [a.id, q2.id, 1, 930, 1035, 15000]); // 1h45: não é por hora
+  await db.query(hq, [outra.id, qb.id, 1, 420, 480, 100]);
+  const lista = await listarQuadras(db, a.id);
+  const p = (id: string) => lista.find((q) => q.id === id)!;
+  expect(p(q1.id)).toMatchObject({ fotos: 2, aPartirDe: 8000, porHora: true });
+  expect(p(q2.id)).toMatchObject({ fotos: 0, aPartirDe: 15000, porHora: false });
+  const sem = await fxQuadra(db, a.id);
+  expect((await listarQuadras(db, a.id)).find((q) => q.id === sem.id)).toMatchObject({ fotos: 0, aPartirDe: null, porHora: false });
+});
