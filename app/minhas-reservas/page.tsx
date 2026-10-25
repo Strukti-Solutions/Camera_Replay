@@ -82,7 +82,7 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
                   valor={r.id}
                   rotulo="Cancelar"
                   pergunta="Cancelar esta reserva? O horário volta a ficar livre."
-                  confirmar="Sim, cancelar reserva"
+                  confirmar="Cancelar"
                 />
               )}
             </>

@@ -954,6 +954,11 @@ video {
   gap: 0.5rem;
 }
 
+/* Confirmar e Fechar do mesmo tamanho. */
+.confirmar-botoes > .botao {
+  flex: 1 1 0;
+}
+
 .botao-perigo {
   color: var(--perigo);
 }
@@ -2741,6 +2746,10 @@ a.pj-slot-escolhido:hover {
   border: 1px solid var(--borda-campo);
   background: var(--superficie);
   box-shadow: 0 8px 24px rgb(8 18 29 / 0.3);
+}
+
+.rv-cartao .confirmar-botoes {
+  justify-self: stretch;
 }
 
 .rv-cartao .confirmar-caixa p {
