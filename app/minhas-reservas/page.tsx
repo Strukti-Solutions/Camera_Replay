@@ -11,6 +11,7 @@ import { cancelarReservaAction } from "./actions";
 import {
   hrefLista, hrefReservarDeNovo, lerAba, mensagemOk, paginar, seloDaReserva, textoCancelaAte, textoHorario, type Aba,
 } from "./apresentacao";
+import { CancelarIndisponivel } from "./cancelar-indisponivel";
 import { SeloData, SeloSituacao } from "./cartao";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,7 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
                   Como chegar
                 </a>
               )}
-              {r.podeCancelar && (
+              {r.podeCancelar ? (
                 <Confirmar
                   acao={cancelarReservaAction}
                   campo="reservaId"
@@ -84,6 +85,8 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
                   pergunta="Cancelar esta reserva? O horário volta a ficar livre."
                   confirmar="Cancelar"
                 />
+              ) : (
+                <CancelarIndisponivel />
               )}
             </>
           )}

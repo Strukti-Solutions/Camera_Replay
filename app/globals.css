@@ -2421,6 +2421,35 @@ a.pj-slot-escolhido:hover {
   font-size: 0.9rem;
 }
 
+/* Botões da linha com a mesma largura (Como chegar e Cancelar, Ver lances e
+   Reservar de novo): colunas iguais, sem depender do texto de cada um. */
+.rv-acoes {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.rv-acoes .botao {
+  text-align: center;
+}
+
+.rv-acoes .botao {
+  padding: 0 0.5rem;
+}
+
+.rv-acoes .confirmar summary {
+  width: 100%;
+}
+
+/* Cancelar fora do prazo: cinza, mas clicável para explicar. */
+.botao-indisponivel {
+  color: var(--tinta-suave);
+  border-color: var(--borda);
+  background: var(--realce);
+  cursor: help;
+}
+
 .rv-acoes .confirmar {
   margin-top: 0;
 }
