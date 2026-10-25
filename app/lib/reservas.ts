@@ -52,14 +52,23 @@ async function expirarSeguradas(tx: Pick<Db, "query">, quadraId: string): Promis
 export async function periodosOcupados(
   db: Pick<Db, "query">, arenaId: string, quadraId: string, dia: string,
 ): Promise<{ inicio: Date; fim: Date }[]> {
-  if (!ehUuid(arenaId) || !ehUuid(quadraId) || typeof dia !== "string" || !DIA.test(dia)) return [];
+  return periodosOcupadosEntre(db, arenaId, quadraId, dia, dia);
+}
+
+// Mesmo critério, para os dias locais de `de` a `ate` (inclusive): o calendário
+// da página da arena pede a janela inteira numa consulta só.
+export async function periodosOcupadosEntre(
+  db: Pick<Db, "query">, arenaId: string, quadraId: string, de: string, ate: string,
+): Promise<{ inicio: Date; fim: Date }[]> {
+  if (!ehUuid(arenaId) || !ehUuid(quadraId)) return [];
+  if (typeof de !== "string" || !DIA.test(de) || typeof ate !== "string" || !DIA.test(ate)) return [];
   const { rows } = await db.query<{ inicio: Date; fim: Date }>(
     `select inicio, fim from reservas
       where quadra_id = $1 and arena_id = $2
         and (situacao = 'confirmada' or (situacao = 'segurada' and segura_ate > now()))
         and periodo && tstzrange($3::timestamptz, $4::timestamptz, '[)')
       order by inicio`,
-    [quadraId, arenaId, new Date(instanteDoMinuto(dia, 0)), new Date(instanteDoMinuto(dia, 1440))],
+    [quadraId, arenaId, new Date(instanteDoMinuto(de, 0)), new Date(instanteDoMinuto(ate, 1440))],
   );
   return rows.map((r) => ({ inicio: new Date(r.inicio), fim: new Date(r.fim) }));
 }

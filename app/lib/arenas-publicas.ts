@@ -3,7 +3,8 @@ import type { HorarioComId } from "./horarios";
 import { listarHorarios } from "./horarios-quadra";
 import { SLUG_VALIDO } from "./clipes";
 import type { Periodo } from "./disponibilidade";
-import { periodosOcupados } from "./reservas";
+import { capasDasQuadras, listarFotos } from "./fotos";
+import { periodosOcupadosEntre } from "./reservas";
 
 // Dados públicos das arenas (home, busca, mapa e /a/<slug>). Fica fora de
 // plataforma.ts de propósito: é o dado que cruza arenas sem sessão. Só sai o que
@@ -89,7 +90,12 @@ export type ArenaPublica = {
   endereco: { rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null } | null;
   latitude: number | null;
   longitude: number | null;
-  quadras: { id: string; nome: string; esporte: string; horarios: HorarioComId[] }[];
+  fotos: string[]; // ids das fotos da arena, a capa primeiro
+  quadras: {
+    id: string; nome: string; esporte: string; horarios: HorarioComId[];
+    capaId: string | null;
+    aPartirDe: number | null; // menor preço entre os horários (centavos)
+  }[];
 };
 
 // Página pública da arena. Slug malformado não toca o banco; arena suspensa sai
@@ -120,18 +126,27 @@ export async function arenaPublica(db: Db, slug: string): Promise<ArenaPublica |
     latitude: r.latitude === null ? null : Number(r.latitude),
     longitude: r.longitude === null ? null : Number(r.longitude),
   };
-  if (!ativa) return { ...base, quadras: [] };
+  if (!ativa) return { ...base, fotos: [], quadras: [] };
 
-  const q = await db.query<{ id: string; nome: string; esporte: string }>(
-    "select id, nome, esporte from quadras where arena_id = $1 order by nome, id",
-    [r.id],
-  );
+  const [q, fotos, capas] = await Promise.all([
+    db.query<{ id: string; nome: string; esporte: string }>(
+      "select id, nome, esporte from quadras where arena_id = $1 order by nome, id",
+      [r.id],
+    ),
+    listarFotos(db, r.id, null),
+    capasDasQuadras(db, r.id),
+  ]);
   const quadras = await Promise.all(
-    q.rows.map(async (x) => ({
-      id: x.id, nome: x.nome, esporte: x.esporte, horarios: await listarHorarios(db, r.id, x.id),
-    })),
+    q.rows.map(async (x) => {
+      const horarios = await listarHorarios(db, r.id, x.id);
+      return {
+        id: x.id, nome: x.nome, esporte: x.esporte, horarios,
+        capaId: capas.get(x.id) ?? null,
+        aPartirDe: horarios.length > 0 ? Math.min(...horarios.map((h) => h.precoCentavos)) : null,
+      };
+    }),
   );
-  return { ...base, quadras };
+  return { ...base, fotos: fotos.map((f) => f.id), quadras };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -151,9 +166,14 @@ export async function slugDaQuadra(db: Db, quadraId: string): Promise<string | n
 // Períodos do dia já tomados por reserva ou bloqueio na quadra. Só início e fim:
 // quem reservou não sai daqui.
 export async function periodosPublicos(db: Db, quadraId: string, dia: string): Promise<Periodo[]> {
+  return periodosPublicosEntre(db, quadraId, dia, dia);
+}
+
+// O mesmo para os dias locais de `de` a `ate` (o calendário da janela inteira).
+export async function periodosPublicosEntre(db: Db, quadraId: string, de: string, ate: string): Promise<Periodo[]> {
   if (!ehUuid(quadraId)) return [];
   const q = await db.query<{ arena_id: string }>("select arena_id from quadras where id = $1", [quadraId]);
   const arenaId = q.rows[0]?.arena_id;
   if (!arenaId) return [];
-  return (await periodosOcupados(db, arenaId, quadraId, dia)).map((p) => ({ inicio: p.inicio, fim: p.fim }));
+  return (await periodosOcupadosEntre(db, arenaId, quadraId, de, ate)).map((p) => ({ inicio: p.inicio, fim: p.fim }));
 }
