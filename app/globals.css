@@ -2300,13 +2300,20 @@ a.pj-slot-escolhido:hover {
   background: linear-gradient(135deg, var(--navy-400), var(--electric-800));
 }
 
+/* Coluna com os botões presos embaixo: ficam na mesma altura em todos os
+   cartões, tenha o texto do meio uma linha ou duas. */
 .rv-corpo {
   flex: 1;
   min-width: 0;
   padding: 0.85rem 1rem 1rem;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.4rem;
-  align-content: start;
+}
+
+.rv-corpo > .rv-acoes {
+  margin-top: auto;
+  padding-top: 0.35rem;
 }
 
 .rv-cabeca {
@@ -2432,6 +2439,7 @@ a.pj-slot-escolhido:hover {
 
 .rv-acoes .botao {
   text-align: center;
+  white-space: nowrap;
 }
 
 .rv-acoes .botao {
@@ -2498,7 +2506,16 @@ a.pj-slot-escolhido:hover {
   }
 
   .rv-foto {
-    flex-basis: 5rem;
+    flex-basis: 4rem;
+  }
+
+  .rv-corpo {
+    padding-inline: 0.75rem;
+  }
+
+  .rv-acoes .botao {
+    font-size: 0.85rem;
+    padding-inline: 0.25rem;
   }
 
   .cartao-com-capa {
