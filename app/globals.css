@@ -1653,6 +1653,11 @@ video {
     display: none;
   }
 
+  /* Folga para o botão flutuante não cobrir o fim da lista. */
+  .escolha {
+    padding-bottom: 6rem;
+  }
+
   .mapa-ver {
     position: fixed;
     left: 50%;
@@ -1667,7 +1672,8 @@ video {
 
 /* Computador: mapa sempre aberto, preso ao rolar, na altura da tela. */
 @media (min-width: 56rem) {
-  .hm-corpo {
+  /* Duas colunas só quando há pontos no mapa. */
+  .hm-corpo-com-mapa {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     align-items: start;
   }

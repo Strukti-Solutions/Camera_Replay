@@ -75,7 +75,7 @@ export default async function EscolhaDaArena({ searchParams }: Props) {
           </nav>
         )}
 
-        <div className="hm-corpo">
+        <div className={pontos.length > 0 ? "hm-corpo hm-corpo-com-mapa" : "hm-corpo"}>
           <section className="hm-resultado" aria-labelledby="hm-titulo">
             <h2 id="hm-titulo" className="hm-titulo">
               {vitrine ? "Arenas em destaque" : textoEncontradas(arenas.length)}

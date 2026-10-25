@@ -125,7 +125,7 @@ export async function cartoesDeArenas(db: Db, f: { busca?: string; esporte?: str
   const ids = rows.map((r) => r.id);
   const [fotos, precos, esportes] = await Promise.all([
     db.query<{ arena_id: string; id: string }>(
-      `select arena_id, id from fotos where arena_id = any($1::uuid[]) and quadra_id is null order by arena_id, posicao`,
+      `select arena_id, id from fotos where arena_id = any($1::uuid[]) and quadra_id is null order by arena_id, posicao, criado_em, id`,
       [ids],
     ),
     db.query<{ arena_id: string; minimo: number; por_hora: boolean }>(

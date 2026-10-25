@@ -44,8 +44,14 @@ export function MapaArenas({ pontos }: { pontos: PontoMapa[] }) {
   const botaoVer = useRef<HTMLButtonElement>(null);
   const botaoFechar = useRef<HTMLButtonElement>(null);
   const jaAbriu = useRef(false);
+  const verHorarios = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => setMontado(true), []);
+
+  // Pino aberto (clique ou Enter): o foco vai para o card, sem passar pelos outros pinos.
+  useEffect(() => {
+    if (escolhido) verHorarios.current?.focus();
+  }, [escolhido]);
 
   useEffect(() => {
     if (!montado || !limites || !area.current) return;
@@ -159,7 +165,9 @@ export function MapaArenas({ pontos }: { pontos: PontoMapa[] }) {
               <strong>{escolhido.nome}</strong>
               {escolhido.local && <span className="suave">{escolhido.local}</span>}
               <span className="mapa-cartao-preco">{escolhido.preco}</span>
-              <a href={`/a/${encodeURIComponent(escolhido.slug)}`}>Ver horários ›</a>
+              <a ref={verHorarios} href={`/a/${encodeURIComponent(escolhido.slug)}`}>
+                Ver horários ›
+              </a>
             </span>
             <button type="button" className="mapa-cartao-fechar" aria-label="Fechar" onClick={() => setEscolhido(null)}>
               ×

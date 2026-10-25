@@ -9,7 +9,13 @@ export function FaixaDeFotos({ fotos, nome }: { fotos: string[]; nome: string })
   const [atual, setAtual] = useState(0);
   const faixa = useRef<HTMLDivElement>(null);
 
-  if (fotos.length === 0) return <div className="hm-sem-foto">{nome}</div>;
+  if (fotos.length === 0) {
+    return (
+      <div className="hm-sem-foto" aria-hidden="true">
+        {nome}
+      </div>
+    );
+  }
   return (
     <div className="hm-fotos">
       <div
@@ -22,7 +28,7 @@ export function FaixaDeFotos({ fotos, nome }: { fotos: string[]; nome: string })
       >
         {fotos.map((id, i) => (
           // eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache
-          <img key={id} src={`/fotos/${id}`} alt={i === 0 ? `Foto da ${nome}` : ""} loading="lazy" />
+          <img key={id} src={`/fotos/${id}`} alt={i === 0 ? `Foto: ${nome}` : ""} loading="lazy" />
         ))}
       </div>
       {fotos.length > 1 && (
