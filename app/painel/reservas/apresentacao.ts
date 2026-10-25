@@ -1,5 +1,5 @@
-import { diasDisponiveis, hojeLocal, partesDoInstante } from "@/app/lib/disponibilidade";
-import { textoMinutos } from "@/app/lib/horarios";
+import { diaDaSemana, diasDisponiveis, hojeLocal, horariosDoDia, partesDoInstante } from "@/app/lib/disponibilidade";
+import { textoMinutos, type HorarioComId } from "@/app/lib/horarios";
 import { textoDeCentavos } from "@/app/lib/precos";
 import type { ItemAgenda } from "@/app/lib/reservas";
 
@@ -19,7 +19,7 @@ export function mensagemOkAgenda(valor: string | string[] | undefined): string |
   const v = Array.isArray(valor) ? valor[0] : valor;
   if (v === "cancelada") return "Reserva cancelada.";
   if (v === "bloqueado") return "Horário bloqueado.";
-  if (v === "removido") return "Bloqueio removido.";
+  if (v === "removido" || v === "desbloqueado") return "Bloqueio removido.";
   return null;
 }
 
@@ -86,4 +86,171 @@ export function linhaItem(i: ItemAgenda): string {
     return partes.join(" · ");
   }
   return [horario, quadra, i.jogador ?? "Conta apagada", textoDeCentavos(i.totalCentavos ?? 0), situacaoDono(i)].join(" · ");
+}
+
+// ---------- Calendário do dono (fase 6) ----------
+
+export const CAIXINHAS_POR_PAGINA = 12;
+const MESES_PARA_TRAS = 3;
+const DIA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+const primeiroDe = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+const ultimoDoMes = (mes: string) => somaDias(somaDias(`${mes}-01`, 32).slice(0, 7) + "-01", -1);
+
+// Faixa do calendário do dono: do 1º dia de 3 meses atrás até o fim da janela de reserva.
+function faixaDoDono(agora: Date): { de: string; ate: string } {
+  const [a, m] = hojeLocal(agora).split("-").map(Number);
+  const de = new Date(Date.UTC(a, m - 1 - MESES_PARA_TRAS, 1)).toISOString().slice(0, 10);
+  const janela = diasDisponiveis(agora);
+  return { de, ate: janela[janela.length - 1].valor };
+}
+
+// Dia da URL dentro da faixa (e que existe no calendário); o resto vira hoje.
+export function lerDiaDono(v: string | string[] | undefined, agora: Date): string {
+  const d = primeiroDe(v);
+  const { de, ate } = faixaDoDono(agora);
+  if (typeof d === "string" && DIA_ISO.test(d) && somaDias(d, 0) === d && d >= de && d <= ate) return d;
+  return hojeLocal(agora);
+}
+
+export function mesesDoDono(agora: Date): string[] {
+  const { de, ate } = faixaDoDono(agora);
+  const meses: string[] = [];
+  for (let m = de.slice(0, 7); m <= ate.slice(0, 7); m = somaDias(`${m}-01`, 32).slice(0, 7)) meses.push(m);
+  return meses;
+}
+
+export function lerMesDono(v: string | string[] | undefined, dia: string, agora: Date): string {
+  const m = primeiroDe(v);
+  return typeof m === "string" && mesesDoDono(agora).includes(m) ? m : dia.slice(0, 7);
+}
+
+export function lerPagina(v: string | string[] | undefined): number {
+  const p = primeiroDe(v);
+  return typeof p === "string" && /^[1-9]\d{0,2}$/.test(p) ? Number(p) : 1;
+}
+
+// Semana de domingo a sábado que contém o dia.
+export function semanaDoDia(dia: string): string[] {
+  const domingo = somaDias(dia, -diaDaSemana(dia));
+  return Array.from({ length: 7 }, (_, i) => somaDias(domingo, i));
+}
+
+export type DiaDoDono = { dia: string; numero: number; doMes: boolean; n: number; escolhido: boolean; hoje: boolean; naFaixa: boolean };
+
+// Semanas de domingo a sábado cobrindo o mês, com a contagem de reservas de cada dia.
+export function calendarioDoDono(mes: string, porDia: Map<string, number>, escolhido: string, agora: Date): DiaDoDono[][] {
+  const hoje = hojeLocal(agora);
+  const { de, ate } = faixaDoDono(agora);
+  const primeiro = `${mes}-01`;
+  const ultimo = ultimoDoMes(mes);
+  const semanas: DiaDoDono[][] = [];
+  for (let d = somaDias(primeiro, -diaDaSemana(primeiro)); d <= ultimo || diaDaSemana(d) !== 0; d = somaDias(d, 1)) {
+    if (diaDaSemana(d) === 0) semanas.push([]);
+    semanas[semanas.length - 1].push({
+      dia: d,
+      numero: Number(d.slice(8)),
+      doMes: d.slice(0, 7) === mes,
+      n: porDia.get(d) ?? 0,
+      escolhido: d === escolhido,
+      hoje: d === hoje,
+      naFaixa: d >= de && d <= ate,
+    });
+  }
+  return semanas;
+}
+
+export type Caixinha =
+  | { tipo: "reserva" | "bloqueio"; inicio: number; fim: number; item: ItemAgenda }
+  | { tipo: "livre"; inicio: number; fim: number; precoCentavos: number };
+
+export type GrupoDoDia = {
+  quadraId: string;
+  quadra: string;
+  esporte: string;
+  caixinhas: Caixinha[];
+  livres: { inicio: number; fim: number }[]; // o que "Bloquear o dia todo" leva
+};
+
+const minutoDe = (d: Date) => partesDoInstante(d).minuto;
+const pesoDoTipo = (c: Caixinha) => (c.tipo === "livre" ? 1 : 0);
+
+// Caixinhas do dia por quadra: reservas e bloqueios (canceladas também, sem
+// ação) e os horários criados que estão livres e ainda não começaram. Em ordem
+// de início; no empate, a reserva vem antes do livre.
+export function caixinhasDoDia(
+  itens: ItemAgenda[],
+  quadras: { id: string; nome: string; esporte: string; horarios: HorarioComId[] }[],
+  dia: string,
+  agora: Date,
+): GrupoDoDia[] {
+  return quadras.map((q) => {
+    const doDia = itens.filter((i) => i.quadraId === q.id && hojeLocal(i.inicio) === dia);
+    const ocupados = doDia.filter((i) => i.situacao === "confirmada").map((i) => ({ inicio: i.inicio, fim: i.fim }));
+    const livres = horariosDoDia(q.horarios, dia, agora, ocupados).filter((x) => x.livre);
+    const caixinhas: Caixinha[] = [
+      ...doDia.map((i): Caixinha => ({ tipo: i.tipo, inicio: minutoDe(i.inicio), fim: minutoDe(i.fim) || 1440, item: i })),
+      ...livres.map((x): Caixinha => ({ tipo: "livre", inicio: x.horario.inicio, fim: x.horario.fim, precoCentavos: x.horario.precoCentavos })),
+    ].sort((a, b) => a.inicio - b.inicio || pesoDoTipo(a) - pesoDoTipo(b));
+    return {
+      quadraId: q.id,
+      quadra: q.nome,
+      esporte: q.esporte,
+      caixinhas,
+      livres: livres.map((x) => ({ inicio: x.horario.inicio, fim: x.horario.fim })),
+    };
+  });
+}
+
+// Páginas de caixinhas atravessando as quadras. Sem nenhuma caixinha, os grupos
+// voltam vazios (a tela diz "nada neste dia" em cada um).
+export function paginarCaixinhas(
+  grupos: GrupoDoDia[], pagina: number, porPagina = CAIXINHAS_POR_PAGINA,
+): { grupos: GrupoDoDia[]; pagina: number; paginas: number } {
+  const total = grupos.reduce((s, g) => s + g.caixinhas.length, 0);
+  if (total === 0) return { grupos, pagina: 1, paginas: 1 };
+  const paginas = Math.ceil(total / porPagina);
+  const p = Math.min(Math.max(1, pagina), paginas);
+  const de = (p - 1) * porPagina;
+  const ate = de + porPagina;
+  let pos = 0;
+  const saida: GrupoDoDia[] = [];
+  for (const g of grupos) {
+    const ini = Math.max(de - pos, 0);
+    const fim = Math.min(ate - pos, g.caixinhas.length);
+    if (fim > ini) saida.push({ ...g, caixinhas: g.caixinhas.slice(ini, fim) });
+    pos += g.caixinhas.length;
+  }
+  return { grupos: saida, pagina: p, paginas };
+}
+
+export function hrefAgenda(p: {
+  quadra?: string | null; dia?: string; mes?: string; pagina?: number; busca?: string; ver?: "mes" | null;
+}): string {
+  const q = new URLSearchParams();
+  if (p.quadra) q.set("quadra", p.quadra);
+  if (p.dia) q.set("dia", p.dia);
+  if (p.mes) q.set("mes", p.mes);
+  if (p.busca) q.set("busca", p.busca);
+  if (p.pagina && p.pagina > 1) q.set("pagina", String(p.pagina));
+  if (p.ver) q.set("ver", p.ver);
+  const s = q.toString();
+  return s ? `/painel/reservas?${s}` : "/painel/reservas";
+}
+
+const contagem = (v: string | string[] | undefined) => {
+  const x = primeiroDe(v);
+  return typeof x === "string" && /^\d{1,2}$/.test(x) ? Number(x) : null;
+};
+
+// Mensagem depois de bloquear (?bloqueados=N&pulados=M): montada só com os números.
+export function mensagemDoBloqueio(b: string | string[] | undefined, p: string | string[] | undefined): string | null {
+  const bloqueados = contagem(b);
+  const pulados = contagem(p);
+  if (bloqueados === null || pulados === null) return null;
+  const primeira =
+    bloqueados === 0 ? "Nenhum horário bloqueado." : bloqueados === 1 ? "1 horário bloqueado." : `${bloqueados} horários bloqueados.`;
+  if (pulados === 0) return primeira;
+  const segunda = pulados === 1 ? "1 pulado (já ocupado ou começado)." : `${pulados} pulados (já ocupados ou começados).`;
+  return `${primeira} ${segunda}`;
 }
