@@ -1,7 +1,7 @@
 import { escolhaDeHorarios, horariosDoDia, type Periodo } from "@/app/lib/disponibilidade";
 import { grupoDoDia, textoMinutos, type HorarioComId } from "@/app/lib/horarios";
 import { textoDeCentavos } from "@/app/lib/precos";
-import { diaPorExtenso, hrefDoHorario, hrefReservar } from "./apresentacao";
+import { acaoDoHorario, diaPorExtenso, hrefDoHorario, hrefReservar } from "./apresentacao";
 
 type Quadra = { id: string; nome: string; esporte: string; horarios: HorarioComId[] };
 
@@ -42,12 +42,17 @@ export function EscolhaDaQuadra({
   const selecao = escolha ? { inicio: escolha.inicio, qtd: escolha.itens.length } : null;
   const base = { slug, quadra: quadra.id, dia };
   const algumLivre = doDia.some((x) => x.livre);
+  const podeSomar = selecao !== null && doDia.some((x, i) => x.livre && acaoDoHorario(doDia, selecao, i) === "somar");
 
   return (
     <div className="quadra-escolha">
       <h2 className="ar-titulo">3. Escolha os horários</h2>
       {algumLivre ? (
-        <p className="suave pj-dica">Quer mais tempo? Escolha horários seguidos.</p>
+        <p className="suave pj-dica">
+          {podeSomar
+            ? "Quer jogar mais? Toque no próximo horário (+) para somar."
+            : "Dá para escolher mais de um horário seguido: toque um depois do outro."}
+        </p>
       ) : (
         <p className="quadra-sem-horario">Sem horários livres neste dia.</p>
       )}
@@ -69,16 +74,19 @@ export function EscolhaDaQuadra({
                   );
                 }
                 const marcado = escolhidos.has(horario.inicio);
+                const somar = !marcado && acaoDoHorario(doDia, selecao, i) === "somar";
+                const classe = marcado ? "pj-slot pj-slot-escolhido" : somar ? "pj-slot pj-slot-somar" : "pj-slot";
                 return (
                   <li key={horario.id} className="pj-slot-item">
-                    <a
-                      className={marcado ? "pj-slot pj-slot-escolhido" : "pj-slot"}
-                      href={hrefDoHorario(base, doDia, selecao, i)}
-                      aria-current={marcado ? "true" : undefined}
-                    >
+                    <a className={classe} href={hrefDoHorario(base, doDia, selecao, i)} aria-current={marcado ? "true" : undefined}>
+                      {/* Bolinha de marcar: vazia, com ✓ (escolhido) ou + (soma ao fim da seleção). */}
+                      <i className="pj-marca" aria-hidden="true">
+                        {marcado ? "✓" : somar ? "+" : ""}
+                      </i>
                       <strong>{intervalo(horario)}</strong>
                       <span>{textoDeCentavos(horario.precoCentavos)}</span>
                       {marcado && <em>Escolhido</em>}
+                      {somar && <em>Somar</em>}
                     </a>
                   </li>
                 );

@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { HorarioDoDia } from "../app/lib/disponibilidade";
 import {
-  calendarioDoMes, diaPorExtenso, estadoDoDia, hrefDoHorario, hrefPasso1, hrefPasso2, hrefPasso3, hrefReservar, lerEscolha,
+  acaoDoHorario, calendarioDoMes, diaPorExtenso, estadoDoDia, hrefDoHorario, hrefPasso1, hrefPasso2, hrefPasso3, hrefReservar, lerEscolha,
   lerMes, lerReserva, linkComoChegar, livresPorDia, mesesDaJanela, nomeDoMes, passoDaEscolha, passoDaUrl, textoDia, textoLances,
 } from "../app/a/[slug]/apresentacao";
 import type { HorarioComId } from "../app/lib/horarios";
@@ -224,4 +224,17 @@ test("passoDaUrl: link velho e dia fora da janela abrem o passo 2", () => {
   expect(passoDaUrl({ quadra: "q1", dia: "lixo" }, ids, agora)).toBe(2);
   expect(passoDaUrl({ quadra: "q1", dia: "2026-10-20" }, ids, agora)).toBe(3);
   expect(passoDaUrl({ quadra: "q1", dia: ["2026-10-20", "x"] }, ids, agora)).toBe(3);
+});
+
+test("acaoDoHorario: o que o toque na caixinha faz (para a marca da tela)", () => {
+  expect(acaoDoHorario(dia, null, 2)).toBe("marcar");
+  expect(acaoDoHorario(dia, { inicio: 930, qtd: 1 }, 1)).toBe("somar");
+  expect(acaoDoHorario(dia, { inicio: 930, qtd: 2 }, 0)).toBe("marcar"); // primeiro de uma seleção maior recomeça nele
+  expect(acaoDoHorario(dia, { inicio: 930, qtd: 2 }, 1)).toBe("tirar");
+  expect(acaoDoHorario(dia, { inicio: 930, qtd: 1 }, 0)).toBe("desmarcar");
+  expect(acaoDoHorario(dia, { inicio: 930, qtd: 1 }, 4)).toBe("marcar"); // longe: recomeça
+  const seis = [mk(0, 60), mk(60, 120), mk(120, 180), mk(180, 240), mk(240, 300)];
+  expect(acaoDoHorario(seis, { inicio: 0, qtd: 4 }, 4)).toBe("marcar"); // já são 4
+  const longos = [mk(0, 420), mk(420, 840)];
+  expect(acaoDoHorario(longos, { inicio: 0, qtd: 1 }, 1)).toBe("marcar"); // passaria de 12 h
 });

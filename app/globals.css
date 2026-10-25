@@ -1718,6 +1718,52 @@ a.pj-slot-escolhido:hover {
   font-style: normal;
 }
 
+/* Bolinha no canto: mostra que dá para marcar mais de um horário. */
+.pj-slot {
+  position: relative;
+  padding-right: 2.25rem;
+}
+
+.pj-marca {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--borda-campo);
+  font-style: normal;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pj-slot-escolhido .pj-marca {
+  border-color: var(--sobre-primario);
+  background: var(--sobre-primario);
+  color: var(--primario);
+}
+
+/* Próximo horário que soma à seleção: borda e bolinha na cor do link. */
+.pj-slot-somar {
+  border-style: dashed;
+  border-color: var(--link);
+}
+
+.pj-slot-somar .pj-marca {
+  border-color: var(--link);
+  background: var(--link);
+  color: var(--superficie);
+}
+
+.pj-slot-somar em {
+  font-size: 0.8125rem;
+  font-style: normal;
+  color: var(--link);
+}
+
 /* Ocupado: tracejado, sem link. */
 .pj-slot-ocupado {
   border-style: dashed;

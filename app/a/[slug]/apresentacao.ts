@@ -107,30 +107,43 @@ export function hrefReservar(e: {
   return `/reservar?${q.toString()}`;
 }
 
-// Link de uma caixinha de horário (`alvo` = índice em `dia`): marca, soma um
-// horário seguido, tira o último ou desmarca, conforme a seleção atual.
+export type AcaoDoHorario = "marcar" | "somar" | "tirar" | "desmarcar";
+
+// O que tocar na caixinha `alvo` faz com a seleção: marca só ela, soma um
+// horário colado ao fim (até 4 e 12 h), tira o último ou desmarca o único.
+export function acaoDoHorario(
+  dia: HorarioDoDia[],
+  selecao: { inicio: number; qtd: number } | null,
+  alvo: number,
+): AcaoDoHorario {
+  const primeiroIdx = selecao ? dia.findIndex((x) => x.horario.inicio === selecao.inicio) : -1;
+  if (!selecao || primeiroIdx < 0) return "marcar";
+  const ultimo = primeiroIdx + selecao.qtd - 1;
+  const colado = alvo === ultimo + 1 && dia[alvo].livre && dia[alvo].horario.inicio === dia[ultimo]?.horario.fim;
+  const cabe = colado && dia[alvo].horario.fim - selecao.inicio <= DURACAO_MAX;
+  if (colado && cabe && selecao.qtd < HORARIOS_SEGUIDOS_MAX) return "somar";
+  if (alvo === ultimo) return selecao.qtd > 1 ? "tirar" : "desmarcar";
+  return "marcar";
+}
+
+// Link de uma caixinha de horário (`alvo` = índice em `dia`), conforme acaoDoHorario.
 export function hrefDoHorario(
   base: { slug: string; quadra: string; dia: string },
   dia: HorarioDoDia[],
   selecao: { inicio: number; qtd: number } | null,
   alvo: number,
 ): string {
-  const primeiroIdx = selecao ? dia.findIndex((x) => x.horario.inicio === selecao.inicio) : -1;
+  const acao = acaoDoHorario(dia, selecao, alvo);
   let inicio: number | null = dia[alvo].horario.inicio;
   let qtd = 1;
-  if (selecao && primeiroIdx >= 0) {
-    const ultimo = primeiroIdx + selecao.qtd - 1;
-    const colado = alvo === ultimo + 1 && dia[alvo].livre && dia[alvo].horario.inicio === dia[ultimo]?.horario.fim;
-    const cabe = colado && dia[alvo].horario.fim - selecao.inicio <= DURACAO_MAX;
-    if (colado && cabe && selecao.qtd < HORARIOS_SEGUIDOS_MAX) {
-      inicio = selecao.inicio;
-      qtd = selecao.qtd + 1;
-    } else if (alvo === ultimo && selecao.qtd > 1) {
-      inicio = selecao.inicio;
-      qtd = selecao.qtd - 1;
-    } else if (alvo === ultimo && selecao.qtd === 1) {
-      inicio = null;
-    }
+  if (selecao && acao === "somar") {
+    inicio = selecao.inicio;
+    qtd = selecao.qtd + 1;
+  } else if (selecao && acao === "tirar") {
+    inicio = selecao.inicio;
+    qtd = selecao.qtd - 1;
+  } else if (acao === "desmarcar") {
+    inicio = null;
   }
   const q = new URLSearchParams({ quadra: base.quadra, dia: base.dia });
   if (inicio !== null) {
