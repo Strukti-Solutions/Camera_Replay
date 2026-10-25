@@ -122,7 +122,8 @@ test("reserva ocupa e libera ao cancelar", async () => {
 
   const antes = await reservasDoJogador(db, ana, AGORA);
   expect(antes.proximas).toEqual([{
-    id, arena: { nome: "Arena A", slug: arena.slug }, quadra: "Quadra 1", inicio: h(18), fim: h(20),
+    id, arena: { nome: "Arena A", slug: arena.slug, latitude: null, longitude: null, endereco: SEM_ENDERECO },
+    quadraId: quadra.id, quadra: "Quadra 1", esporte: "", inicio: h(18), fim: h(20),
     totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", canceladaPor: null, motivoCancelamento: null, podeCancelar: true, lances: 0,
   }]);
   expect(antes.historico).toEqual([]);
@@ -135,6 +136,27 @@ test("reserva ocupa e libera ao cancelar", async () => {
   const c = await db.query("select cancelada_por, cancelada_em is not null as quando from reservas where id = $1", [id]);
   expect(c.rows[0]).toEqual({ cancelada_por: "jogador", quando: true });
   await reservar(db, ana, quadra.id, 18, 2);
+});
+
+const SEM_ENDERECO = { rua: null, numero: null, bairro: null, cidade: null, uf: null, cep: null };
+
+test("reservas do jogador trazem a quadra (id e esporte) e o endereço da arena", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  await db.query(
+    `update arenas set endereco_rua = 'Rua A', endereco_numero = '10', endereco_bairro = 'Centro',
+            endereco_cidade = 'Fortaleza', endereco_uf = 'CE', endereco_cep = '60000-000',
+            latitude = -3.73, longitude = -38.52 where id = $1`, [arena.id]);
+  await db.query("update quadras set esporte = 'Padel' where id = $1", [quadra.id]);
+  await reservar(db, ana, quadra.id, 18, 1);
+  const { proximas } = await reservasDoJogador(db, ana, AGORA);
+  expect(proximas[0]).toMatchObject({
+    quadraId: quadra.id, esporte: "Padel",
+    arena: {
+      nome: "Arena A", slug: arena.slug, latitude: -3.73, longitude: -38.52,
+      endereco: { rua: "Rua A", numero: "10", bairro: "Centro", cidade: "Fortaleza", uf: "CE", cep: "60000-000" },
+    },
+  });
 });
 
 test("cancelamento do jogador: 24h00 antes aceita, 23h59 recusa, de outro jogador recusa", async () => {

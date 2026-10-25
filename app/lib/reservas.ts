@@ -227,10 +227,22 @@ export async function reservasFuturasPorArena(db: Pick<Db, "query">, agora: Date
   return new Map(rows.map((r) => [r.arena_id, Number(r.n)]));
 }
 
+export type EnderecoArena = {
+  rua: string | null;
+  numero: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  cep: string | null;
+};
+
 export type ReservaJogador = {
   id: string;
-  arena: { nome: string; slug: string };
+  // Endereço e coordenadas para o "Como chegar" do cartão.
+  arena: { nome: string; slug: string; latitude: number | null; longitude: number | null; endereco: EnderecoArena };
+  quadraId: string;
   quadra: string;
+  esporte: string;
   inicio: Date;
   fim: Date;
   totalCentavos: number;
@@ -249,11 +261,16 @@ export async function reservasDoJogador(
 ): Promise<{ proximas: ReservaJogador[]; historico: ReservaJogador[] }> {
   if (!ehUuid(jogadorId)) return { proximas: [], historico: [] };
   const { rows } = await db.query<{
-    id: string; arena_nome: string; arena_slug: string; quadra: string; inicio: Date; fim: Date;
+    id: string; arena_nome: string; arena_slug: string; latitude: number | null; longitude: number | null;
+    rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null;
+    quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date;
     total_centavos: number; pagamento: string; situacao: string; cancelada_por: string | null; lances: number;
     motivo_cancelamento: string | null;
   }>(
-    `select r.id, a.nome as arena_nome, a.slug as arena_slug, q.nome as quadra, r.inicio, r.fim,
+    `select r.id, a.nome as arena_nome, a.slug as arena_slug, a.latitude, a.longitude,
+            a.endereco_rua as rua, a.endereco_numero as numero, a.endereco_bairro as bairro,
+            a.endereco_cidade as cidade, a.endereco_uf as uf, a.endereco_cep as cep,
+            q.id as quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim,
             r.total_centavos, r.pagamento, r.situacao, r.cancelada_por, r.motivo_cancelamento,
             case when r.situacao = 'confirmada' then (select count(*)::int ${CLIPES_DA_JANELA}) else 0 end as lances
        from reservas r
@@ -267,8 +284,16 @@ export async function reservasDoJogador(
     const inicio = new Date(r.inicio);
     return {
       id: r.id,
-      arena: { nome: r.arena_nome, slug: r.arena_slug },
+      arena: {
+        nome: r.arena_nome,
+        slug: r.arena_slug,
+        latitude: r.latitude === null ? null : Number(r.latitude),
+        longitude: r.longitude === null ? null : Number(r.longitude),
+        endereco: { rua: r.rua, numero: r.numero, bairro: r.bairro, cidade: r.cidade, uf: r.uf, cep: r.cep },
+      },
+      quadraId: r.quadra_id,
       quadra: r.quadra,
+      esporte: r.esporte,
       inicio,
       fim: new Date(r.fim),
       totalCentavos: Number(r.total_centavos),
