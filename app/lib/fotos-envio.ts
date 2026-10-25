@@ -28,7 +28,7 @@ export async function enviarFoto(
   return { ok: true };
 }
 
-// Rota pública /fotos/<id>. Cache de 1 dia: foto apagada some em até um dia.
+// Rota pública /fotos/<id>. Cache de 1 dia (navegador e CDN): foto apagada some em até um dia.
 export async function servirFoto(
   db: Pick<Db, "query">, ler: (chave: string) => Promise<Response | null>, fotoId: string,
 ): Promise<Response> {
@@ -45,6 +45,12 @@ export async function servirFoto(
   if (!res) return naoAchou();
   return new Response(res.body, {
     status: 200,
-    headers: { "content-type": foto.tipo, "cache-control": "public, max-age=86400" },
+    headers: {
+      "content-type": foto.tipo,
+      // s-maxage: a CDN da Vercel também guarda (sem ele, só o navegador guardaria).
+      "cache-control": "public, max-age=86400, s-maxage=86400",
+      // Defesa extra: mesmo aberto direto, nada nele roda como página.
+      "content-security-policy": "default-src 'none'; sandbox",
+    },
   });
 }

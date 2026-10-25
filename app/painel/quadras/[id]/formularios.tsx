@@ -12,6 +12,7 @@ export function Confirmar({
   valor,
   extras,
   rotulo,
+  rotuloAcessivel,
   pergunta,
   confirmar,
 }: {
@@ -20,6 +21,7 @@ export function Confirmar({
   valor: string;
   extras?: Record<string, string>;
   rotulo: string;
+  rotuloAcessivel?: string; // quando há vários botões iguais na tela ("Apagar foto 2")
   pergunta: string;
   confirmar: string;
 }) {
@@ -27,7 +29,9 @@ export function Confirmar({
   return (
     <div className="confirmar">
       <details>
-        <summary className="botao botao-perigo">{rotulo}</summary>
+        <summary className="botao botao-perigo" aria-label={rotuloAcessivel}>
+          {rotulo}
+        </summary>
         <form action={acao} className="confirmar-caixa">
           <input type="hidden" name={campo} value={valor} />
           {Object.entries(extras ?? {}).map(([nome, v]) => (

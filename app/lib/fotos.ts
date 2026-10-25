@@ -51,7 +51,7 @@ export async function reservarFoto(
   if (!ehUuid(arenaId)) return { ok: false, erro: "Arena não encontrada." };
   if (quadraId !== null && !ehUuid(quadraId)) return { ok: false, erro: "Quadra não encontrada." };
   return emTransacao(db, async (tx) => {
-    const a = await tx.query("select 1 from arenas where id = $1 for no key update", [arenaId]);
+    const a = await travarArena(tx, arenaId);
     if (a.rows.length === 0) return { ok: false as const, erro: "Arena não encontrada." };
     if (quadraId !== null) {
       const q = await tx.query("select 1 from quadras where id = $1 and arena_id = $2", [quadraId, arenaId]);
@@ -76,11 +76,16 @@ type Linha = { id: string; quadra_id: string | null; chave: string };
 async function fotoDaArena(tx: Pick<Db, "query">, arenaId: string, fotoId: string): Promise<Linha | null> {
   if (!ehUuid(arenaId) || !ehUuid(fotoId)) return null;
   const { rows } = await tx.query<Linha>(
-    "select id, quadra_id, chave from fotos where id = $1 and arena_id = $2 for update",
+    "select id, quadra_id, chave from fotos where id = $1 and arena_id = $2",
     [fotoId, arenaId],
   );
   return rows[0] ?? null;
 }
+
+// Toda mudança nas fotos da arena passa pela mesma fila (a mesma trava do envio):
+// dois "mover" ou "apagar + enviar" ao mesmo tempo não se atropelam.
+const travarArena = (tx: Pick<Db, "query">, arenaId: string) =>
+  tx.query("select 1 from arenas where id = $1 for no key update", [arenaId]);
 
 const idsDoGrupo = async (tx: Pick<Db, "query">, arenaId: string, quadraId: string | null) =>
   (await listarFotos(tx, arenaId, quadraId)).map((f) => f.id);
@@ -93,6 +98,7 @@ const gravarOrdem = (tx: Pick<Db, "query">, ids: string[]) =>
   );
 
 // Apaga primeiro no R2 (se lançar, a linha fica e o erro sobe) e depois a linha.
+// A leitura da chave fica fora da transação para não segurar a trava durante o R2.
 export async function apagarFoto(
   db: Db, apagarNoR2: (chave: string) => Promise<void>, arenaId: string, fotoId: string,
 ): Promise<boolean> {
@@ -100,6 +106,7 @@ export async function apagarFoto(
   if (!foto) return false;
   await apagarNoR2(foto.chave);
   return emTransacao(db, async (tx) => {
+    await travarArena(tx, arenaId);
     const r = await tx.query<{ id: string }>("delete from fotos where id = $1 and arena_id = $2 returning id", [fotoId, arenaId]);
     const ids = await idsDoGrupo(tx, arenaId, foto.quadra_id);
     if (ids.length > 0) await gravarOrdem(tx, ids);
@@ -112,6 +119,7 @@ async function reordenar(
 ): Promise<boolean> {
   if (!ehUuid(arenaId) || !ehUuid(fotoId)) return false;
   return emTransacao(db, async (tx) => {
+    await travarArena(tx, arenaId);
     const foto = await fotoDaArena(tx, arenaId, fotoId);
     if (!foto) return false;
     const ids = await idsDoGrupo(tx, arenaId, foto.quadra_id);

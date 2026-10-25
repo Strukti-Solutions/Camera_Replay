@@ -66,7 +66,8 @@ test("servir foto: 404 sem foto, 200 com tipo e cache de 1 dia, 502 se o R2 falh
   const ok = await servirFoto(db, ler, r.id);
   expect(ok.status).toBe(200);
   expect(ok.headers.get("content-type")).toBe("image/png");
-  expect(ok.headers.get("cache-control")).toBe("public, max-age=86400");
+  expect(ok.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=86400");
+  expect(ok.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
   expect(await ok.text()).toBe("png!");
   expect(chaves).toEqual([r.chave]);
 

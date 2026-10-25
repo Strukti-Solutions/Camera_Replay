@@ -67,7 +67,7 @@
   - `extensaoDoTipo(tipo)` → `jpg` | `png` | `webp`
   - `listarFotos(db, arenaId, quadraId | null): Promise<Foto[]>`, em ordem de posição. `Foto = { id, tipo, bytes, posicao }`.
   - `reservarFoto(db, arenaId, quadraId | null, tipo, bytes): Promise<{ ok: true; id; chave } | { ok: false; erro }>`
-    - Abre transação com `select ... from arenas where id = $1 for update`.
+    - Abre transação com `select ... from arenas where id = $1 for no key update` (mover, capa e apagar usam a mesma trava).
     - Confere se a quadra é da arena e se o limite não foi atingido.
     - Insere com `posicao = count`.
     - O id e a chave são gerados aqui.

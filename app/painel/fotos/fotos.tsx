@@ -5,6 +5,11 @@ import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { apagarFotoAction, capaFotoAction, enviarFotosAction, moverFotoAction, type EstadoFotos } from "./actions";
 import { reduzirFoto } from "./reduzir";
 
+// Copiados de app/lib (lá importam node:crypto e o banco, que não vêm para o navegador).
+const FOTO_MAX_BYTES = 2 * 1024 * 1024;
+const MSG_GRANDE = "Foto grande demais (máximo 2 MB).";
+const MSG_ENVIO_FALHOU = "Não foi possível enviar a foto. Tente de novo.";
+
 type Props = {
   quadraId: string | null; // null = fotos da arena
   fotos: { id: string }[];
@@ -39,22 +44,33 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
     let enviadas = 0;
     let erro: string | null = arquivos.length > vagas ? `Só cabem mais ${vagas} ${vagas === 1 ? "foto" : "fotos"}.` : null;
     let versao = 0;
-    for (const [i, arquivo] of lote.entries()) {
-      setProgresso({ atual: i + 1, total: lote.length });
-      const reduzida = await reduzirFoto(arquivo);
-      const form = new FormData();
-      form.set("quadraId", quadraId ?? "");
-      form.set("foto", reduzida, arquivo.name);
-      const r = await enviarFotosAction({ ...INICIAL, versao: versao++ }, form);
-      if (r.erro) {
-        erro = r.erro;
-        break;
+    try {
+      for (const [i, arquivo] of lote.entries()) {
+        setProgresso({ atual: i + 1, total: lote.length });
+        const reduzida = await reduzirFoto(arquivo);
+        // Acima do limite nem sai do aparelho (o servidor recusaria o corpo inteiro).
+        if (reduzida.size > FOTO_MAX_BYTES) {
+          erro = MSG_GRANDE;
+          break;
+        }
+        const form = new FormData();
+        form.set("quadraId", quadraId ?? "");
+        form.set("foto", reduzida, arquivo.name);
+        const r = await enviarFotosAction({ ...INICIAL, versao: versao++ }, form);
+        if (r.erro) {
+          erro = r.erro;
+          break;
+        }
+        enviadas++;
       }
-      enviadas++;
+    } catch {
+      // Rede caiu ou o servidor recusou o pedido: a tela não pode ficar presa em "Enviando…".
+      erro = MSG_ENVIO_FALHOU;
+    } finally {
+      setProgresso(null);
+      setResultado({ erro, enviadas });
+      if (campo.current) campo.current.value = "";
     }
-    setProgresso(null);
-    setResultado({ erro, enviadas });
-    if (campo.current) campo.current.value = "";
   }
 
   return (
@@ -102,6 +118,7 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
                 )}
                 {armazenamento && (
                   <Confirmar
+                    rotuloAcessivel={`Apagar foto ${i + 1}`}
                     acao={apagarFotoAction}
                     campo="fotoId"
                     valor={f.id}
