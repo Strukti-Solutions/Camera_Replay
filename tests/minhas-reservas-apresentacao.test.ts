@@ -30,3 +30,14 @@ test("período: dia por extenso e horas no fuso de São Paulo", () => {
     "Segunda-feira, 26 de outubro · 16h às 18h",
   );
 });
+
+test("período: horário com minutos (15h30 às 17h15) e fim à meia-noite como 24h", () => {
+  // 15h30–17h15 em São Paulo = 18h30–20h15 UTC
+  expect(textoPeriodo(new Date("2026-10-26T18:30:00Z"), new Date("2026-10-26T20:15:00Z"))).toBe(
+    "Segunda-feira, 26 de outubro · 15h30 às 17h15",
+  );
+  // 22h–00h
+  expect(textoPeriodo(new Date("2026-10-27T01:00:00Z"), new Date("2026-10-27T03:00:00Z"))).toBe(
+    "Segunda-feira, 26 de outubro · 22h às 24h",
+  );
+});

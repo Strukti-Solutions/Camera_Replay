@@ -5,7 +5,7 @@ import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
 import { LinkVoltar } from "@/app/componentes/voltar";
 import { MENSAGEM_ARENA_SUSPENSA } from "@/app/entrar/mensagens";
 import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
-import { arenaPublica, ocupadasPublicas } from "@/app/lib/arenas-publicas";
+import { arenaPublica, periodosPublicos } from "@/app/lib/arenas-publicas";
 import { hojeLocal } from "@/app/lib/disponibilidade";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { lerEscolha, linhaEndereco, linkComoChegar } from "./apresentacao";
@@ -60,11 +60,11 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
   const hoje = hojeLocal(agora);
   const db = poolCompartilhado();
   // Cada quadra mostra um dia (a escolhida, o da escolha; as outras, hoje).
-  const ocupadas = new Map(
+  const ocupados = new Map(
     await Promise.all(
       arena.quadras.map(async (q) => {
         const dia = escolha.quadra === q.id ? escolha.dia : hoje;
-        return [q.id, await ocupadasPublicas(db, q.id, dia)] as const;
+        return [q.id, await periodosPublicos(db, q.id, dia)] as const;
       }),
     ),
   );
@@ -102,9 +102,9 @@ export default async function PaginaDaArena({ params, searchParams }: Props) {
                     quadra={q}
                     dia={minha ? escolha.dia : hoje}
                     inicio={minha ? escolha.inicio : null}
-                    horas={minha ? escolha.horas : 1}
+                    qtd={minha ? escolha.qtd : 1}
                     agora={agora}
-                    ocupadas={ocupadas.get(q.id) ?? new Set()}
+                    ocupados={ocupados.get(q.id) ?? []}
                   />
                 </li>
               );

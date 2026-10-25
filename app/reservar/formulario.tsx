@@ -10,12 +10,12 @@ export function FormularioReservar({
   quadra,
   dia,
   inicio,
-  horas,
+  qtd,
 }: {
   quadra: string;
   dia: string;
   inicio: number;
-  horas: number;
+  qtd: number;
 }) {
   const [estado, acao, pendente] = useActionState(confirmarReservaAction, inicial);
   return (
@@ -23,7 +23,7 @@ export function FormularioReservar({
       <input type="hidden" name="quadra" value={quadra} />
       <input type="hidden" name="dia" value={dia} />
       <input type="hidden" name="inicio" value={inicio} />
-      <input type="hidden" name="horas" value={horas} />
+      <input type="hidden" name="qtd" value={qtd} />
       <p className="erro-form" role="alert">
         {estado.erro}
       </p>

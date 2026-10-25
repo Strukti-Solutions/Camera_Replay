@@ -1,5 +1,5 @@
-import { FUSO, hojeLocal } from "@/app/lib/disponibilidade";
-import { textoHora } from "@/app/lib/precos";
+import { hojeLocal, partesDoInstante } from "@/app/lib/disponibilidade";
+import { textoMinutos } from "@/app/lib/horarios";
 import { diaPorExtenso } from "@/app/a/[slug]/apresentacao";
 
 // Textos de Minhas reservas, sem cookie nem banco para poder testar direto.
@@ -19,11 +19,10 @@ export function mensagemOk(valor: string | string[] | undefined): string | null 
   return null;
 }
 
-const HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", hourCycle: "h23" });
-const horaLocal = (d: Date) => Number(HORA.format(d));
+// Fim à meia-noite conta como 24h (minuto 1440 do dia do início).
+const fimEmMinutos = (d: Date) => partesDoInstante(d).minuto || 1440;
 
-// "Segunda-feira, 26 de outubro · 16h às 18h" (reservas são de horas cheias).
+// "Segunda-feira, 26 de outubro · 15h30 às 17h15" (horas cheias saem como 16h).
 export function textoPeriodo(inicio: Date, fim: Date): string {
-  const fimH = horaLocal(fim) || 24;
-  return `${diaPorExtenso(hojeLocal(inicio))} · ${textoHora(horaLocal(inicio))} às ${textoHora(fimH)}`;
+  return `${diaPorExtenso(hojeLocal(inicio))} · ${textoMinutos(partesDoInstante(inicio).minuto)} às ${textoMinutos(fimEmMinutos(fim))}`;
 }

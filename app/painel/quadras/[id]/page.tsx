@@ -3,20 +3,18 @@ import { notFound } from "next/navigation";
 import { LinkVoltar } from "@/app/componentes/voltar";
 import type { LeitorR2 } from "@/app/lib/clipes";
 import { formatarDuracao, formatarHorario, textoStatus } from "@/app/lib/formato";
+import { diaDaSemana, hojeLocal } from "@/app/lib/disponibilidade";
+import { listarHorarios, reservasFuturasPorHorario } from "@/app/lib/horarios-quadra";
 import { clipesDoPainel, detalheQuadra } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { NOMES_DIAS, textoDeCentavos, textoHora } from "@/app/lib/precos";
-import { listarFaixas } from "@/app/lib/precos-quadra";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
 import { textoCamera, textoVistoHa } from "@/app/painel/apresentacao";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import { VideoClipe } from "@/app/a/[slug]/video-clipe";
 import { apagarClipeAction } from "./actions";
 import { Confirmar } from "./formularios";
-import { FormularioFaixa, FormularioQuadra, RemoverFaixa } from "./precos";
-
-// Segunda primeiro, domingo por último (como no formulário).
-const ORDEM_DIAS = [1, 2, 3, 4, 5, 6, 0];
+import { HorariosDaQuadra } from "./horarios";
+import { FormularioQuadra } from "./precos";
 
 // URLs assinadas valem 15 min e o status da câmera muda a cada minuto.
 export const dynamic = "force-dynamic";
@@ -42,11 +40,9 @@ export default async function PaginaQuadra({ params }: Props) {
 
   const config = lerConfigR2();
   const clipes = await clipesDoPainel(db, config ? criarR2(config) : semR2, sessao.arenaId, quadra.id);
-  const faixas = await listarFaixas(db, sessao.arenaId, quadra.id);
-  const porDia = ORDEM_DIAS.map((d) => ({ dia: d, faixas: faixas.filter((f) => f.diaSemana === d) })).filter(
-    (g) => g.faixas.length > 0,
-  );
   const agora = new Date();
+  const horarios = await listarHorarios(db, sessao.arenaId, quadra.id);
+  const reservasFuturas = await reservasFuturasPorHorario(db, sessao.arenaId, quadra.id, agora);
   const { camera } = quadra;
 
   return (
@@ -59,26 +55,13 @@ export default async function PaginaQuadra({ params }: Props) {
       </section>
 
       <section className="secao" aria-labelledby="titulo-precos">
-        <h2 id="titulo-precos">Preços e horários</h2>
-        {porDia.length === 0 ? (
-          <p className="suave">Sem preços: esta quadra ainda não aceita reservas.</p>
-        ) : (
-          <ul className="faixas">
-            {porDia.flatMap((g) =>
-              g.faixas.map((f) => {
-                const descricao = `${NOMES_DIAS[g.dia]} · ${textoHora(f.inicio)}–${textoHora(f.fim)} · ${textoDeCentavos(f.precoCentavos)}`;
-                return (
-                  <li key={f.id} className="faixa-preco">
-                    <span>{descricao}</span>
-                    <RemoverFaixa faixaId={f.id} descricao={descricao} />
-                  </li>
-                );
-              }),
-            )}
-          </ul>
-        )}
-        <h3>Adicionar faixa</h3>
-        <FormularioFaixa quadraId={quadra.id} />
+        <h2 id="titulo-precos">Horários e preços</h2>
+        <HorariosDaQuadra
+          quadraId={quadra.id}
+          horarios={horarios}
+          reservasFuturas={reservasFuturas}
+          diaInicial={diaDaSemana(hojeLocal(agora))}
+        />
       </section>
 
       <section className="secao" aria-labelledby="titulo-camera">

@@ -1,12 +1,13 @@
 import type { Db } from "./db";
-import type { Faixa } from "./precos";
+import type { HorarioComId } from "./horarios";
+import { listarHorarios } from "./horarios-quadra";
 import { SLUG_VALIDO } from "./clipes";
-import { horasOcupadas } from "./disponibilidade";
+import type { Periodo } from "./disponibilidade";
 import { periodosOcupados } from "./reservas";
 
 // Dados públicos das arenas (home, busca, mapa e /a/<slug>). Fica fora de
 // plataforma.ts de propósito: é o dado que cruza arenas sem sessão. Só sai o que
-// é de vitrine: nome, slug, endereço, coordenadas, quadras e faixas de preço
+// é de vitrine: nome, slug, endereço, coordenadas, quadras e horários
 // (nada de dono, taxa, câmeras ou contagens).
 
 export const LIMITE_PUBLICO = 50;
@@ -88,7 +89,7 @@ export type ArenaPublica = {
   endereco: { rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null } | null;
   latitude: number | null;
   longitude: number | null;
-  quadras: { id: string; nome: string; esporte: string; faixas: Faixa[] }[];
+  quadras: { id: string; nome: string; esporte: string; horarios: HorarioComId[] }[];
 };
 
 // Página pública da arena. Slug malformado não toca o banco; arena suspensa sai
@@ -125,21 +126,12 @@ export async function arenaPublica(db: Db, slug: string): Promise<ArenaPublica |
     "select id, nome, esporte from quadras where arena_id = $1 order by nome, id",
     [r.id],
   );
-  const p = await db.query<{ quadra_id: string; dia_semana: number; inicio: number; fim: number; preco_centavos: number }>(
-    `select quadra_id, dia_semana, inicio, fim, preco_centavos from precos_quadra
-      where arena_id = $1 order by dia_semana, inicio`,
-    [r.id],
+  const quadras = await Promise.all(
+    q.rows.map(async (x) => ({
+      id: x.id, nome: x.nome, esporte: x.esporte, horarios: await listarHorarios(db, r.id, x.id),
+    })),
   );
-  const faixas = new Map<string, Faixa[]>();
-  for (const f of p.rows) {
-    const lista = faixas.get(f.quadra_id) ?? [];
-    lista.push({ diaSemana: f.dia_semana, inicio: f.inicio, fim: f.fim, precoCentavos: f.preco_centavos });
-    faixas.set(f.quadra_id, lista);
-  }
-  return {
-    ...base,
-    quadras: q.rows.map((x) => ({ id: x.id, nome: x.nome, esporte: x.esporte, faixas: faixas.get(x.id) ?? [] })),
-  };
+  return { ...base, quadras };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -156,12 +148,12 @@ export async function slugDaQuadra(db: Db, quadraId: string): Promise<string | n
   return rows[0]?.slug ?? null;
 }
 
-// Horas locais do dia já tomadas por reserva ou bloqueio na quadra. Só as horas:
+// Períodos do dia já tomados por reserva ou bloqueio na quadra. Só início e fim:
 // quem reservou não sai daqui.
-export async function ocupadasPublicas(db: Db, quadraId: string, dia: string): Promise<Set<number>> {
-  if (!ehUuid(quadraId)) return new Set();
+export async function periodosPublicos(db: Db, quadraId: string, dia: string): Promise<Periodo[]> {
+  if (!ehUuid(quadraId)) return [];
   const q = await db.query<{ arena_id: string }>("select arena_id from quadras where id = $1", [quadraId]);
   const arenaId = q.rows[0]?.arena_id;
-  if (!arenaId) return new Set();
-  return horasOcupadas(await periodosOcupados(db, arenaId, quadraId, dia), dia);
+  if (!arenaId) return [];
+  return (await periodosOcupados(db, arenaId, quadraId, dia)).map((p) => ({ inicio: p.inicio, fim: p.fim }));
 }

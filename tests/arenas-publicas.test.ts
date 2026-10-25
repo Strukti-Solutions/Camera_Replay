@@ -1,11 +1,10 @@
 import { expect, test } from "vitest";
 import { novoBanco } from "./db";
-import { criarArena, criarQuadra } from "./fixtures";
+import { criarArena, criarHorariosDeHora, criarQuadra } from "./fixtures";
 import {
-  arenaPublica, arenasNoMapa, listarArenasPublicas, ocupadasPublicas, slugDaQuadra, sugestoesArenas,
+  arenaPublica, arenasNoMapa, listarArenasPublicas, periodosPublicos, slugDaQuadra, sugestoesArenas,
 } from "../app/lib/arenas-publicas";
 import { criarContaJogador } from "../app/lib/jogadores";
-import { adicionarFaixas } from "../app/lib/precos-quadra";
 import { criarReserva } from "../app/lib/reservas";
 import type { Db } from "../app/lib/db";
 
@@ -74,16 +73,16 @@ test("sugestões: termo curto não consulta, no máximo 8", async () => {
   expect(await sugestoesArenas(db, "su\u0000ge")).toHaveLength(8);
 });
 
-test("arenaPublica devolve quadras com faixas ordenadas e nada privado", async () => {
+test("arenaPublica devolve quadras com horários ordenados e nada privado", async () => {
   const db = await novoBanco();
   const a = await criarArena(db, "Arena Pública");
   await endereco(db, a.id, { rua: "Rua A", bairro: "B", cidade: "C", uf: "SP", lat: 1, lng: 2 });
   await db.query("update arenas set taxa_percentual = 7 where id = $1", [a.id]);
   const q = await criarQuadra(db, a.id);
   await db.query("update quadras set esporte = 'Futevôlei' where id = $1", [q.id]);
-  for (const [d, i, f, p] of [[2, 18, 20, 9000], [1, 9, 10, 5000], [1, 8, 9, 4000]]) {
+  for (const [d, i, f, p] of [[2, 1080, 1200, 9000], [1, 540, 600, 5000], [1, 480, 540, 4000]]) {
     await db.query(
-      "insert into precos_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1,$2,$3,$4,$5,$6)",
+      "insert into horarios_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1,$2,$3,$4,$5,$6)",
       [a.id, q.id, d, i, f, p],
     );
   }
@@ -93,12 +92,13 @@ test("arenaPublica devolve quadras com faixas ordenadas e nada privado", async (
   expect(Object.keys(r!.endereco!).sort()).toEqual(["bairro", "cep", "cidade", "numero", "rua", "uf"]);
   expect(r!.latitude).toBe(1);
   expect(r!.quadras).toHaveLength(1);
-  expect(Object.keys(r!.quadras[0]).sort()).toEqual(["esporte", "faixas", "id", "nome"]);
+  expect(Object.keys(r!.quadras[0]).sort()).toEqual(["esporte", "horarios", "id", "nome"]);
   expect(r!.quadras[0].esporte).toBe("Futevôlei");
-  expect(r!.quadras[0].faixas).toEqual([
-    { diaSemana: 1, inicio: 8, fim: 9, precoCentavos: 4000 },
-    { diaSemana: 1, inicio: 9, fim: 10, precoCentavos: 5000 },
-    { diaSemana: 2, inicio: 18, fim: 20, precoCentavos: 9000 },
+  expect(r!.quadras[0].horarios.every((x) => /^[0-9a-f-]{36}$/.test(x.id))).toBe(true);
+  expect(r!.quadras[0].horarios.map(({ id: _id, ...resto }) => resto)).toEqual([
+    { diaSemana: 1, inicio: 480, fim: 540, precoCentavos: 4000 },
+    { diaSemana: 1, inicio: 540, fim: 600, precoCentavos: 5000 },
+    { diaSemana: 2, inicio: 1080, fim: 1200, precoCentavos: 9000 },
   ]);
   const json = JSON.stringify(r);
   expect(json).not.toContain("@");
@@ -140,19 +140,22 @@ test("slugDaQuadra: slug da arena da quadra; id estranho sem consulta", async ()
   expect(await slugDaQuadra(espiao, undefined as unknown as string)).toBeNull();
 });
 
-test("ocupadasPublicas: horas tomadas por reserva da quadra no dia", async () => {
+test("periodosPublicos: só início e fim das reservas da quadra no dia", async () => {
   const db = await novoBanco();
   const agora = new Date("2026-11-09T10:00:00-03:00");
   const a = await criarArena(db, "Arena O");
   const q = await criarQuadra(db, a.id);
   const outra = await criarQuadra(db, a.id);
-  await adicionarFaixas(db, a.id, q.id, [0, 1, 2, 3, 4, 5, 6], { inicio: 7, fim: 23, precoCentavos: 10000 });
+  await criarHorariosDeHora(db, a.id, q.id, [0, 1, 2, 3, 4, 5, 6], 7, 23, 10000);
   const j = await criarContaJogador(db, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1", aceitouTermos: true });
   if (!j.ok) throw new Error("conta");
-  const r = await criarReserva(db, j.jogadorId, { quadraId: q.id, dia: "2026-11-10", inicio: 16, horas: 2 }, agora);
+  const r = await criarReserva(db, j.jogadorId, { quadraId: q.id, dia: "2026-11-10", inicio: 16 * 60, qtd: 2 }, agora);
   expect(r.ok).toBe(true);
-  expect([...(await ocupadasPublicas(db, q.id, "2026-11-10"))].sort()).toEqual([16, 17]);
-  expect((await ocupadasPublicas(db, q.id, "2026-11-11")).size).toBe(0);
-  expect((await ocupadasPublicas(db, outra.id, "2026-11-10")).size).toBe(0);
-  expect((await ocupadasPublicas(db, "nada", "2026-11-10")).size).toBe(0);
+  const p = await periodosPublicos(db, q.id, "2026-11-10");
+  expect(p).toEqual([{ inicio: new Date("2026-11-10T16:00:00-03:00"), fim: new Date("2026-11-10T18:00:00-03:00") }]);
+  expect(Object.keys(p[0]).sort()).toEqual(["fim", "inicio"]);
+  expect(JSON.stringify(p)).not.toMatch(/jogador|ana|@/i);
+  expect(await periodosPublicos(db, q.id, "2026-11-11")).toEqual([]);
+  expect(await periodosPublicos(db, outra.id, "2026-11-10")).toEqual([]);
+  expect(await periodosPublicos(db, "nada", "2026-11-10")).toEqual([]);
 });

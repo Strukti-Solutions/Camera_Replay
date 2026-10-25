@@ -108,3 +108,8 @@ test("quadraDoFiltro só aceita quadra da arena", () => {
   expect(quadraDoFiltro("", quadras)).toBeNull();
   expect(quadraDoFiltro(undefined, quadras)).toBeNull();
 });
+
+test("linhaItem: horário com minutos aparece como 15h30–17h15", () => {
+  const i = item({ inicio: new Date("2026-10-26T18:30:00Z"), fim: new Date("2026-10-26T20:15:00Z") });
+  expect(linhaItem(i)).toBe("15h30–17h15 · Quadra 1 — Padel · Ana · R$ 200,00 · Confirmada");
+});

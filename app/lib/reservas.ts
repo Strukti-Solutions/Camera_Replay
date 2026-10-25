@@ -1,6 +1,6 @@
 import { emTransacao, type Db } from "./db";
-import { diaValido, horasOcupadas, instanteLocal, precoEscolha } from "./disponibilidade";
-import { listarFaixas } from "./precos-quadra";
+import { diaValido, escolhaDeHorarios, instanteDoMinuto, instanteLocal } from "./disponibilidade";
+import { listarHorarios } from "./horarios-quadra";
 import { paraClipePublico, type ClipePublico, type LeitorR2, type LinhaClipe } from "./clipes";
 
 // Reservas e bloqueios. Funções do dono recebem o arena_id da sessão; do
@@ -59,7 +59,7 @@ export async function periodosOcupados(
         and (situacao = 'confirmada' or (situacao = 'segurada' and segura_ate > now()))
         and periodo && tstzrange($3::timestamptz, $4::timestamptz, '[)')
       order by inicio`,
-    [quadraId, arenaId, new Date(instanteLocal(dia, 0)), new Date(instanteLocal(dia, 24))],
+    [quadraId, arenaId, new Date(instanteDoMinuto(dia, 0)), new Date(instanteDoMinuto(dia, 1440))],
   );
   return rows.map((r) => ({ inicio: new Date(r.inicio), fim: new Date(r.fim) }));
 }
@@ -67,7 +67,7 @@ export async function periodosOcupados(
 export async function criarReserva(
   db: Db,
   jogadorId: string,
-  e: { quadraId: string; dia: string; inicio: number; horas: number },
+  e: { quadraId: string; dia: string; inicio: number; qtd: number },
   agora: Date,
 ): Promise<{ ok: true; reservaId: string } | { ok: false; erro: string }> {
   const recusa = { ok: false as const, erro: MSG_INDISPONIVEL };
@@ -83,10 +83,10 @@ export async function criarReserva(
   );
   const arenaId = q.rows[0]?.arena_id;
   if (!arenaId) return recusa;
-  const faixas = await listarFaixas(db, arenaId, e.quadraId);
-  if (faixas.length === 0) return recusa;
-  const ocupadas = horasOcupadas(await periodosOcupados(db, arenaId, e.quadraId, dia), dia);
-  const escolha = precoEscolha(faixas, dia, e.inicio, e.horas, agora, ocupadas);
+  const horarios = await listarHorarios(db, arenaId, e.quadraId);
+  if (horarios.length === 0) return recusa;
+  const ocupados = await periodosOcupados(db, arenaId, e.quadraId, dia);
+  const escolha = escolhaDeHorarios(horarios, dia, e.inicio, e.qtd, agora, ocupados);
   if (!escolha) return recusa;
 
   try {
@@ -116,8 +116,8 @@ export async function criarReserva(
          values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 'arena', $6, 0, $7::jsonb) returning id`,
         [
           arenaId, e.quadraId, jogadorId,
-          new Date(instanteLocal(dia, escolha.hora)), new Date(instanteLocal(dia, escolha.hora + escolha.horas)),
-          escolha.totalCentavos, JSON.stringify(escolha.porHora),
+          new Date(instanteDoMinuto(dia, escolha.inicio)), new Date(instanteDoMinuto(dia, escolha.fim)),
+          escolha.totalCentavos, JSON.stringify(escolha.itens),
         ],
       );
       return { ok: true, reservaId: ins.rows[0].id };

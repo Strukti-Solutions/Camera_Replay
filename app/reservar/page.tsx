@@ -4,10 +4,11 @@ import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
 import { LinkVoltar } from "@/app/componentes/voltar";
 import { diaPorExtenso, hrefReservar, lerReserva } from "@/app/a/[slug]/apresentacao";
 import { exigirJogador } from "@/app/jogador/sessao-jogador";
-import { arenaPublica, ocupadasPublicas, slugDaQuadra } from "@/app/lib/arenas-publicas";
-import { precoEscolha } from "@/app/lib/disponibilidade";
+import { arenaPublica, periodosPublicos, slugDaQuadra } from "@/app/lib/arenas-publicas";
+import { escolhaDeHorarios } from "@/app/lib/disponibilidade";
+import { textoMinutos } from "@/app/lib/horarios";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { textoDeCentavos, textoHora } from "@/app/lib/precos";
+import { textoDeCentavos } from "@/app/lib/precos";
 import { MSG_INDISPONIVEL } from "@/app/lib/reservas";
 import { FormularioReservar } from "./formulario";
 
@@ -23,9 +24,10 @@ type Parametros = Record<string, string | string[] | undefined>;
 type Props = { searchParams: Promise<Parametros> };
 
 const primeiro = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
-const textoHoras = (n: number) => (n === 1 ? "1 hora" : `${n} horas`);
+const textoHorarios = (n: number) => (n === 1 ? "1 horário" : `${n} horários`);
+const intervalo = (h: { inicio: number; fim: number }) => `${textoMinutos(h.inicio)}–${textoMinutos(h.fim)}`;
 
-// Resumo da reserva escolhida na página da arena (/reservar?quadra=&dia=&inicio=&horas=).
+// Resumo da reserva escolhida na página da arena (/reservar?quadra=&dia=&inicio=&qtd=).
 // Sem jogador, vai para /entrar e volta para cá com a mesma escolha.
 export default async function PaginaReservar({ searchParams }: Props) {
   const params = await searchParams;
@@ -33,7 +35,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
     quadra: primeiro(params.quadra),
     dia: primeiro(params.dia),
     inicio: primeiro(params.inicio),
-    horas: primeiro(params.horas),
+    qtd: primeiro(params.qtd),
   };
   const sessao = await exigirJogador(hrefReservar(cru));
 
@@ -45,9 +47,9 @@ export default async function PaginaReservar({ searchParams }: Props) {
   const quadra = escolha ? arena!.quadras.find((q) => q.id === escolha.quadra) : undefined;
   const preco =
     escolha && quadra
-      ? precoEscolha(
-          quadra.faixas, escolha.dia, escolha.inicio, escolha.horas, agora,
-          await ocupadasPublicas(db, quadra.id, escolha.dia),
+      ? escolhaDeHorarios(
+          quadra.horarios, escolha.dia, escolha.inicio, escolha.qtd, agora,
+          await periodosPublicos(db, quadra.id, escolha.dia),
         )
       : null;
 
@@ -72,7 +74,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
   }
 
   const volta = `/a/${arena.slug}?${new URLSearchParams({
-    quadra: quadra.id, dia: escolha.dia, inicio: String(preco.hora), horas: String(preco.horas),
+    quadra: quadra.id, dia: escolha.dia, inicio: String(preco.inicio), qtd: String(preco.itens.length),
   }).toString()}#quadra-${quadra.id}`;
 
   return (
@@ -97,16 +99,18 @@ export default async function PaginaReservar({ searchParams }: Props) {
           <div>
             <dt>Horário</dt>
             <dd>
-              {textoHora(preco.hora)} às {textoHora(preco.hora + preco.horas)} ({textoHoras(preco.horas)})
+              {textoMinutos(preco.inicio)} às {textoMinutos(preco.fim)} ({textoHorarios(preco.itens.length)})
             </dd>
           </div>
           <div>
             <dt>Total</dt>
             <dd>
               <strong>{textoDeCentavos(preco.totalCentavos)}</strong>
-              <span className="suave reservar-detalhe">
-                {preco.porHora.map((h) => `${textoHora(h.hora)} ${textoDeCentavos(h.precoCentavos)}`).join(" · ")}
-              </span>
+              {preco.itens.length > 1 && (
+                <span className="suave reservar-detalhe">
+                  {preco.itens.map((h) => `${intervalo(h)} ${textoDeCentavos(h.precoCentavos)}`).join(" · ")}
+                </span>
+              )}
             </dd>
           </div>
           <div>
@@ -115,7 +119,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
           </div>
         </dl>
         <p className="suave">Cancelamento grátis até 24 h antes.</p>
-        <FormularioReservar quadra={quadra.id} dia={escolha.dia} inicio={preco.hora} horas={preco.horas} />
+        <FormularioReservar quadra={quadra.id} dia={escolha.dia} inicio={preco.inicio} qtd={preco.itens.length} />
       </main>
     </>
   );

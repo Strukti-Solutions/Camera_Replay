@@ -958,32 +958,6 @@ video {
   color: var(--sobre-perigo);
 }
 
-/* Tabela de preços da quadra (painel do dono). */
-.faixas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.faixa-preco {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding-block: 0.25rem;
-  border-bottom: 1px solid var(--borda);
-  font-variant-numeric: tabular-nums;
-}
-
-.remover-faixa {
-  display: grid;
-  gap: 0.25rem;
-  justify-items: end;
-}
-
 /* Caixas dos dias: a linha inteira (48 px) é o alvo de toque. */
 .dias {
   border: 0;
@@ -1679,23 +1653,22 @@ html.mapa-tela-cheia {
   margin-top: 0.5rem;
 }
 
-.quadra-campos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 1rem;
+/* Dia e "Ver horários" lado a lado; o select não passa da coluna. */
+.quadra-dia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
 }
 
-/* O select não passa da coluna (o texto longo da opção cortava "16h · R$ 80,00"). */
-.quadra-campos select {
-  width: 100%;
+.quadra-dia .campo {
+  flex: 1 1 11rem;
   min-width: 0;
 }
 
-/* Celular: Início e Duração um sob o outro. */
-@media (max-width: 30rem) {
-  .quadra-campos {
-    grid-template-columns: 1fr;
-  }
+.quadra-dia select {
+  width: 100%;
+  min-width: 0;
 }
 
 .quadra-escolha .botao {
@@ -1717,8 +1690,90 @@ html.mapa-tela-cheia {
   font-size: 1.25rem;
 }
 
-.quadra-reduzida {
+/* Horários do dia para o jogador: caixinhas por período (madrugada e manhã, tarde, noite). */
+.pj-grupo {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pj-grupo h3 {
+  margin: 0;
+  font-size: 0.875rem;
   font-weight: 600;
+  color: var(--tinta-suave);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pj-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.pj-slot {
+  display: grid;
+  align-content: center;
+  gap: 0.1rem;
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  color: var(--tinta);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.pj-slot span {
+  color: var(--link);
+  font-weight: 600;
+}
+
+a.pj-slot:hover {
+  background: var(--realce);
+}
+
+a.pj-slot:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+/* Escolhido: cor cheia e a palavra "Escolhido" (a cor não é o único sinal). */
+.pj-slot-escolhido,
+a.pj-slot-escolhido:hover {
+  background: var(--primario);
+  border-color: var(--primario);
+  color: var(--sobre-primario);
+}
+
+.pj-slot-escolhido span {
+  color: var(--sobre-primario);
+}
+
+.pj-slot-escolhido em {
+  font-size: 0.8125rem;
+  font-style: normal;
+}
+
+/* Ocupado: tracejado, sem link. */
+.pj-slot-ocupado {
+  border-style: dashed;
+  border-color: var(--borda-campo);
+  background: transparent;
+  color: var(--tinta-suave);
+}
+
+.pj-slot-ocupado span {
+  color: var(--tinta-suave);
+  font-weight: 400;
+}
+
+.pj-dica {
+  margin: 0;
 }
 
 /* ---------- Resumo da reserva (/reservar) ---------- */
@@ -1820,4 +1875,325 @@ html.mapa-tela-cheia {
   .cabecalho-sair {
     font-size: 0.9375rem;
   }
+}
+
+/* ---------- Painel: horários da quadra (dias, caixinhas, painel lateral) ---------- */
+
+.horarios {
+  display: grid;
+  gap: 1rem;
+}
+
+.hr-dias {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.125rem;
+}
+
+.hr-dia {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  min-height: var(--alvo);
+  padding: 0.25rem 0;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio-botao);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.hr-dia small {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--tinta-suave);
+}
+
+.hr-dia[aria-pressed="true"] {
+  background: var(--primario);
+  border-color: var(--primario);
+  color: var(--sobre-primario);
+}
+
+.hr-dia[aria-pressed="true"] small {
+  color: var(--sobre-primario);
+}
+
+.hr-titulo-dia {
+  margin: 0;
+}
+
+.hr-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.hr-slot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  border: 1.5px solid var(--borda-campo);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-slot-largo {
+  grid-column: 1 / -1;
+}
+
+.hr-slot-corpo {
+  display: grid;
+  align-content: center;
+  gap: 0.1rem;
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--tinta);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--raio) 0 0 var(--raio);
+}
+
+.hr-slot-corpo span {
+  color: var(--link);
+  font-weight: 600;
+}
+
+.hr-slot-x {
+  min-width: var(--alvo);
+  min-height: var(--alvo);
+  border: 0;
+  background: transparent;
+  color: var(--tinta-suave);
+  font: inherit;
+  cursor: pointer;
+  border-radius: 0 var(--raio) var(--raio) 0;
+}
+
+.hr-slot-x:hover,
+.hr-slot-corpo:hover {
+  background: var(--realce);
+}
+
+.hr-slot-conflito {
+  border-color: var(--perigo);
+  background: color-mix(in srgb, var(--perigo) 14%, var(--superficie));
+}
+
+.hr-slot-lista-novo {
+  display: grid;
+}
+
+/* "+ Novo horário": caixinha tracejada. */
+.hr-slot-novo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--alvo);
+  padding: 0.5rem 0.75rem;
+  border-style: dashed;
+  color: var(--link);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hr-slot-novo:hover {
+  background: var(--realce);
+}
+
+.hr-confirma {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border-top: 1px solid var(--borda);
+}
+
+.hr-linha-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Fundo escurecido + painel: à direita no computador, tela cheia no celular. */
+.hr-sombra {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(8 18 29 / 0.6);
+}
+
+.hr-painel {
+  width: min(28rem, 100%);
+  height: 100%;
+  overflow-y: auto;
+  padding: 1rem var(--gutter) 2rem;
+  background: var(--superficie);
+  color: var(--tinta);
+  box-shadow: -4px 0 18px rgb(8 18 29 / 0.35);
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  animation: hr-entra 180ms ease-out;
+}
+
+.hr-painel:focus {
+  outline: none;
+}
+
+.hr-painel-cabeca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.hr-painel-cabeca h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.hr-fechar {
+  flex: none;
+  padding: 0;
+  border-color: transparent;
+}
+
+@keyframes hr-entra {
+  from {
+    transform: translateX(2rem);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 40rem) {
+  .hr-painel {
+    width: 100%;
+    animation-name: hr-sobe;
+  }
+
+  @keyframes hr-sobe {
+    from {
+      transform: translateY(2rem);
+      opacity: 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hr-painel {
+    animation: none;
+  }
+}
+
+.hr-abas {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--raio);
+  background: var(--realce);
+}
+
+.hr-aba {
+  flex: 1;
+  min-height: var(--alvo);
+  border: 0;
+  border-radius: var(--raio-botao);
+  background: transparent;
+  color: var(--tinta);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hr-aba[aria-selected="true"] {
+  background: var(--superficie);
+  box-shadow: 0 1px 3px rgb(8 18 29 / 0.3);
+}
+
+.hr-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.hr-linha3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.hr-linha2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.hr-form .campo input,
+.hr-form .campo select {
+  min-width: 0;
+  width: 100%;
+}
+
+.hr-form .campo input[aria-invalid="true"] {
+  border-color: var(--perigo);
+}
+
+/* Aviso de choque / de reservas: faixa lateral na cor de perigo, texto na tinta. */
+.hr-aviso {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid var(--perigo);
+  border-radius: var(--raio-campo);
+  background: color-mix(in srgb, var(--perigo) 12%, var(--superficie));
+}
+
+.hr-aviso:empty {
+  display: none;
+}
+
+.hr-aviso-info {
+  border-left-color: var(--borda-campo);
+  background: var(--realce);
+}
+
+.hr-previa {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.hr-form .botao:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hr-chip {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--raio-campo);
+  background: var(--realce);
+  color: var(--link);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-chip-choca {
+  background: color-mix(in srgb, var(--perigo) 14%, var(--superficie));
+  color: var(--perigo);
+  text-decoration: line-through;
 }

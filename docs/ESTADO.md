@@ -61,6 +61,11 @@ Reserva pelo site **sem pagamento online** (emenda no spec de 23/10, decisão do
 3. Merge na `main` e push (a Vercel publica sozinha).
 4. Smoke: reservar, cancelar como jogador, bloquear e cancelar como dono.
 
+## Para produção (visual novo, fase 2: horários criados pelo dono, nesta ordem)
+1. Aplicar SÓ a 0017 em produção (cria `horarios_quadra` e copia as faixas). O código antigo continua funcionando porque as duas tabelas existem.
+2. Merge na `main` e push; esperar o deploy da Vercel ficar Ready.
+3. Aplicar a 0018 (remove `precos_quadra`).
+
 ## Próxima: fase 4b (pagamento com Asaas)
 Falta a conta Asaas do dono. Pesquisa em `docs/pesquisa/asaas.md` (Checkout com split e webhook). Antes de implementar, o dono decide os conflitos com o spec listados lá: o split sai do valor líquido (não do bruto), a tarifa do estorno sai da conta da Strukti, o saldo da subconta no estorno, o walletId de conta já existente e a URL de retorno no domínio cadastrado.
 

@@ -1,4 +1,5 @@
 import type { Db } from "../app/lib/db";
+import { criarHorarios } from "../app/lib/horarios-quadra";
 import { hashToken, novoSlug, novoToken } from "../app/lib/segredos";
 
 type Id = { id: string };
@@ -44,4 +45,17 @@ export async function criarBotao(
     [arenaId, quadraId, cameraId, hashToken(token)],
   );
   return { id: r.rows[0].id, token };
+}
+
+// Um horário de 1 hora para cada hora cheia de `deHora` a `ateHora`, nos dias da semana dados.
+export async function criarHorariosDeHora(
+  db: Db, arenaId: string, quadraId: string, dias: number[], deHora: number, ateHora: number, precoCentavos: number,
+): Promise<void> {
+  const novos = dias.flatMap((diaSemana) =>
+    Array.from({ length: ateHora - deHora }, (_, i) => ({
+      diaSemana, inicio: (deHora + i) * 60, fim: (deHora + i + 1) * 60, precoCentavos,
+    })),
+  );
+  const r = await criarHorarios(db, arenaId, quadraId, novos);
+  if (!r.ok) throw new Error(r.erro);
 }

@@ -1,9 +1,9 @@
-import { FUSO, HORAS_MAX, diaValido, hojeLocal } from "@/app/lib/disponibilidade";
+import { FUSO, diaValido, hojeLocal, type HorarioDoDia } from "@/app/lib/disponibilidade";
+import { DURACAO_MAX, HORARIOS_SEGUIDOS_MAX } from "@/app/lib/horarios";
 import { formatarHorario } from "@/app/lib/formato";
 
 // Regras de texto da página da arena (/a/<slug-da-arena>). Sem acesso a cookie nem a
 // banco, para poder testar direto.
-
 
 // "hoje", "ontem" ou "15/10": a parte do dia de formatarHorario ("hoje, 14:32").
 export function textoDia(d: Date, agora: Date = new Date()): string {
@@ -54,51 +54,89 @@ function primeiro(v: string | string[] | undefined): string | undefined {
 }
 
 function inteiroEntre(v: string | undefined, min: number, max: number): number | null {
-  if (v === undefined || !/^\d{1,2}$/.test(v)) return null;
+  if (v === undefined || !/^(0|[1-9]\d{0,3})$/.test(v)) return null;
   const n = Number(v);
   return n >= min && n <= max ? n : null;
 }
 
-// Escolha da URL (?quadra=&dia=&inicio=&horas=), sem confiar em nada: o que não
-// presta volta ao padrão (sem quadra, hoje, sem início, 1 hora).
+// Início do horário em minutos desde 00:00 (0 a 1439) e quantidade de horários seguidos.
+const inicioDaUrl = (v: string | string[] | undefined) => inteiroEntre(primeiro(v), 0, 1439);
+const qtdDaUrl = (v: string | string[] | undefined) => inteiroEntre(primeiro(v), 1, HORARIOS_SEGUIDOS_MAX);
+
+// Escolha da URL (?quadra=&dia=&inicio=&qtd=), sem confiar em nada: o que não
+// presta volta ao padrão (sem quadra, hoje, sem início, 1 horário).
 export function lerEscolha(
   params: Parametros,
   quadraIds: string[],
   agora: Date,
-): { quadra: string | null; dia: string; inicio: number | null; horas: number } {
+): { quadra: string | null; dia: string; inicio: number | null; qtd: number } {
   const quadra = primeiro(params.quadra);
   return {
     quadra: quadra !== undefined && quadraIds.includes(quadra) ? quadra : null,
     dia: diaValido(primeiro(params.dia), agora) ?? hojeLocal(agora),
-    inicio: inteiroEntre(primeiro(params.inicio), 0, 23),
-    horas: inteiroEntre(primeiro(params.horas), 1, HORAS_MAX) ?? 1,
+    inicio: inicioDaUrl(params.inicio),
+    qtd: qtdDaUrl(params.qtd) ?? 1,
   };
 }
 
 // Escolha completa para /reservar: aqui nada volta ao padrão. Quadra fora da
-// lista, dia fora da janela, início ou duração ausentes ou inválidos → null.
+// lista, dia fora da janela, início ou quantidade ausentes ou inválidos → null.
 export function lerReserva(
   params: Parametros,
   quadraIds: string[],
   agora: Date,
-): { quadra: string; dia: string; inicio: number; horas: number } | null {
+): { quadra: string; dia: string; inicio: number; qtd: number } | null {
   const e = lerEscolha(params, quadraIds, agora);
-  const horas = inteiroEntre(primeiro(params.horas), 1, HORAS_MAX);
-  if (e.quadra === null || e.inicio === null || horas === null) return null;
+  const qtd = qtdDaUrl(params.qtd);
+  if (e.quadra === null || e.inicio === null || qtd === null) return null;
   if (diaValido(primeiro(params.dia), agora) === null) return null;
-  return { quadra: e.quadra, dia: e.dia, inicio: e.inicio, horas };
+  return { quadra: e.quadra, dia: e.dia, inicio: e.inicio, qtd };
 }
 
-// URL do resumo da reserva (contrato: /reservar?quadra=&dia=&inicio=&horas=).
+// URL do resumo da reserva (contrato: /reservar?quadra=&dia=&inicio=&qtd=).
 // Aceita valores crus da URL: tudo vai codificado.
 export function hrefReservar(e: {
   quadra: string;
   dia: string;
   inicio: number | string;
-  horas: number | string;
+  qtd: number | string;
 }): string {
-  const q = new URLSearchParams({ quadra: e.quadra, dia: e.dia, inicio: String(e.inicio), horas: String(e.horas) });
+  const q = new URLSearchParams({ quadra: e.quadra, dia: e.dia, inicio: String(e.inicio), qtd: String(e.qtd) });
   return `/reservar?${q.toString()}`;
+}
+
+// Link de uma caixinha de horário (`alvo` = índice em `dia`): marca, soma um
+// horário seguido, tira o último ou desmarca, conforme a seleção atual.
+export function hrefDoHorario(
+  base: { slug: string; quadra: string; dia: string },
+  dia: HorarioDoDia[],
+  selecao: { inicio: number; qtd: number } | null,
+  alvo: number,
+): string {
+  const primeiroIdx = selecao ? dia.findIndex((x) => x.horario.inicio === selecao.inicio) : -1;
+  let inicio: number | null = dia[alvo].horario.inicio;
+  let qtd = 1;
+  if (selecao && primeiroIdx >= 0) {
+    const ultimo = primeiroIdx + selecao.qtd - 1;
+    const colado = alvo === ultimo + 1 && dia[alvo].livre && dia[alvo].horario.inicio === dia[ultimo]?.horario.fim;
+    const cabe = colado && dia[alvo].horario.fim - selecao.inicio <= DURACAO_MAX;
+    if (colado && cabe && selecao.qtd < HORARIOS_SEGUIDOS_MAX) {
+      inicio = selecao.inicio;
+      qtd = selecao.qtd + 1;
+    } else if (alvo === ultimo && selecao.qtd > 1) {
+      inicio = selecao.inicio;
+      qtd = selecao.qtd - 1;
+    } else if (alvo === ultimo && selecao.qtd === 1) {
+      inicio = null;
+    }
+  }
+  const q = new URLSearchParams({ quadra: base.quadra, dia: base.dia });
+  if (inicio !== null) {
+    q.set("inicio", String(inicio));
+    q.set("qtd", String(qtd));
+  }
+  const quadra = encodeURIComponent(base.quadra);
+  return `/a/${encodeURIComponent(base.slug)}?${q.toString()}#quadra-${quadra}`;
 }
 
 const DIA_EXTENSO = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "long", day: "numeric", month: "long" });

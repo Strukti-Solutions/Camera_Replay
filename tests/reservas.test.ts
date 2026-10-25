@@ -1,13 +1,12 @@
 import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
 import { criarContaJogador, apagarContaJogador } from "../app/lib/jogadores";
-import { adicionarFaixas } from "../app/lib/precos-quadra";
 import {
   LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
   criarReserva, removerBloqueio, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador, reservasFuturasPorArena,
 } from "../app/lib/reservas";
 import { novoBanco } from "./db";
-import { criarArena, criarBotao, criarCamera, criarQuadra } from "./fixtures";
+import { criarArena, criarBotao, criarCamera, criarHorariosDeHora, criarQuadra } from "./fixtures";
 
 // Segunda, 09/11/2026, 10h em São Paulo. Reservas em 10/11 (terça).
 const AGORA = new Date("2026-11-09T10:00:00-03:00");
@@ -21,20 +20,21 @@ async function jogador(db: Db, nome: string): Promise<string> {
   return r.jogadorId;
 }
 
-// Arena com quadra de preços 7h–23h todos os dias, R$ 100,00 a hora (R$ 120,00 das 20h).
+// Arena com quadra de horários de 1 h, 7h–23h todos os dias, R$ 100,00 a hora (R$ 120,00 das 20h).
 async function base(db: Db) {
   const arena = await criarArena(db, "Arena A");
   const quadra = await criarQuadra(db, arena.id);
-  await adicionarFaixas(db, arena.id, quadra.id, [0, 1, 2, 3, 4, 5, 6], { inicio: 7, fim: 20, precoCentavos: 10000 });
-  await adicionarFaixas(db, arena.id, quadra.id, [0, 1, 2, 3, 4, 5, 6], { inicio: 20, fim: 23, precoCentavos: 12000 });
+  await criarHorariosDeHora(db, arena.id, quadra.id, [0, 1, 2, 3, 4, 5, 6], 7, 20, 10000);
+  await criarHorariosDeHora(db, arena.id, quadra.id, [0, 1, 2, 3, 4, 5, 6], 20, 23, 12000);
   const ana = await jogador(db, "Ana");
   return { arena, quadra, ana };
 }
 
 const contar = async (db: Db) => Number((await db.query<{ n: number }>("select count(*)::int as n from reservas")).rows[0].n);
 
-async function reservar(db: Db, jogadorId: string, quadraId: string, inicio: number, horas: number, agora = AGORA) {
-  const r = await criarReserva(db, jogadorId, { quadraId, dia: DIA, inicio, horas }, agora);
+// `hora` é a hora cheia do primeiro horário; `qtd`, quantos horários seguidos.
+async function reservar(db: Db, jogadorId: string, quadraId: string, hora: number, qtd: number, agora = AGORA) {
+  const r = await criarReserva(db, jogadorId, { quadraId, dia: DIA, inicio: hora * 60, qtd }, agora);
   if (!r.ok) throw new Error(r.erro);
   return r.reservaId;
 }
@@ -43,7 +43,7 @@ async function reservar(db: Db, jogadorId: string, quadraId: string, inicio: num
 async function reservaPassada(db: Db, arenaId: string, quadraId: string, jogadorId: string, dia: string) {
   const r = await db.query<{ id: string }>(
     `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, pagamento, total_centavos, taxa_centavos, detalhe)
-     values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 'arena', 10000, 0, '[{"hora":18,"precoCentavos":10000}]') returning id`,
+     values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 'arena', 10000, 0, '[{"inicio":1080,"fim":1140,"precoCentavos":10000}]') returning id`,
     [arenaId, quadraId, jogadorId, h(18, dia), h(19, dia)],
   );
   return r.rows[0].id;
@@ -52,7 +52,7 @@ async function reservaPassada(db: Db, arenaId: string, quadraId: string, jogador
 test("cria reserva confirmada com valores congelados", async () => {
   const db = await novoBanco();
   const { arena, quadra, ana } = await base(db);
-  const r = await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 19, horas: 2 }, AGORA);
+  const r = await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 19 * 60, qtd: 2 }, AGORA);
   expect(r.ok).toBe(true);
   const l = await db.query(
     `select arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, pagamento, total_centavos, taxa_centavos, detalhe
@@ -60,40 +60,41 @@ test("cria reserva confirmada com valores congelados", async () => {
   expect(l.rows).toEqual([{
     arena_id: arena.id, quadra_id: quadra.id, jogador_id: ana, tipo: "reserva", situacao: "confirmada",
     inicio: h(19), fim: h(21), pagamento: "arena", total_centavos: 22000, taxa_centavos: 0,
-    detalhe: [{ hora: 19, precoCentavos: 10000 }, { hora: 20, precoCentavos: 12000 }],
+    detalhe: [{ inicio: 1140, fim: 1200, precoCentavos: 10000 }, { inicio: 1200, fim: 1260, precoCentavos: 12000 }],
   }]);
-  // mudar a tabela depois não muda a reserva
-  await db.query("update precos_quadra set preco_centavos = 1 where quadra_id = $1", [quadra.id]);
+  // mudar o horário depois não muda a reserva
+  await db.query("update horarios_quadra set preco_centavos = 1 where quadra_id = $1", [quadra.id]);
   const d = await db.query<{ total_centavos: number }>("select total_centavos from reservas");
   expect(d.rows[0].total_centavos).toBe(22000);
 });
 
-test("recusa horas além do contínuo, início passado, dia fora da janela, quadra sem preço e quadra de arena suspensa", async () => {
+test("recusa qtd demais, início passado, dia fora da janela, quadra sem horários e quadra de arena suspensa", async () => {
   const db = await novoBanco();
   const { arena, quadra, ana } = await base(db);
   await reservar(db, ana, quadra.id, 20, 1);
   const semPreco = await criarQuadra(db, arena.id);
   const suspensa = await criarArena(db, "Suspensa");
   const qs = await criarQuadra(db, suspensa.id);
-  await adicionarFaixas(db, suspensa.id, qs.id, [2], { inicio: 7, fim: 23, precoCentavos: 10000 });
+  await criarHorariosDeHora(db, suspensa.id, qs.id, [2], 7, 23, 10000);
   await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [suspensa.id]);
   const recusa = { ok: false, erro: MSG_INDISPONIVEL };
-  const tentar = (e: { quadraId: string; dia: string; inicio: number; horas: number }) => criarReserva(db, ana, e, AGORA);
+  const tentar = (e: { quadraId: string; dia: string; inicio: number; qtd: number }) => criarReserva(db, ana, e, AGORA);
 
-  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18, horas: 3 })).toEqual(recusa); // 20h ocupada
-  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 8, horas: 5 })).toEqual(recusa); // acima de 4 h
-  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 22, horas: 2 })).toEqual(recusa); // fora da tabela
-  expect(await tentar({ quadraId: quadra.id, dia: "2026-11-09", inicio: 9, horas: 1 })).toEqual(recusa); // já passou
-  expect(await tentar({ quadraId: quadra.id, dia: "2026-11-09", inicio: 10, horas: 1 })).toEqual(recusa); // hora corrente
-  expect(await tentar({ quadraId: quadra.id, dia: "2026-12-20", inicio: 18, horas: 1 })).toEqual(recusa); // além de 30 dias
-  expect(await tentar({ quadraId: quadra.id, dia: "2026-11-08", inicio: 18, horas: 1 })).toEqual(recusa); // ontem
-  expect(await tentar({ quadraId: quadra.id, dia: "2026-02-30", inicio: 18, horas: 1 })).toEqual(recusa);
-  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18.5, horas: 1 })).toEqual(recusa);
-  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18, horas: 0 })).toEqual(recusa);
-  expect(await tentar({ quadraId: semPreco.id, dia: DIA, inicio: 18, horas: 1 })).toEqual(recusa);
-  expect(await tentar({ quadraId: qs.id, dia: DIA, inicio: 18, horas: 1 })).toEqual(recusa);
-  expect(await tentar({ quadraId: "nao-e-uuid", dia: DIA, inicio: 18, horas: 1 })).toEqual(recusa);
-  expect(await tentar({ quadraId: "00000000-0000-4000-8000-000000000000", dia: DIA, inicio: 18, horas: 1 })).toEqual(recusa);
+  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 3 })).toEqual(recusa); // 20h ocupada
+  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 8 * 60, qtd: 5 })).toEqual(recusa); // qtd acima de 4
+  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 22 * 60, qtd: 2 })).toEqual(recusa); // 23h não é horário
+  expect(await tentar({ quadraId: quadra.id, dia: "2026-11-09", inicio: 9 * 60, qtd: 1 })).toEqual(recusa); // já passou
+  expect(await tentar({ quadraId: quadra.id, dia: "2026-11-09", inicio: 10 * 60, qtd: 1 })).toEqual(recusa); // hora corrente
+  expect(await tentar({ quadraId: quadra.id, dia: "2026-12-20", inicio: 18 * 60, qtd: 1 })).toEqual(recusa); // além de 30 dias
+  expect(await tentar({ quadraId: quadra.id, dia: "2026-11-08", inicio: 18 * 60, qtd: 1 })).toEqual(recusa); // ontem
+  expect(await tentar({ quadraId: quadra.id, dia: "2026-02-30", inicio: 18 * 60, qtd: 1 })).toEqual(recusa);
+  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18 * 60 + 5, qtd: 1 })).toEqual(recusa);
+  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 0 })).toEqual(recusa);
+  expect(await tentar({ quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 1.5 })).toEqual(recusa);
+  expect(await tentar({ quadraId: semPreco.id, dia: DIA, inicio: 18 * 60, qtd: 1 })).toEqual(recusa);
+  expect(await tentar({ quadraId: qs.id, dia: DIA, inicio: 18 * 60, qtd: 1 })).toEqual(recusa);
+  expect(await tentar({ quadraId: "nao-e-uuid", dia: DIA, inicio: 18 * 60, qtd: 1 })).toEqual(recusa);
+  expect(await tentar({ quadraId: "00000000-0000-4000-8000-000000000000", dia: DIA, inicio: 18 * 60, qtd: 1 })).toEqual(recusa);
   expect(await contar(db)).toBe(1);
 });
 
@@ -102,8 +103,8 @@ test("dois jogadores ao mesmo tempo: um consegue", async () => {
   const { quadra, ana } = await base(db);
   const bia = await jogador(db, "Bia");
   const rs = await Promise.all([
-    criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 2 }, AGORA),
-    criarReserva(db, bia, { quadraId: quadra.id, dia: DIA, inicio: 19, horas: 1 }, AGORA),
+    criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 2 }, AGORA),
+    criarReserva(db, bia, { quadraId: quadra.id, dia: DIA, inicio: 19 * 60, qtd: 1 }, AGORA),
   ]);
   expect(rs.filter((r) => r.ok)).toHaveLength(1);
   expect(rs.filter((r) => !r.ok)).toEqual([{ ok: false, erro: MSG_INDISPONIVEL }]);
@@ -207,14 +208,14 @@ test("bloqueio: sobre reserva recusa, encostado aceita, sem motivo recusa, de ou
   expect(b.rows[1].fim).toEqual(new Date("2026-11-11T00:00:00-03:00"));
 
   // reserva sobre bloqueio recusa; dono remove o bloqueio e o horário volta
-  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 21, horas: 1 }, AGORA))
+  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 21 * 60, qtd: 1 }, AGORA))
     .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
   const id = (await db.query<{ id: string }>("select id from reservas where tipo = 'bloqueio' and inicio = $1", [h(20)])).rows[0].id;
   expect(await cancelarPeloDono(db, outra.id, id, undefined, AGORA)).toBe(false);
   expect(await cancelarPeloDono(db, arena.id, id, undefined, AGORA)).toBe(true);
   const s = await db.query("select situacao, cancelada_por from reservas where id = $1", [id]);
   expect(s.rows[0]).toEqual({ situacao: "cancelada", cancelada_por: "dono" });
-  expect((await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 21, horas: 1 }, AGORA)).ok).toBe(true);
+  expect((await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 21 * 60, qtd: 1 }, AGORA)).ok).toBe(true);
 });
 
 test("segurada vencida não ocupa e vira expirada", async () => {
@@ -228,9 +229,9 @@ test("segurada vencida não ocupa e vira expirada", async () => {
   await segurar(20, 21, "10 minutes");
 
   expect(await periodosOcupados(db, arena.id, quadra.id, DIA)).toEqual([{ inicio: h(20), fim: h(21) }]);
-  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 20, horas: 1 }, AGORA))
+  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 20 * 60, qtd: 1 }, AGORA))
     .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
-  expect((await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 1 }, AGORA)).ok).toBe(true);
+  expect((await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 1 }, AGORA)).ok).toBe(true);
   const v = await db.query("select situacao from reservas where id = $1", [vencida]);
   expect(v.rows[0].situacao).toBe("expirada");
 
@@ -342,37 +343,37 @@ test("limite de reservas futuras: 2 por arena e 5 no total; cancelada e passada 
   await reservar(db, ana, quadra.id, 20, 1);
   // a 3ª futura na mesma arena (outra quadra) é recusada, nada gravado
   const q2 = await criarQuadra(db, arena.id);
-  await adicionarFaixas(db, arena.id, q2.id, [2], { inicio: 7, fim: 23, precoCentavos: 100 });
+  await criarHorariosDeHora(db, arena.id, q2.id, [2], 7, 23, 100);
   const antes = await contar(db);
-  expect(await criarReserva(db, ana, { quadraId: q2.id, dia: DIA, inicio: 11, horas: 1 }, AGORA))
+  expect(await criarReserva(db, ana, { quadraId: q2.id, dia: DIA, inicio: 11 * 60, qtd: 1 }, AGORA))
     .toEqual({ ok: false, erro: MSG_LIMITE });
   expect(await contar(db)).toBe(antes);
   // outro jogador não é afetado
   const bia = await jogador(db, "Bia");
-  expect((await criarReserva(db, bia, { quadraId: q2.id, dia: DIA, inicio: 11, horas: 1 }, AGORA)).ok).toBe(true);
+  expect((await criarReserva(db, bia, { quadraId: q2.id, dia: DIA, inicio: 11 * 60, qtd: 1 }, AGORA)).ok).toBe(true);
 
   // espalhadas por arenas: 2 + 2 + 1 = 5; a 6ª é recusada
   const outras = [];
   for (const nome of ["B", "C", "D"]) {
     const a = await criarArena(db, nome);
     const q = await criarQuadra(db, a.id);
-    await adicionarFaixas(db, a.id, q.id, [2], { inicio: 7, fim: 23, precoCentavos: 100 });
+    await criarHorariosDeHora(db, a.id, q.id, [2], 7, 23, 100);
     outras.push(q);
   }
   await reservar(db, ana, outras[0].id, 8, 1);
   await reservar(db, ana, outras[0].id, 9, 1);
   await reservar(db, ana, outras[1].id, 8, 1);
-  expect(await criarReserva(db, ana, { quadraId: outras[2].id, dia: DIA, inicio: 8, horas: 1 }, AGORA))
+  expect(await criarReserva(db, ana, { quadraId: outras[2].id, dia: DIA, inicio: 8 * 60, qtd: 1 }, AGORA))
     .toEqual({ ok: false, erro: MSG_LIMITE });
   // depois do jogo, a reserva deixa de contar
   const depois = new Date("2026-11-10T21:00:00-03:00");
-  expect((await criarReserva(db, ana, { quadraId: outras[2].id, dia: DIA, inicio: 22, horas: 1 }, depois)).ok).toBe(true);
+  expect((await criarReserva(db, ana, { quadraId: outras[2].id, dia: DIA, inicio: 22 * 60, qtd: 1 }, depois)).ok).toBe(true);
 });
 
 test("jogador inexistente não reserva", async () => {
   const db = await novoBanco();
   const { quadra } = await base(db);
-  expect(await criarReserva(db, "00000000-0000-4000-8000-000000000009", { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 1 }, AGORA))
+  expect(await criarReserva(db, "00000000-0000-4000-8000-000000000009", { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 1 }, AGORA))
     .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
   expect(await contar(db)).toBe(0);
 });
@@ -418,7 +419,7 @@ test("reservas futuras confirmadas por arena: ignora bloqueio, cancelada, passad
     .toEqual({ ok: true });
   const outra = await criarArena(db, "Arena B");
   const qb = await criarQuadra(db, outra.id);
-  await adicionarFaixas(db, outra.id, qb.id, [2], { inicio: 7, fim: 23, precoCentavos: 10000 });
+  await criarHorariosDeHora(db, outra.id, qb.id, [2], 7, 23, 10000);
   await reservar(db, bia, qb.id, 18, 1);
   const vazia = await criarArena(db, "Arena C");
 
@@ -450,7 +451,7 @@ test("exclusão (23P01) depois da conferência vira MSG_INDISPONIVEL e não grav
       return pg.transaction!(fn);
     },
   };
-  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 2 }, AGORA))
+  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 2 }, AGORA))
     .toEqual({ ok: false, erro: MSG_INDISPONIVEL });
   expect(intrusa).toBe(true);
   const l = await pg.query<{ jogador_id: string }>("select jogador_id from reservas");
@@ -488,9 +489,33 @@ test("no pg.Pool, criar reserva trava o jogador antes de contar e inserir", asyn
     },
   } as unknown as Db;
 
-  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18, horas: 1 }, AGORA))
+  expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 1 }, AGORA))
     .toEqual({ ok: true, reservaId: "r1" });
   expect(log).toEqual(["begin", "trava", "conta", "expira", "insere", "commit"]);
   expect(clientes).toHaveLength(1);
   expect(await contar(pg)).toBe(0);
+});
+
+test("reserva de 2 horários quebrados grava o período todo e os itens", async () => {
+  const db = await novoBanco();
+  const { arena, ana } = await base(db);
+  const q = await criarQuadra(db, arena.id);
+  const horarios = [[930, 1035, 11000], [1035, 1080, 6000], [1080, 1140, 9000]];
+  await db.query(
+    `insert into horarios_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos)
+     select $1, $2, 2, i, f, p from unnest($3::int[], $4::int[], $5::int[]) as t(i, f, p)`,
+    [arena.id, q.id, horarios.map((x) => x[0]), horarios.map((x) => x[1]), horarios.map((x) => x[2])],
+  );
+  const r = await criarReserva(db, ana, { quadraId: q.id, dia: DIA, inicio: 930, qtd: 2 }, AGORA);
+  expect(r.ok).toBe(true);
+  const l = await db.query("select inicio, fim, total_centavos, detalhe from reservas");
+  expect(l.rows).toEqual([{
+    inicio: new Date(`${DIA}T15:30:00-03:00`), fim: new Date(`${DIA}T18:00:00-03:00`), total_centavos: 17000,
+    detalhe: [{ inicio: 930, fim: 1035, precoCentavos: 11000 }, { inicio: 1035, fim: 1080, precoCentavos: 6000 }],
+  }]);
+  expect(await criarReserva(db, ana, { quadraId: q.id, dia: DIA, inicio: 1035, qtd: 1 }, AGORA)).toEqual({ ok: false, erro: MSG_INDISPONIVEL });
+  expect((await criarReserva(db, ana, { quadraId: q.id, dia: DIA, inicio: 1080, qtd: 1 }, AGORA)).ok).toBe(true);
+  // qtd acima de 4 com outro jogador, para não misturar com o limite de reservas de Ana
+  const bia = await jogador(db, "Bia");
+  expect(await criarReserva(db, bia, { quadraId: q.id, dia: DIA, inicio: 930, qtd: 5 }, AGORA)).toEqual({ ok: false, erro: MSG_INDISPONIVEL });
 });

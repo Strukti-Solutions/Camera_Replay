@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { apagarClipe, salvarNomeEsporteQuadra } from "@/app/lib/painel";
 import { centavosDeTexto } from "@/app/lib/precos";
-import { adicionarFaixas, removerFaixa } from "@/app/lib/precos-quadra";
+import { DURACOES_FIXOS, gerarFixos, minutosDeTexto } from "@/app/lib/horarios";
+import { apagarHorario, copiarDia, criarHorario, criarHorarios, editarHorario } from "@/app/lib/horarios-quadra";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
 import { mensagemDoErro } from "@/app/painel/apresentacao";
 import { exigirSessao } from "@/app/painel/sessao-atual";
+import { resumoLote } from "./horarios-apresentacao";
 
 // Server Actions são endpoints públicos: cada uma confere a sessão e usa só o
 // arenaId dela. O id do clipe que vem do formulário passa por apagarClipe, que
@@ -66,58 +68,94 @@ export async function salvarQuadraAction(_estado: EstadoQuadra, form: FormData):
   return { erro: null, ok: true };
 }
 
-// ---------- Preços e horários ----------
+// ---------- Horários ----------
 
-// Os valores digitados voltam no estado para o formulário não se apagar no erro.
-export type EstadoFaixa = {
-  erro: string | null;
-  ok: boolean;
-  // Muda a cada envio: o formulário remonta com os valores devolvidos.
-  versao: number;
-  valores: { dias: number[]; inicio: string; fim: string; preco: string };
+// `versao` muda a cada resposta (o formulário percebe que terminou);
+// `mensagem` é o texto de sucesso mostrado na tela.
+export type EstadoHorario = { erro: string | null; mensagem: string | null; versao: number };
+
+const dia = (form: FormData) => {
+  const t = campo(form, "dia");
+  return /^[0-6]$/.test(t) ? Number(t) : Number.NaN;
 };
 
-const inteiro = (t: string) => (/^\d{1,2}$/.test(t) ? Number(t) : Number.NaN);
-
-export async function adicionarFaixaAction(estado: EstadoFaixa, form: FormData): Promise<EstadoFaixa> {
+// Todas as ações de horário seguem o mesmo roteiro: sessão, corpo, recarga.
+async function rodar(
+  estado: EstadoHorario,
+  contexto: string,
+  corpo: (arenaId: string) => Promise<{ erro: string } | { mensagem: string }>,
+): Promise<EstadoHorario> {
   const sessao = await exigirSessao();
-  const dias = form
-    .getAll("dia")
-    .map((v) => (typeof v === "string" ? inteiro(v) : Number.NaN));
-  const valores = {
-    dias: dias.filter((d) => Number.isInteger(d)),
-    inicio: campo(form, "inicio"),
-    fim: campo(form, "fim"),
-    preco: campo(form, "preco"),
-  };
   const versao = estado.versao + 1;
-  const falha = (erro: string): EstadoFaixa => ({ erro, ok: false, versao, valores });
-
-  const precoCentavos = centavosDeTexto(valores.preco);
-  if (precoCentavos === null) return falha("Preço inválido. Use reais, por exemplo 80 ou 80,50.");
   try {
-    const r = await adicionarFaixas(poolCompartilhado(), sessao.arenaId, campo(form, "quadraId"), dias, {
-      inicio: inteiro(valores.inicio),
-      fim: inteiro(valores.fim),
-      precoCentavos,
-    });
-    if (!r.ok) return falha(r.erro);
+    const r = await corpo(sessao.arenaId);
+    if ("erro" in r) return { erro: r.erro, mensagem: null, versao };
+    revalidatePath("/painel/quadras/[id]", "page");
+    return { erro: null, mensagem: r.mensagem, versao };
   } catch (e) {
-    return falha(mensagemDoErro(e, "adicionar faixa de preço"));
+    return { erro: mensagemDoErro(e, contexto), mensagem: null, versao };
   }
-  revalidatePath("/painel/quadras/[id]", "page");
-  // Sucesso: limpa os dias e o preço, mantém as horas (facilita a faixa seguinte).
-  return { erro: null, ok: true, versao, valores: { dias: [], inicio: valores.inicio, fim: valores.fim, preco: "" } };
 }
 
-export async function removerFaixaAction(_estado: EstadoConfirmar, form: FormData): Promise<EstadoConfirmar> {
-  const sessao = await exigirSessao();
-  try {
-    const ok = await removerFaixa(poolCompartilhado(), sessao.arenaId, campo(form, "faixaId"));
-    if (!ok) return { erro: "Faixa não encontrada." };
-  } catch (e) {
-    return { erro: mensagemDoErro(e, "remover faixa de preço") };
-  }
-  revalidatePath("/painel/quadras/[id]", "page");
-  return { erro: null };
+const PRECO_INVALIDO = "Preço inválido. Use reais, por exemplo 80 ou 80,50.";
+const HORA_INVALIDA = "Hora inválida. Use o formato HH:MM.";
+
+export async function criarHorarioAction(estado: EstadoHorario, form: FormData): Promise<EstadoHorario> {
+  return rodar(estado, "criar horário", async (arenaId) => {
+    const preco = centavosDeTexto(campo(form, "preco"));
+    if (preco === null) return { erro: PRECO_INVALIDO };
+    const inicio = minutosDeTexto(campo(form, "inicio"));
+    const fim = minutosDeTexto(campo(form, "fim"), true);
+    if (inicio === null || fim === null) return { erro: HORA_INVALIDA };
+    const r = await criarHorario(poolCompartilhado(), arenaId, campo(form, "quadraId"), {
+      diaSemana: dia(form), inicio, fim, precoCentavos: preco,
+    });
+    return r.ok ? { mensagem: "Horário criado." } : { erro: r.erro };
+  });
+}
+
+export async function criarFixosAction(estado: EstadoHorario, form: FormData): Promise<EstadoHorario> {
+  return rodar(estado, "criar horários", async (arenaId) => {
+    const preco = centavosDeTexto(campo(form, "preco"));
+    if (preco === null) return { erro: PRECO_INVALIDO };
+    const das = minutosDeTexto(campo(form, "das"));
+    const ate = minutosDeTexto(campo(form, "ate"), true);
+    if (das === null || ate === null) return { erro: HORA_INVALIDA };
+    // Só as durações da lista: uma duração fracionada geraria uma lista enorme.
+    const duracao = /^\d{1,3}$/.test(campo(form, "duracao")) ? Number(campo(form, "duracao")) : Number.NaN;
+    if (!DURACOES_FIXOS.includes(duracao)) return { erro: "Duração inválida." };
+    const novos = gerarFixos({ diaSemana: dia(form), das, ate, duracao, precoCentavos: preco });
+    if (novos.length === 0) return { erro: "Nenhum horário cabe entre essas horas." };
+    const r = await criarHorarios(poolCompartilhado(), arenaId, campo(form, "quadraId"), novos);
+    return r.ok ? { mensagem: resumoLote(r.criados, r.pulados) } : { erro: r.erro };
+  });
+}
+
+export async function editarHorarioAction(estado: EstadoHorario, form: FormData): Promise<EstadoHorario> {
+  return rodar(estado, "editar horário", async (arenaId) => {
+    const preco = centavosDeTexto(campo(form, "preco"));
+    if (preco === null) return { erro: PRECO_INVALIDO };
+    const inicio = minutosDeTexto(campo(form, "inicio"));
+    const fim = minutosDeTexto(campo(form, "fim"), true);
+    if (inicio === null || fim === null) return { erro: HORA_INVALIDA };
+    const r = await editarHorario(poolCompartilhado(), arenaId, campo(form, "horarioId"), {
+      inicio, fim, precoCentavos: preco,
+    });
+    return r.ok ? { mensagem: "Horário atualizado." } : { erro: r.erro };
+  });
+}
+
+export async function apagarHorarioAction(estado: EstadoHorario, form: FormData): Promise<EstadoHorario> {
+  return rodar(estado, "apagar horário", async (arenaId) => {
+    const ok = await apagarHorario(poolCompartilhado(), arenaId, campo(form, "horarioId"));
+    return ok ? { mensagem: "Horário apagado." } : { erro: "Horário não encontrado." };
+  });
+}
+
+export async function copiarDiaAction(estado: EstadoHorario, form: FormData): Promise<EstadoHorario> {
+  return rodar(estado, "copiar dia", async (arenaId) => {
+    const destinos = form.getAll("destino").map((v) => (typeof v === "string" && /^[0-6]$/.test(v) ? Number(v) : Number.NaN));
+    const r = await copiarDia(poolCompartilhado(), arenaId, campo(form, "quadraId"), dia(form), destinos);
+    return r.ok ? { mensagem: resumoLote(r.criados, r.pulados) } : { erro: r.erro };
+  });
 }
