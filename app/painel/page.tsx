@@ -35,7 +35,15 @@ export default async function PaginaPainel() {
       ) : (
         <ul className="cartoes nao-imprimir">
           {quadras.map((q) => (
-            <li key={q.id} className="cartao">
+            <li key={q.id} className="cartao cartao-com-capa">
+              <div className="capa-quadra" aria-hidden="true">
+                {q.capaId ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache
+                  <img src={`/fotos/${q.capaId}`} alt="" loading="lazy" />
+                ) : (
+                  <span>{q.esporte || "Sem foto"}</span>
+                )}
+              </div>
               <h2>
                 <Link href={`/painel/quadras/${q.id}`}>{q.nome}</Link>
               </h2>

@@ -5,6 +5,7 @@ import {
   LIMITE_RESERVAS_POR_ARENA, LIMITE_RESERVAS_TOTAL, MSG_INDISPONIVEL, agendaDaArena, bloquearHorario, cancelarPeloDono, cancelarPeloJogador,
   criarReserva, removerBloqueio, lancesDaReservaDoJogador, periodosOcupados, reservasDoJogador, reservasFuturasPorArena,
 } from "../app/lib/reservas";
+import { reservarFoto } from "../app/lib/fotos";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao, criarCamera, criarHorariosDeHora, criarQuadra } from "./fixtures";
 
@@ -123,7 +124,7 @@ test("reserva ocupa e libera ao cancelar", async () => {
   const antes = await reservasDoJogador(db, ana, AGORA);
   expect(antes.proximas).toEqual([{
     id, arena: { nome: "Arena A", slug: arena.slug, latitude: null, longitude: null, endereco: SEM_ENDERECO },
-    quadraId: quadra.id, quadra: "Quadra 1", esporte: "", inicio: h(18), fim: h(20),
+    quadraId: quadra.id, quadra: "Quadra 1", esporte: "", fotoId: null, inicio: h(18), fim: h(20),
     totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", canceladaPor: null, motivoCancelamento: null, podeCancelar: true, lances: 0,
   }]);
   expect(antes.historico).toEqual([]);
@@ -157,6 +158,20 @@ test("reservas do jogador trazem a quadra (id e esporte) e o endereço da arena"
       endereco: { rua: "Rua A", numero: "10", bairro: "Centro", cidade: "Fortaleza", uf: "CE", cep: "60000-000" },
     },
   });
+});
+
+test("foto do cartão: capa da quadra; sem ela, capa da arena; sem as duas, null", async () => {
+  const db = await novoBanco();
+  const { arena, quadra, ana } = await base(db);
+  await reservar(db, ana, quadra.id, 18, 1);
+  const foto = async () => (await reservasDoJogador(db, ana, AGORA)).proximas[0].fotoId;
+  expect(await foto()).toBeNull();
+  const fa = await reservarFoto(db, arena.id, null, "image/webp", 1);
+  if (!fa.ok) throw new Error("foto");
+  expect(await foto()).toBe(fa.id);
+  const fq = await reservarFoto(db, arena.id, quadra.id, "image/webp", 1);
+  if (!fq.ok) throw new Error("foto");
+  expect(await foto()).toBe(fq.id);
 });
 
 test("cancelamento do jogador: 24h00 antes aceita, 23h59 recusa, de outro jogador recusa", async () => {

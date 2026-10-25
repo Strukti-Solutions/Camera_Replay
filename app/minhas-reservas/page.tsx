@@ -28,7 +28,10 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
   const quadra = r.esporte ? `${r.quadra} · ${r.esporte}` : r.quadra;
   return (
     <li className="rv-cartao">
-      <span className={`rv-foto rv-foto-${indice % 2}`} aria-hidden="true" />
+      <span className={`rv-foto rv-foto-${indice % 2}`} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache */}
+        {r.fotoId && <img src={`/fotos/${r.fotoId}`} alt="" loading="lazy" />}
+      </span>
       <div className="rv-corpo">
         <div className="rv-cabeca">
           <SeloData inicio={r.inicio} passada={passada} />

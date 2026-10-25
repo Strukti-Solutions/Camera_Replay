@@ -73,12 +73,19 @@ function paraCamera(l: LinhaCamera): CameraPainel | null {
 export async function listarQuadras(
   db: Pick<Db, "query">,
   arenaId: string,
-): Promise<{ id: string; nome: string; slug: string; camera: CameraPainel | null; botoesAtivos: number }[]> {
+): Promise<{
+  id: string; nome: string; slug: string; esporte: string; capaId: string | null; camera: CameraPainel | null; botoesAtivos: number;
+}[]> {
   if (!ehUuid(arenaId)) return [];
-  const { rows } = await db.query<LinhaCamera & { id: string; nome: string; slug: string; botoes_ativos: number }>(
-    `select q.id, q.nome, q.slug, ${COLUNAS_CAMERA},
+  const { rows } = await db.query<LinhaCamera & {
+    id: string; nome: string; slug: string; esporte: string; capa_id: string | null; botoes_ativos: number;
+  }>(
+    `select q.id, q.nome, q.slug, q.esporte, ${COLUNAS_CAMERA},
             (select count(*) from botoes b
-              where b.quadra_id = q.id and b.arena_id = q.arena_id and b.revogado_em is null)::int as botoes_ativos
+              where b.quadra_id = q.id and b.arena_id = q.arena_id and b.revogado_em is null)::int as botoes_ativos,
+            (select f.id from fotos f
+              where f.quadra_id = q.id and f.arena_id = q.arena_id
+              order by f.posicao, f.criado_em, f.id limit 1) as capa_id
        from quadras q
        ${CAMERA_RECENTE}
       where q.arena_id = $1
@@ -89,6 +96,8 @@ export async function listarQuadras(
     id: r.id,
     nome: r.nome,
     slug: r.slug,
+    esporte: r.esporte,
+    capaId: r.capa_id,
     camera: paraCamera(r),
     botoesAtivos: Number(r.botoes_ativos),
   }));

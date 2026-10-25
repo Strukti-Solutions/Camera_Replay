@@ -8,6 +8,7 @@ import {
   ErroPainel, apagarClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
   criarBotao, criarQuadra, definirEsporteQuadra, detalheQuadra, listarQuadras, renomearQuadra, revogarBotao, salvarNomeEsporteQuadra,
 } from "../app/lib/painel";
+import { reservarFoto, usarComoCapa } from "../app/lib/fotos";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao as fxBotao, criarCamera, criarQuadra as fxQuadra } from "./fixtures";
 
@@ -313,4 +314,19 @@ test("definirEsporteQuadra: apara, limita a 40, recusa quadra de outra arena e a
   expect(await esporte(qb.id)).toBe("");
   expect(await definirEsporteQuadra(db, a.id, qa.id, "   ")).toBe(true);
   expect(await esporte(qa.id)).toBe("");
+});
+
+test("lista de quadras traz o esporte e a capa (posição 0) de cada quadra", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const q1 = await fxQuadra(db, a.id);
+  const q2 = await fxQuadra(db, a.id);
+  await db.query("update quadras set nome = 'Zeta', esporte = 'Padel' where id = $1", [q2.id]);
+  const f1 = await reservarFoto(db, a.id, q1.id, "image/webp", 1);
+  const f2 = await reservarFoto(db, a.id, q1.id, "image/webp", 1);
+  await reservarFoto(db, a.id, null, "image/webp", 1); // foto da arena não é capa de quadra
+  if (!f1.ok || !f2.ok) throw new Error("foto");
+  await usarComoCapa(db, a.id, f2.id);
+  const lista = await listarQuadras(db, a.id);
+  expect(lista.map((q) => [q.id, q.esporte, q.capaId])).toEqual([[q1.id, "", f2.id], [q2.id, "Padel", null]]);
 });

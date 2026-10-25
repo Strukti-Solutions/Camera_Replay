@@ -2449,7 +2449,7 @@ a.pj-slot-escolhido:hover {
   }
 
   .rv-foto {
-    flex-basis: 0.75rem;
+    flex-basis: 4rem;
   }
 }
 
@@ -2632,5 +2632,34 @@ a.pj-slot-escolhido:hover {
   width: 1px;
   height: 1px;
   opacity: 0;
+  overflow: hidden;
+}
+
+/* Capa da quadra no cartão do painel; sem foto, fundo neutro com o esporte. */
+.cartao-com-capa {
+  overflow: hidden;
+  padding-top: 0;
+}
+
+.capa-quadra {
+  margin: 0 -1rem 0.25rem;
+  aspect-ratio: 3 / 1;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--navy-700), var(--navy-500));
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.capa-quadra img,
+.rv-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rv-foto {
+  position: relative;
   overflow: hidden;
 }

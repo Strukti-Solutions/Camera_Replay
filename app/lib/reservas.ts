@@ -243,6 +243,7 @@ export type ReservaJogador = {
   quadraId: string;
   quadra: string;
   esporte: string;
+  fotoId: string | null; // capa da quadra; sem ela, a da arena
   inicio: Date;
   fim: Date;
   totalCentavos: number;
@@ -263,7 +264,7 @@ export async function reservasDoJogador(
   const { rows } = await db.query<{
     id: string; arena_nome: string; arena_slug: string; latitude: number | null; longitude: number | null;
     rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null;
-    quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date;
+    quadra_id: string; quadra: string; esporte: string; foto_id: string | null; inicio: Date; fim: Date;
     total_centavos: number; pagamento: string; situacao: string; cancelada_por: string | null; lances: number;
     motivo_cancelamento: string | null;
   }>(
@@ -271,6 +272,12 @@ export async function reservasDoJogador(
             a.endereco_rua as rua, a.endereco_numero as numero, a.endereco_bairro as bairro,
             a.endereco_cidade as cidade, a.endereco_uf as uf, a.endereco_cep as cep,
             q.id as quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim,
+            coalesce(
+              (select f.id from fotos f where f.quadra_id = q.id and f.arena_id = a.id
+                order by f.posicao, f.criado_em, f.id limit 1),
+              (select f.id from fotos f where f.quadra_id is null and f.arena_id = a.id
+                order by f.posicao, f.criado_em, f.id limit 1)
+            ) as foto_id,
             r.total_centavos, r.pagamento, r.situacao, r.cancelada_por, r.motivo_cancelamento,
             case when r.situacao = 'confirmada' then (select count(*)::int ${CLIPES_DA_JANELA}) else 0 end as lances
        from reservas r
@@ -294,6 +301,7 @@ export async function reservasDoJogador(
       quadraId: r.quadra_id,
       quadra: r.quadra,
       esporte: r.esporte,
+      fotoId: r.foto_id,
       inicio,
       fim: new Date(r.fim),
       totalCentavos: Number(r.total_centavos),
