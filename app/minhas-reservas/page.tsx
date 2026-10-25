@@ -46,7 +46,7 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
           <SeloSituacao {...seloDaReserva(r, agora)} />
           {passada && r.lances > 0 && <span className="rv-selo rv-selo-lances">{textoLances(r.lances)}</span>}
         </p>
-        {!passada && (
+        {!passada && (r.pagamento === "arena" || r.podeCancelar) && (
           <p className="rv-nota">
             {r.pagamento === "arena" ? "Pagamento na arena" : null}
             {r.pagamento === "arena" && r.podeCancelar ? " · " : null}

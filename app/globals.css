@@ -2322,7 +2322,7 @@ a.pj-slot-escolhido:hover {
 }
 
 .rv-data-passada {
-  background: var(--navy-400);
+  background: var(--navy-500);
   color: #ffffff;
 }
 
@@ -2346,10 +2346,6 @@ a.pj-slot-escolhido:hover {
   margin: 0;
   color: var(--tinta-suave);
   font-size: 0.875rem;
-}
-
-.rv-nota:empty {
-  display: none;
 }
 
 .rv-linha {
