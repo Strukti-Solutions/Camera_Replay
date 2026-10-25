@@ -2,15 +2,19 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LinkVoltar } from "@/app/componentes/voltar";
 import { formatarHorario } from "@/app/lib/formato";
+import { FOTOS_MAX_ARENA, FOTOS_MAX_QUADRA, listarFotos } from "@/app/lib/fotos";
 import { detalheQuadra, listarQuadras } from "@/app/lib/painel";
 import { detalheArenaAdmin } from "@/app/lib/plataforma";
 import { poolCompartilhado } from "@/app/lib/pool";
+import { lerConfigR2 } from "@/app/lib/r2";
 import { textoCamera, textoVistoHa } from "@/app/painel/apresentacao";
+import { FotosDoDono, type AcoesFotos } from "@/app/painel/fotos/fotos";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { textoStatusArena, textoTaxa } from "../../apresentacao";
 import { CabecalhoAdmin } from "../../cabecalho";
 import { exigirSuperAdmin } from "../../sessao-admin-atual";
 import { revogarBotaoAction } from "./actions";
+import { apagarFotoAdminAction, capaFotoAdminAction, enviarFotosAdminAction, moverFotoAdminAction } from "./fotos-actions";
 import {
   FormularioCamera,
   FormularioCredenciais,
@@ -21,6 +25,10 @@ import {
 } from "./formularios";
 
 export const dynamic = "force-dynamic";
+
+const ACOES_FOTOS: AcoesFotos = {
+  enviar: enviarFotosAdminAction, apagar: apagarFotoAdminAction, mover: moverFotoAdminAction, capa: capaFotoAdminAction,
+};
 
 export const metadata: Metadata = {
   title: "Arena",
@@ -41,6 +49,12 @@ export default async function PaginaArenaAdmin({ params }: Props) {
   const detalhes = (await Promise.all(resumos.map((q) => detalheQuadra(db, arena.id, q.id)))).flatMap((d) =>
     d ? [d] : [],
   );
+  const [fotosArena, fotosQuadras] = await Promise.all([
+    listarFotos(db, arena.id, null),
+    Promise.all(detalhes.map((q) => listarFotos(db, arena.id, q.id))),
+  ]);
+  const armazenamento = lerConfigR2() !== null;
+  const admin = { acoes: ACOES_FOTOS, arenaId: arena.id };
   const agora = new Date();
 
   return (
@@ -76,14 +90,36 @@ export default async function PaginaArenaAdmin({ params }: Props) {
           <FormularioTaxa arenaId={arena.id} taxa={String(arena.taxaPercentual).replace(".", ",")} />
         </section>
 
+        <section className="secao" aria-labelledby="fotos-arena">
+          <h2 id="fotos-arena">Fotos da arena</h2>
+          <FotosDoDono
+            quadraId={null}
+            fotos={fotosArena}
+            max={FOTOS_MAX_ARENA}
+            armazenamento={armazenamento}
+            rotulo="da arena"
+            admin={admin}
+          />
+        </section>
+
         <h2>Quadras</h2>
         {detalhes.length === 0 && <p className="painel-vazio">Nenhuma quadra cadastrada.</p>}
-        {detalhes.map((quadra) => {
+        {detalhes.map((quadra, iq) => {
           const { camera } = quadra;
           return (
             <section key={quadra.id} className="secao" aria-labelledby={`quadra-${quadra.id}`}>
               <h3 id={`quadra-${quadra.id}`}>{quadra.nome}</h3>
               <FormularioRenomear arenaId={arena.id} quadraId={quadra.id} nome={quadra.nome} />
+
+              <h4>Fotos</h4>
+              <FotosDoDono
+                quadraId={quadra.id}
+                fotos={fotosQuadras[iq]}
+                max={FOTOS_MAX_QUADRA}
+                armazenamento={armazenamento}
+                rotulo={`da ${quadra.nome}`}
+                admin={admin}
+              />
 
               <h4>Câmera</h4>
               {camera ? (

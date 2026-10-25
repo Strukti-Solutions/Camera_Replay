@@ -147,12 +147,15 @@ export function usarComoCapa(db: Db, arenaId: string, fotoId: string): Promise<b
 }
 
 // Foto pública (divulgação): só pelo id, e só de arena ativa (suspensa sai da vitrine).
-export async function fotoParaServir(db: Pick<Db, "query">, fotoId: string): Promise<{ chave: string; tipo: TipoFoto } | null> {
+// `qualquerArena` é só para a rota do super admin, que vê também as suspensas.
+export async function fotoParaServir(
+  db: Pick<Db, "query">, fotoId: string, qualquerArena = false,
+): Promise<{ chave: string; tipo: TipoFoto } | null> {
   if (!ehUuid(fotoId)) return null;
   const { rows } = await db.query<{ chave: string; tipo: TipoFoto }>(
     `select f.chave, f.tipo from fotos f join arenas a on a.id = f.arena_id
-      where f.id = $1 and a.status_assinatura = 'ativa'`,
-    [fotoId],
+      where f.id = $1 and ($2 or a.status_assinatura = 'ativa')`,
+    [fotoId, qualquerArena],
   );
   return rows[0] ?? null;
 }

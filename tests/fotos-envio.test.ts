@@ -79,3 +79,17 @@ test("servir foto: 404 sem foto, 200 com tipo e cache de 1 dia, 502 se o R2 falh
   expect(falha.status).toBe(502);
   expect(falha.headers.get("cache-control")).toBe("no-store");
 });
+
+test("servirFoto: arena suspensa some da rota pública; o modo admin ainda serve, sem cache público", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  const r = await reservarFoto(db, a.id, null, "image/webp", 10);
+  if (!r.ok) throw new Error(r.erro);
+  const ler = async () => new Response("bytes");
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [a.id]);
+  expect((await servirFoto(db, ler, r.id)).status).toBe(404);
+  const adm = await servirFoto(db, ler, r.id, { admin: true });
+  expect(adm.status).toBe(200);
+  expect(adm.headers.get("cache-control")).toBe("private, max-age=300");
+  expect((await servirFoto(db, ler, "nao-e-uuid", { admin: true })).status).toBe(404);
+});

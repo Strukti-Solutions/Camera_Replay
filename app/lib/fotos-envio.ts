@@ -29,11 +29,13 @@ export async function enviarFoto(
 }
 
 // Rota pública /fotos/<id>. Cache de 1 dia (navegador e CDN): foto apagada some em até um dia.
+// `admin`: rota do super admin (quem chama confere a sessão). Serve também foto
+// de arena suspensa e não deixa a CDN guardar.
 export async function servirFoto(
-  db: Pick<Db, "query">, ler: (chave: string) => Promise<Response | null>, fotoId: string,
+  db: Pick<Db, "query">, ler: (chave: string) => Promise<Response | null>, fotoId: string, opcoes: { admin?: boolean } = {},
 ): Promise<Response> {
   const naoAchou = () => new Response("Foto não encontrada.", { status: 404, headers: { "cache-control": "no-store" } });
-  const foto = await fotoParaServir(db, fotoId);
+  const foto = await fotoParaServir(db, fotoId, opcoes.admin === true);
   if (!foto) return naoAchou();
   let res: Response | null;
   try {
@@ -48,7 +50,7 @@ export async function servirFoto(
     headers: {
       "content-type": foto.tipo,
       // s-maxage: a CDN da Vercel também guarda (sem ele, só o navegador guardaria).
-      "cache-control": "public, max-age=86400, s-maxage=86400",
+      "cache-control": opcoes.admin ? "private, max-age=300" : "public, max-age=86400, s-maxage=86400",
       // Defesa extra: mesmo aberto direto, nada nele roda como página.
       "content-security-policy": "default-src 'none'; sandbox",
     },

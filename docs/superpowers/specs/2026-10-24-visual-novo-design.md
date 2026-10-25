@@ -143,7 +143,7 @@ Migração dos dados: cada faixa de `precos_quadra` vira horários de 1 hora com
 - **Apagar:** apaga primeiro no R2 (404 conta como apagado) e depois a linha. Se o R2 falhar, nada muda e a tela avisa.
 - **Sem R2 configurado:** a tela mostra as fotos que houver e avisa que o envio está indisponível.
 - **Onde aparece na fase 3:** no painel (gestão das fotos da arena e de cada quadra, e a capa na lista de quadras) e em Minhas reservas (capa da quadra; sem ela, a capa da arena; sem as duas, o degradê). Página da arena e home usam as fotos nas fases 4 e 5.
-- **Strukti:** a tela de fotos do super admin fica para depois. Até lá, só o dono envia.
+- **Strukti:** o super admin gerencia as fotos de qualquer arena em `/admin/arenas/<id>` (mesma grade do dono; feito em 25/10). As imagens passam por `/admin/fotos/<id>`, que exige a sessão de admin e serve também foto de arena suspensa; a rota pública `/fotos/<id>` só serve foto de arena ativa.
 - **Pendências conhecidas:**
   - Quando existir apagar quadra ou arena, apagar também os arquivos do prefixo `fotos/<arenaId>/` no R2 (a cascata só apaga as linhas).
   - Sem JavaScript, a foto vai original, com os metadados (EXIF, inclusive GPS). Com JavaScript, a redução no navegador os remove.

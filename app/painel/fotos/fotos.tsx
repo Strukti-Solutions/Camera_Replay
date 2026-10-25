@@ -16,14 +16,31 @@ type Props = {
   max: number;
   armazenamento: boolean; // R2 configurado
   rotulo: string; // "da arena" ou "da quadra"
+  // Super admin: ações dele, a arena num campo oculto e as imagens pela rota /admin/fotos.
+  // Sem isto, valem as ações do dono (arena da sessão) e a rota pública.
+  admin?: { acoes: AcoesFotos; arenaId: string };
+};
+
+export type AcoesFotos = {
+  enviar: typeof enviarFotosAction;
+  apagar: typeof apagarFotoAction;
+  mover: typeof moverFotoAction;
+  capa: typeof capaFotoAction;
+};
+
+const ACOES_DO_DONO: AcoesFotos = {
+  enviar: enviarFotosAction, apagar: apagarFotoAction, mover: moverFotoAction, capa: capaFotoAction,
 };
 
 const INICIAL: EstadoFotos = { erro: null, enviadas: 0, versao: 0 };
 
 // Fotos do dono: grade com capa, mover, usar como capa e apagar; envio com a
 // foto reduzida no navegador. Sem JavaScript, o formulário envia o arquivo original.
-export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Props) {
-  const [estado, acaoForm, pendenteForm] = useActionState(enviarFotosAction, INICIAL);
+export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo, admin }: Props) {
+  const acoes = admin?.acoes ?? ACOES_DO_DONO;
+  const arena = admin ? <input type="hidden" name="arenaId" value={admin.arenaId} /> : null;
+  const srcFoto = (id: string) => (admin ? `/admin/fotos/${id}` : `/fotos/${id}`);
+  const [estado, acaoForm, pendenteForm] = useActionState(acoes.enviar, INICIAL);
   const [montado, setMontado] = useState(false);
   const [progresso, setProgresso] = useState<{ atual: number; total: number } | null>(null);
   const [resultado, setResultado] = useState<{ erro: string | null; enviadas: number } | null>(null);
@@ -55,8 +72,9 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
         }
         const form = new FormData();
         form.set("quadraId", quadraId ?? "");
+        if (admin) form.set("arenaId", admin.arenaId);
         form.set("foto", reduzida, arquivo.name);
-        const r = await enviarFotosAction({ ...INICIAL, versao: versao++ }, form);
+        const r = await acoes.enviar({ ...INICIAL, versao: versao++ }, form);
         if (r.erro) {
           erro = r.erro;
           break;
@@ -85,18 +103,20 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
             <li key={f.id} className="ft-item">
               <div className="ft-moldura">
                 {/* eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache */}
-                <img src={`/fotos/${f.id}`} alt={`Foto ${i + 1} ${rotulo}`} loading="lazy" />
+                <img src={srcFoto(f.id)} alt={`Foto ${i + 1} ${rotulo}`} loading="lazy" />
                 {i === 0 && <span className="ft-capa">Capa</span>}
               </div>
               <div className="ft-acoes">
-                <form action={moverFotoAction}>
+                <form action={acoes.mover}>
+                  {arena}
                   <input type="hidden" name="fotoId" value={f.id} />
                   <input type="hidden" name="direcao" value="-1" />
                   <button type="submit" className="botao ft-seta" disabled={i === 0} aria-label={`Mover foto ${i + 1} para a esquerda`}>
                     ‹
                   </button>
                 </form>
-                <form action={moverFotoAction}>
+                <form action={acoes.mover}>
+                  {arena}
                   <input type="hidden" name="fotoId" value={f.id} />
                   <input type="hidden" name="direcao" value="1" />
                   <button
@@ -109,7 +129,8 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
                   </button>
                 </form>
                 {i > 0 && (
-                  <form action={capaFotoAction}>
+                  <form action={acoes.capa}>
+                    {arena}
                     <input type="hidden" name="fotoId" value={f.id} />
                     <button type="submit" className="botao" aria-label={`Usar foto ${i + 1} como capa`}>
                       Capa
@@ -119,9 +140,10 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
                 {armazenamento && (
                   <Confirmar
                     rotuloAcessivel={`Apagar foto ${i + 1}`}
-                    acao={apagarFotoAction}
+                    acao={acoes.apagar}
                     campo="fotoId"
                     valor={f.id}
+                    extras={admin ? { arenaId: admin.arenaId } : undefined}
                     rotulo="Apagar"
                     pergunta={`Apagar a foto ${i + 1}? Não dá para desfazer.`}
                     confirmar="Sim, apagar foto"
@@ -150,6 +172,7 @@ export function FotosDoDono({ quadraId, fotos, max, armazenamento, rotulo }: Pro
           }}
         >
           <input type="hidden" name="quadraId" value={quadraId ?? ""} />
+          {arena}
           <label className="botao botao-cheio ft-escolher">
             {enviando ? "Enviando…" : "Adicionar fotos"}
             <input
