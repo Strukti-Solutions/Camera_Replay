@@ -4,11 +4,13 @@ import { LinkVoltar } from "@/app/componentes/voltar";
 import type { LeitorR2 } from "@/app/lib/clipes";
 import { formatarDuracao, formatarHorario, textoStatus } from "@/app/lib/formato";
 import { diaDaSemana, hojeLocal } from "@/app/lib/disponibilidade";
+import { FOTOS_MAX_QUADRA, listarFotos } from "@/app/lib/fotos";
 import { listarHorarios, reservasFuturasPorHorario } from "@/app/lib/horarios-quadra";
 import { clipesDoPainel, detalheQuadra } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { criarR2, lerConfigR2 } from "@/app/lib/r2";
 import { textoCamera, textoVistoHa } from "@/app/painel/apresentacao";
+import { FotosDoDono } from "@/app/painel/fotos/fotos";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import { VideoClipe } from "@/app/a/[slug]/video-clipe";
 import { apagarClipeAction } from "./actions";
@@ -43,6 +45,7 @@ export default async function PaginaQuadra({ params }: Props) {
   const agora = new Date();
   const horarios = await listarHorarios(db, sessao.arenaId, quadra.id);
   const reservasFuturas = await reservasFuturasPorHorario(db, sessao.arenaId, quadra.id, agora);
+  const fotos = await listarFotos(db, sessao.arenaId, quadra.id);
   const { camera } = quadra;
 
   return (
@@ -52,6 +55,11 @@ export default async function PaginaQuadra({ params }: Props) {
       <section className="secao" aria-labelledby="titulo-quadra">
         <h2 id="titulo-quadra">Quadra</h2>
         <FormularioQuadra quadraId={quadra.id} nome={quadra.nome} esporte={quadra.esporte} />
+      </section>
+
+      <section className="secao" aria-labelledby="titulo-fotos">
+        <h2 id="titulo-fotos">Fotos da quadra</h2>
+        <FotosDoDono quadraId={quadra.id} fotos={fotos} max={FOTOS_MAX_QUADRA} armazenamento={config !== null} rotulo="da quadra" />
       </section>
 
       <section className="secao" aria-labelledby="titulo-precos">

@@ -2515,3 +2515,122 @@ a.pj-slot-escolhido:hover {
   padding-inline: 0;
   max-width: none;
 }
+
+/* ---------- Fotos do dono (painel) ---------- */
+.ft {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ft-contador,
+.ft-status {
+  margin: 0;
+  color: var(--tinta-suave);
+}
+
+.ft-status:empty {
+  display: none;
+}
+
+.ft-grade {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 40rem) {
+  .ft-grade {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.ft-item {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.ft-moldura {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--raio);
+  overflow: hidden;
+  background: var(--realce);
+}
+
+.ft-moldura img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ft-capa {
+  position: absolute;
+  left: 0.4rem;
+  top: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--raio-campo);
+  background: var(--primario);
+  color: var(--sobre-primario);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ft-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.ft-acoes form {
+  margin: 0;
+}
+
+.ft-acoes .botao {
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.ft-acoes .confirmar {
+  margin-top: 0;
+}
+
+.ft-acoes .ft-seta {
+  font-size: 1.25rem;
+  padding-inline: 0;
+}
+
+.ft-seta:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ft-envio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+/* O campo de arquivo fica escondido dentro do botão; o foco aparece no botão. */
+.ft-escolher {
+  position: relative;
+}
+
+.ft-escolher:focus-within {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.ft-arquivo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
