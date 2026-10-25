@@ -20,6 +20,8 @@ import {
   mesesDoDono,
   paginarCaixinhas,
   semanaDoDia,
+  comAviso,
+  voltaSegura,
 } from "../app/painel/reservas/apresentacao";
 
 const AGORA = new Date("2026-10-24T15:00:00Z"); // 12h em São Paulo
@@ -240,4 +242,17 @@ test("mensagemDoBloqueio: só números, no singular e no plural", () => {
   expect(mensagemDoBloqueio(undefined, undefined)).toBeNull();
   expect(mensagemDoBloqueio("999", "0")).toBeNull();
   expect(mensagemOkAgenda("desbloqueado")).toBe("Bloqueio removido.");
+});
+
+test("voltaSegura: só caminhos da agenda; comAviso soma o aviso", () => {
+  expect(voltaSegura("/painel/reservas?quadra=q1&dia=2026-10-26&pagina=2")).toBe("/painel/reservas?quadra=q1&dia=2026-10-26&pagina=2");
+  expect(voltaSegura("/painel/reservas")).toBe("/painel/reservas");
+  expect(voltaSegura("https://mal.com/painel/reservas")).toBe("/painel/reservas");
+  expect(voltaSegura("//mal.com")).toBe("/painel/reservas");
+  expect(voltaSegura("/painel/reservas/../../x")).toBe("/painel/reservas");
+  expect(voltaSegura("/painel/reservas?x=<script>")).toBe("/painel/reservas");
+  expect(voltaSegura(null)).toBe("/painel/reservas");
+  expect(comAviso("/painel/reservas", { ok: "cancelada" })).toBe("/painel/reservas?ok=cancelada");
+  expect(comAviso("/painel/reservas?dia=2026-10-26&ok=velho", { bloqueados: "2", pulados: "0" }))
+    .toBe("/painel/reservas?dia=2026-10-26&bloqueados=2&pulados=0");
 });

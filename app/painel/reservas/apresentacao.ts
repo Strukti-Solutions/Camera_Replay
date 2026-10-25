@@ -238,6 +238,23 @@ export function hrefAgenda(p: {
   return s ? `/painel/reservas?${s}` : "/painel/reservas";
 }
 
+const VOLTA = /^\/painel\/reservas(\?[A-Za-z0-9=&%._-]*)?$/;
+
+// Para onde a ação volta: só a própria agenda, com parâmetros simples (nada de
+// outro site nem de outro caminho).
+export function voltaSegura(v: unknown): string {
+  return typeof v === "string" && VOLTA.test(v) ? v : "/painel/reservas";
+}
+
+// A volta com o aviso da ação, trocando os avisos que já estavam na URL.
+export function comAviso(volta: string, aviso: Record<string, string>): string {
+  const [caminho, busca = ""] = volta.split("?");
+  const q = new URLSearchParams(busca);
+  for (const k of ["ok", "bloqueados", "pulados"]) q.delete(k);
+  for (const [k, v] of Object.entries(aviso)) q.set(k, v);
+  return `${caminho}?${q.toString()}`;
+}
+
 const contagem = (v: string | string[] | undefined) => {
   const x = primeiroDe(v);
   return typeof x === "string" && /^\d{1,2}$/.test(x) ? Number(x) : null;

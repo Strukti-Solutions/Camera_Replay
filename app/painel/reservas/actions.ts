@@ -2,18 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { MOTIVO_CANCELAMENTO_MAX, bloquearHorario, cancelarPeloDono, removerBloqueio } from "@/app/lib/reservas";
+import { MOTIVO_CANCELAMENTO_MAX, bloquearHorarios, cancelarPeloDono, removerBloqueio } from "@/app/lib/reservas";
 import { exigirSessao } from "@/app/painel/sessao-atual";
 import {
   MSG_BLOQUEIO_NAO_REMOVIDO,
   MSG_DONO_NAO_CANCELOU,
   MSG_MOTIVO_LONGO,
   MSG_TENTE_DE_NOVO,
+  comAviso,
+  voltaSegura,
 } from "./apresentacao";
 
 // Server Actions são endpoints públicos: cada uma confere a sessão e usa só o
 // arenaId dela e o relógio do servidor. Id de outra arena = inexistente (a lib
-// filtra pelo arenaId).
+// filtra pelo arenaId). Depois de agir, voltam para o mesmo dia, quadra e
+// página da agenda (campo "volta", só caminhos da própria agenda).
 
 const campo = (form: FormData, nome: string) => {
   const v = form.get(nome);
@@ -33,7 +36,7 @@ export async function cancelarReservaDonoAction(_e: EstadoAgenda, form: FormData
     return { erro: MSG_TENTE_DE_NOVO };
   }
   if (!ok) return { erro: MSG_DONO_NAO_CANCELOU };
-  redirect("/painel/reservas?ok=cancelada");
+  redirect(comAviso(voltaSegura(campo(form, "volta")), { ok: "cancelada" }));
 }
 
 export async function removerBloqueioAction(_e: EstadoAgenda, form: FormData): Promise<EstadoAgenda> {
@@ -45,39 +48,34 @@ export async function removerBloqueioAction(_e: EstadoAgenda, form: FormData): P
     return { erro: MSG_TENTE_DE_NOVO };
   }
   if (!ok) return { erro: MSG_BLOQUEIO_NAO_REMOVIDO };
-  redirect("/painel/reservas?ok=removido");
+  redirect(comAviso(voltaSegura(campo(form, "volta")), { ok: "desbloqueado" }));
 }
 
-// Os valores digitados voltam no estado para o formulário não se apagar no erro.
-export type EstadoBloqueio = {
-  erro: string | null;
-  versao: number;
-  valores: { quadraId: string; dia: string; inicio: string; fim: string; motivo: string };
+// "inicio-fim" em minutos; o que não for isso vira NaN e a lib pula.
+const horarioDoCampo = (v: FormDataEntryValue) => {
+  const m = typeof v === "string" ? /^(\d{1,4})-(\d{1,4})$/.exec(v) : null;
+  return m ? { inicio: Number(m[1]), fim: Number(m[2]) } : { inicio: Number.NaN, fim: Number.NaN };
 };
 
-const hora = (t: string) => (/^\d{1,2}$/.test(t) ? Number(t) : Number.NaN);
-
-export async function bloquearHorarioAction(estado: EstadoBloqueio, form: FormData): Promise<EstadoBloqueio> {
+// Bloqueia um horário livre ou todos os livres do dia na quadra (campo "h" repetido).
+export async function bloquearAction(_e: EstadoAgenda, form: FormData): Promise<EstadoAgenda> {
   const { arenaId } = await exigirSessao();
-  const valores = {
-    quadraId: campo(form, "quadraId"),
-    dia: campo(form, "dia"),
-    inicio: campo(form, "inicio"),
-    fim: campo(form, "fim"),
-    motivo: campo(form, "motivo"),
-  };
-  const versao = estado.versao + 1;
-  let r: Awaited<ReturnType<typeof bloquearHorario>>;
+  let r: Awaited<ReturnType<typeof bloquearHorarios>>;
   try {
-    r = await bloquearHorario(
+    r = await bloquearHorarios(
       poolCompartilhado(),
       arenaId,
-      { quadraId: valores.quadraId, dia: valores.dia, inicio: hora(valores.inicio), fim: hora(valores.fim), motivo: valores.motivo },
+      {
+        quadraId: campo(form, "quadraId"),
+        dia: campo(form, "dia"),
+        horarios: form.getAll("h").map(horarioDoCampo),
+        motivo: campo(form, "motivo"),
+      },
       new Date(),
     );
   } catch {
-    return { erro: MSG_TENTE_DE_NOVO, versao, valores };
+    return { erro: MSG_TENTE_DE_NOVO };
   }
-  if (!r.ok) return { erro: r.erro, versao, valores };
-  redirect("/painel/reservas?ok=bloqueado");
+  if (!r.ok) return { erro: r.erro };
+  redirect(comAviso(voltaSegura(campo(form, "volta")), { bloqueados: String(r.bloqueados), pulados: String(r.pulados) }));
 }
