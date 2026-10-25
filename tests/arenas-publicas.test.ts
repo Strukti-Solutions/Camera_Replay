@@ -286,3 +286,31 @@ test("esportesDasArenas: sem repetir, sem vazio, só de arena ativa", async () =
   await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [c.id]);
   expect(await esportesDasArenas(db)).toEqual(["Beach tennis", "Padel"]);
 });
+
+test("cartoesDeArenas: esporte e nome gravados em NFD casam com busca e filtro", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena Pôr do Sol".normalize("NFD"));
+  await quadraDe(db, a.id, "Q", "Vôlei".normalize("NFD"));
+  const nomes = async (f: { busca?: string; esporte?: string }) => (await cartoesDeArenas(db, f)).map((x) => x.nome);
+  expect(await nomes({ esporte: "volei" })).toHaveLength(1);
+  expect(await nomes({ esporte: "Vôlei" })).toHaveLength(1);
+  expect(await nomes({ busca: "por do sol" })).toHaveLength(1);
+  expect(await nomes({ busca: "VÔLEI" })).toHaveLength(1);
+});
+
+test("cartoesDeArenas: bordas do filtro (suspensa, sem quadra, _ literal)", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena A_1");
+  await quadraDe(db, a.id, "Q", "Padel");
+  const s = await criarArena(db, "Arena Suspensa");
+  await quadraDe(db, s.id, "Q", "Padel");
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [s.id]);
+  await criarArena(db, "Arena Vazia");
+  const nomes = async (f: { busca?: string; esporte?: string }) => (await cartoesDeArenas(db, f)).map((x) => x.nome);
+  expect(await nomes({ esporte: "padel" })).toEqual(["Arena A_1"]); // suspensa fica de fora
+  expect(await nomes({ busca: "suspensa" })).toEqual([]);
+  expect(await nomes({ esporte: "padel", busca: "vazia" })).toEqual([]); // sem quadra não passa no filtro
+  expect(await nomes({ busca: "_" })).toEqual(["Arena A_1"]); // _ é texto, não curinga
+  expect(await nomes({ busca: "a_1" })).toEqual(["Arena A_1"]);
+  expect(await nomes({ busca: "ax1" })).toEqual([]);
+});

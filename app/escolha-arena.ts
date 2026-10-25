@@ -1,4 +1,5 @@
 import { textoDeCentavos } from "@/app/lib/precos";
+import { normalizar } from "@/app/lib/texto-busca";
 
 // Termo da busca da página de escolha da arena (/?busca=). Parâmetro repetido
 // vale o primeiro; o corte em 80 é o mesmo de listarArenasPublicas. O NUL sai (o Postgres recusa e o campo o devolveria).
@@ -7,15 +8,13 @@ export function termoDaBusca(valor: string | string[] | undefined): string {
   return typeof v === "string" ? v.replace(/\u0000/g, "").trim().slice(0, 80) : "";
 }
 
-const semAcento = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-
 // Esporte do filtro (/?esporte=): só um item da lista do banco, comparado sem
 // acento e sem maiúscula. O texto da URL nunca é exibido.
 export function lerEsporte(valor: string | string[] | undefined, esportes: string[]): string | null {
   const v = Array.isArray(valor) ? valor[0] : valor;
   if (typeof v !== "string" || !v.trim()) return null;
-  const chave = semAcento(v);
-  return esportes.find((e) => semAcento(e) === chave) ?? null;
+  const chave = normalizar(v);
+  return esportes.find((e) => normalizar(e) === chave) ?? null;
 }
 
 export function textoAPartirDe(c: { aPartirDe: number | null; porHora: boolean }): string {

@@ -18,5 +18,7 @@ export function normalizar(busca: unknown): string {
 }
 
 // Expressão SQL equivalente para uma coluna de texto (nula vira vazio). `col` é
-// sempre um nome fixo do código, nunca texto do usuário.
-export const sqlNorm = (col: string) => `translate(lower(coalesce(${col}, '')), '${ACENTOS}', '${SEM_ACENTO}')`;
+// sempre um nome fixo do código, nunca texto do usuário. O normalize(NFC) junta
+// letra + acento solto (texto gravado em NFD) para o translate reconhecer.
+export const sqlNorm = (col: string) =>
+  `translate(lower(normalize(coalesce(${col}, ''), NFC)), '${ACENTOS}', '${SEM_ACENTO}')`;

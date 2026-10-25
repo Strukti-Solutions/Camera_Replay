@@ -73,7 +73,8 @@ const FOTOS_NO_CARTAO = 5;
 // começa com maiúscula. Ordem alfabética.
 function esportesUnicos(lista: string[]): string[] {
   const porChave = new Map<string, string>();
-  for (const e of lista) {
+  for (const cru of lista) {
+    const e = cru.normalize("NFC");
     const chave = normalizar(e);
     if (!chave) continue;
     const atual = porChave.get(chave);
