@@ -1,4 +1,4 @@
-import { diaDaSemana, diasDisponiveis, hojeLocal, horariosDoDia, partesDoInstante } from "@/app/lib/disponibilidade";
+import { diaDaSemana, diasDisponiveis, hojeLocal, horariosDoDia, minutoDoFim, partesDoInstante } from "@/app/lib/disponibilidade";
 import { textoMinutos, type HorarioComId } from "@/app/lib/horarios";
 import { textoDeCentavos } from "@/app/lib/precos";
 import type { ItemAgenda } from "@/app/lib/reservas";
@@ -78,7 +78,7 @@ function situacaoDono(i: ItemAgenda): string {
 // "16h–18h · Quadra 1 — Padel · Ana · R$ 200,00 · Confirmada" ou
 // "16h–18h · Quadra 1 — Padel · Bloqueado · Aula" (horas cheias saem sem minutos; meia-noite no fim = 24h).
 export function linhaItem(i: ItemAgenda): string {
-  const horario = `${textoMinutos(partesDoInstante(i.inicio).minuto)}–${textoMinutos(partesDoInstante(i.fim).minuto || 1440)}`;
+  const horario = `${textoMinutos(partesDoInstante(i.inicio).minuto)}–${textoMinutos(minutoDoFim(i.fim))}`;
   const quadra = rotuloQuadra(i.quadra, i.esporte);
   if (i.tipo === "bloqueio") {
     const partes = [horario, quadra, "Bloqueado", i.motivo ?? ""];
@@ -189,7 +189,7 @@ export function caixinhasDoDia(
     const ocupados = doDia.filter((i) => i.situacao === "confirmada").map((i) => ({ inicio: i.inicio, fim: i.fim }));
     const livres = horariosDoDia(q.horarios, dia, agora, ocupados).filter((x) => x.livre);
     const caixinhas: Caixinha[] = [
-      ...doDia.map((i): Caixinha => ({ tipo: i.tipo, inicio: minutoDe(i.inicio), fim: minutoDe(i.fim) || 1440, item: i })),
+      ...doDia.map((i): Caixinha => ({ tipo: i.tipo, inicio: minutoDe(i.inicio), fim: minutoDoFim(i.fim), item: i })),
       ...livres.map((x): Caixinha => ({ tipo: "livre", inicio: x.horario.inicio, fim: x.horario.fim, precoCentavos: x.horario.precoCentavos })),
     ].sort((a, b) => a.inicio - b.inicio || pesoDoTipo(a) - pesoDoTipo(b));
     return {

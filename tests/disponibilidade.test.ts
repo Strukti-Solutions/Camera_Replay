@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { diaDaSemana, diaValido, diasDisponiveis, escolhaDeHorarios, hojeLocal, horariosDoDia, instanteDoMinuto, partesDoInstante } from "../app/lib/disponibilidade";
+import { describe, expect, it, test } from "vitest";
+import { diaDaSemana, diaValido, diasDisponiveis, escolhaDeHorarios, hojeLocal, horariosDoDia, instanteDoMinuto, minutoDoFim, partesDoInstante } from "../app/lib/disponibilidade";
 import type { HorarioComId } from "../app/lib/horarios";
 
 const AGORA = new Date("2026-10-23T21:30:00Z"); // sexta 18h30 em São Paulo
@@ -115,4 +115,9 @@ describe("instanteDoMinuto e partesDoInstante", () => {
     expect(partesDoInstante(new Date("2026-10-26T15:30:00-03:00"))).toEqual({ dia: "2026-10-26", minuto: 930 });
     expect(partesDoInstante(new Date("2026-10-26T00:00:00-03:00"))).toEqual({ dia: "2026-10-26", minuto: 0 });
   });
+});
+
+test("minutoDoFim: meia-noite no fim vale 1440; o resto é o minuto local", () => {
+  expect(minutoDoFim(new Date("2026-11-11T03:00:00Z"))).toBe(1440); // 00:00 em São Paulo
+  expect(minutoDoFim(new Date("2026-11-10T21:30:00Z"))).toBe(18 * 60 + 30);
 });

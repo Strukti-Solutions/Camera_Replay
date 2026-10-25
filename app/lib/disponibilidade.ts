@@ -122,3 +122,6 @@ export function partesDoInstante(d: Date): { dia: string; minuto: number } {
   const p = partesLocais(d);
   return { dia: p.dia, minuto: p.hora * 60 + p.minuto };
 }
+
+// Minuto local do fim de um período: meia-noite conta como 1440 (fim do dia do início).
+export const minutoDoFim = (d: Date): number => partesDoInstante(d).minuto || 1440;

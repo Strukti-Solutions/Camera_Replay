@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { irmaosAtrasDoMapa } from "@/app/componentes/mapa-arenas-calculo";
 import {
   chocam, DURACOES_FIXOS, gerarFixos, minutosDeTexto, primeiroChoque, separarChoques, textoIntervalo,
   textoMinutos, validarHorario, type HorarioComId,
@@ -72,9 +73,18 @@ function PainelLateral({ titulo, aoFechar, children }: { titulo: string; aoFecha
   const ref = useRef<HTMLDivElement>(null);
   const idTitulo = useId();
 
-  // Foco entra no painel ao abrir.
+  // Foco entra no painel ao abrir; o que fica atrás vira inert (nem foco, nem
+  // leitor de tela) enquanto ele está aberto. Só marca o que ainda não era inert.
+  const sombra = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.focus();
+    const atras = sombra.current
+      ? irmaosAtrasDoMapa<Element>(sombra.current, document.body).filter((el) => !el.hasAttribute("inert"))
+      : [];
+    for (const el of atras) el.setAttribute("inert", "");
+    return () => {
+      for (const el of atras) el.removeAttribute("inert");
+    };
   }, []);
 
   // Esc fecha; Tab fica dentro do painel.
@@ -106,7 +116,7 @@ function PainelLateral({ titulo, aoFechar, children }: { titulo: string; aoFecha
   }, [aoFechar]);
 
   return (
-    <div className="hr-sombra" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
+    <div ref={sombra} className="hr-sombra" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
       <div ref={ref} className="hr-painel" role="dialog" aria-modal="true" aria-labelledby={idTitulo} tabIndex={-1}>
         <div className="hr-painel-cabeca">
           <h3 id={idTitulo}>{titulo}</h3>

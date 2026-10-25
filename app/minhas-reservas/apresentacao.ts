@@ -1,4 +1,4 @@
-import { hojeLocal, partesDoInstante } from "@/app/lib/disponibilidade";
+import { hojeLocal, minutoDoFim, partesDoInstante } from "@/app/lib/disponibilidade";
 import { textoMinutos } from "@/app/lib/horarios";
 import { diaPorExtenso } from "@/app/a/[slug]/apresentacao";
 
@@ -19,12 +19,9 @@ export function mensagemOk(valor: string | string[] | undefined): string | null 
   return null;
 }
 
-// Fim à meia-noite conta como 24h (minuto 1440 do dia do início).
-const fimEmMinutos = (d: Date) => partesDoInstante(d).minuto || 1440;
-
 // "Segunda-feira, 26 de outubro · 15h30 às 17h15" (horas cheias saem como 16h).
 export function textoPeriodo(inicio: Date, fim: Date): string {
-  return `${diaPorExtenso(hojeLocal(inicio))} · ${textoMinutos(partesDoInstante(inicio).minuto)} às ${textoMinutos(fimEmMinutos(fim))}`;
+  return `${diaPorExtenso(hojeLocal(inicio))} · ${textoMinutos(partesDoInstante(inicio).minuto)} às ${textoMinutos(minutoDoFim(fim))}`;
 }
 
 type Parametro = string | string[] | undefined;
@@ -62,7 +59,7 @@ export function seloData(inicio: Date): { semana: string; dia: string } {
 
 // "18h às 20h" (o dia já está no selo).
 export function textoHorario(inicio: Date, fim: Date): string {
-  return `${textoMinutos(partesDoInstante(inicio).minuto)} às ${textoMinutos(fimEmMinutos(fim))}`;
+  return `${textoMinutos(partesDoInstante(inicio).minuto)} às ${textoMinutos(minutoDoFim(fim))}`;
 }
 
 // "cancelamento grátis até dom 25, 18h": 24 h antes do início.

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { diaPorExtenso, nomeDoMes } from "@/app/a/[slug]/apresentacao";
-import { hojeLocal, partesDoInstante } from "@/app/lib/disponibilidade";
+import { hojeLocal, minutoDoFim, partesDoInstante } from "@/app/lib/disponibilidade";
 import { textoMinutos } from "@/app/lib/horarios";
 import { listarHorarios } from "@/app/lib/horarios-quadra";
 import { listarQuadras } from "@/app/lib/painel";
@@ -29,7 +29,7 @@ const SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const DIA_CURTO = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "short" });
 const intervalo = (inicio: number, fim: number) => `${textoMinutos(inicio)}–${textoMinutos(fim)}`;
 const intervaloDoItem = (i: ItemAgenda) =>
-  intervalo(partesDoInstante(i.inicio).minuto, partesDoInstante(i.fim).minuto || 1440);
+  intervalo(partesDoInstante(i.inicio).minuto, minutoDoFim(i.fim));
 const primeiro = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 const reais = (n: number) => textoDeCentavos(n).replace(/,00$/, "");
 
