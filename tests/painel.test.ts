@@ -6,7 +6,7 @@ import { registrarAperto } from "../app/lib/aperto";
 import { hashToken } from "../app/lib/segredos";
 import {
   ErroPainel, apagarClipe, atualizarCredenciais, cadastrarCamera, clipesDoPainel,
-  criarBotao, criarQuadra, detalheQuadra, listarQuadras, renomearQuadra, revogarBotao, salvarNomeEsporteQuadra,
+  criarBotao, criarQuadra, definirEsporteQuadra, detalheQuadra, listarQuadras, renomearQuadra, revogarBotao, salvarNomeEsporteQuadra,
 } from "../app/lib/painel";
 import { novoBanco } from "./db";
 import { criarArena, criarBotao as fxBotao, criarCamera, criarQuadra as fxQuadra } from "./fixtures";
@@ -297,4 +297,20 @@ test("salvarNomeEsporteQuadra grava os dois ou nenhum", async () => {
   expect(await salvarNomeEsporteQuadra(db, b.id, q.id, "Invasor", "Gol")).toEqual({ ok: false, erro: "quadra" });
   expect(await salvarNomeEsporteQuadra(db, a.id, "malformado", "N", "")).toEqual({ ok: false, erro: "quadra" });
   expect(await linha()).toEqual({ nome: "Nova", esporte: "Vôlei" });
+});
+
+test("definirEsporteQuadra: apara, limita a 40, recusa quadra de outra arena e aceita vazio", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "A"), b = await criarArena(db, "B");
+  const qa = await fxQuadra(db, a.id), qb = await fxQuadra(db, b.id);
+  expect(await definirEsporteQuadra(db, a.id, qa.id, " Beach tennis ")).toBe(true);
+  const esporte = async (id: string) =>
+    (await db.query<{ esporte: string }>("select esporte from quadras where id = $1", [id])).rows[0].esporte;
+  expect(await esporte(qa.id)).toBe("Beach tennis");
+  expect(await definirEsporteQuadra(db, a.id, qa.id, "x".repeat(41))).toBe(false);
+  expect(await esporte(qa.id)).toBe("Beach tennis");
+  expect(await definirEsporteQuadra(db, a.id, qb.id, "Futevôlei")).toBe(false);
+  expect(await esporte(qb.id)).toBe("");
+  expect(await definirEsporteQuadra(db, a.id, qa.id, "   ")).toBe(true);
+  expect(await esporte(qa.id)).toBe("");
 });
