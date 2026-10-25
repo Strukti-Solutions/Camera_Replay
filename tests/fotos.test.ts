@@ -146,4 +146,8 @@ test("foto para servir e capas", async () => {
   expect(await fotoParaServir(db, q1.id)).toEqual({ chave: q1.chave, tipo: "image/png" });
   expect(await fotoParaServir(db, "nao-e-uuid")).toBeNull();
   expect(await fotoParaServir(db, "00000000-0000-4000-8000-000000000000")).toBeNull();
+  // Arena suspensa sai da divulgação: a foto deixa de ser servida.
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [arena.id]);
+  expect(await fotoParaServir(db, q1.id)).toBeNull();
+  expect(await fotoParaServir(db, a2.id)).toBeNull();
 });

@@ -282,12 +282,13 @@ export async function reservasDoJogador(
             a.endereco_rua as rua, a.endereco_numero as numero, a.endereco_bairro as bairro,
             a.endereco_cidade as cidade, a.endereco_uf as uf, a.endereco_cep as cep,
             q.id as quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim,
-            coalesce(
+            -- Arena suspensa: a rota /fotos não serve, então nem pede.
+            case when a.status_assinatura = 'ativa' then coalesce(
               (select f.id from fotos f where f.quadra_id = q.id and f.arena_id = a.id
                 order by f.posicao, f.criado_em, f.id limit 1),
               (select f.id from fotos f where f.quadra_id is null and f.arena_id = a.id
                 order by f.posicao, f.criado_em, f.id limit 1)
-            ) as foto_id,
+            ) end as foto_id,
             r.total_centavos, r.pagamento, r.situacao, r.cancelada_por, r.motivo_cancelamento,
             case when r.situacao = 'confirmada' then (select count(*)::int ${CLIPES_DA_JANELA}) else 0 end as lances
        from reservas r

@@ -172,6 +172,9 @@ test("foto do cartão: capa da quadra; sem ela, capa da arena; sem as duas, null
   const fq = await reservarFoto(db, arena.id, quadra.id, "image/webp", 1);
   if (!fq.ok) throw new Error("foto");
   expect(await foto()).toBe(fq.id);
+  // Arena suspensa: a rota pública não serve a foto, então o cartão fica sem.
+  await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [arena.id]);
+  expect(await foto()).toBeNull();
 });
 
 test("cancelamento do jogador: 24h00 antes aceita, 23h59 recusa, de outro jogador recusa", async () => {
