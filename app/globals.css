@@ -4108,3 +4108,53 @@ a.ar-quadra:focus-visible {
   outline: 3px solid var(--foco);
   outline-offset: 2px;
 }
+
+/* ---------- Lista de quadras do dono: preço, fotos e selo ---------- */
+
+.cartao-com-capa > .capa-quadra {
+  grid-row: 1 / span 3;
+}
+
+.qd-esporte {
+  color: var(--tinta-suave);
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.qd-resumo {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.qd-selo {
+  padding: 0.1rem 0.55rem;
+  border-radius: var(--raio-campo);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.qd-selo-ok {
+  background: color-mix(in srgb, var(--sucesso) 14%, var(--superficie));
+  color: var(--sucesso);
+}
+
+.qd-selo-falta {
+  background: color-mix(in srgb, var(--perigo) 12%, var(--superficie));
+  color: var(--perigo);
+}
+
+/* Mapinha da tela Arena do dono. */
+.ar-mapinha {
+  width: 100%;
+  height: 16rem;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  z-index: 0;
+  position: relative;
+}

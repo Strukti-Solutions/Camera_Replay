@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { AssinaturaStrukti } from "@/app/componentes/marca";
+import { textoAPartirDe } from "@/app/escolha-arena";
 import { slugDaArena } from "@/app/lib/arena-slug";
 import { listarQuadras } from "@/app/lib/painel";
 import { poolCompartilhado } from "@/app/lib/pool";
@@ -46,7 +47,17 @@ export default async function PaginaPainel() {
               </div>
               <h2>
                 <Link href={`/painel/quadras/${q.id}`}>{q.nome}</Link>
+                {q.esporte && <span className="qd-esporte"> · {q.esporte}</span>}
               </h2>
+              <p className="qd-resumo">
+                {q.aPartirDe !== null ? (
+                  <span className="qd-selo qd-selo-ok">Recebendo reservas</span>
+                ) : (
+                  <span className="qd-selo qd-selo-falta">Falta preço</span>
+                )}
+                {q.aPartirDe !== null && <span>{textoAPartirDe(q)}</span>}
+                <span>{q.fotos === 0 ? "Sem fotos" : q.fotos === 1 ? "1 foto" : `${q.fotos} fotos`}</span>
+              </p>
               <dl className="dados">
                 <div>
                   <dt>Câmera</dt>

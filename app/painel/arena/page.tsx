@@ -6,6 +6,7 @@ import { lerConfigR2 } from "@/app/lib/r2";
 import { FotosDoDono } from "../fotos/fotos";
 import { exigirSessao } from "../sessao-atual";
 import { FormularioArena } from "./formulario";
+import { MapinhaArena } from "./mapinha";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,17 @@ export default async function PaginaArena() {
         <>
           <p>O endereço ajuda os jogadores a encontrar a arena no mapa.</p>
           <FormularioArena nome={dados.nome} endereco={dados.endereco} />
+          <section className="secao" aria-labelledby="titulo-mapa">
+            <h2 id="titulo-mapa">No mapa</h2>
+            {dados.coordenadas ? (
+              <>
+                <p className="suave">É aqui que a arena aparece para os jogadores.</p>
+                <MapinhaArena latitude={dados.coordenadas.latitude} longitude={dados.coordenadas.longitude} nome={dados.nome} />
+              </>
+            ) : (
+              <p className="suave">Salve o endereço para a arena aparecer no mapa.</p>
+            )}
+          </section>
           <section className="secao" aria-labelledby="titulo-fotos">
             <h2 id="titulo-fotos">Fotos da arena</h2>
             <FotosDoDono
