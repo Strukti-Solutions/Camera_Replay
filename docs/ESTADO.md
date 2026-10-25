@@ -89,7 +89,7 @@ Falta a conta Asaas do dono. Pesquisa em `docs/pesquisa/asaas.md` (Checkout com 
 - Medir ainda: latência do relay (`RELAY_LAG_S`), sessão longa e concorrência com o app iCSee.
 - O dono aprovar: textos de interface escritos além dos briefs, o aviso da folha do QR e a decisão de que só aluno com reserva vê clipes.
 - Feito desde então (deploy em 22–23/10): variáveis na Vercel, migrações em produção, smoke do R2 e teste do link de download, app no ar. Ainda aberto: `x-real-ip` na Vercel; TLS e DNS rebinding em `xm/`; escolher o host do worker; na primeira limpeza após o deploy, clipes com 3 a 7 dias são apagados de vez (regra de 3 dias — avisar o dono).
-- Dívida conhecida (multi-arena): o worker ainda conecta nas câmeras de arenas suspensas (`listar_cameras` não filtra o status; tarefa futura de backend/captura); não há como remover um super admin nem encerrar sessões de admin sem mexer no banco; o CLI `criar-super-admin` pode ecoar a senha no Git Bash/mintty (usar PowerShell ou `winpty`).
+- Dívida conhecida (multi-arena): ~~o worker ainda conecta nas câmeras de arenas suspensas~~ (resolvido na migração 0020, 25/10: `listar_cameras` só traz arena ativa); não há como remover um super admin nem encerrar sessões de admin sem mexer no banco; o CLI `criar-super-admin` pode ecoar a senha no Git Bash/mintty (usar PowerShell ou `winpty`).
 - Dívida conhecida: `docs/divida-worker.md`; corrida de sobreposição de reservas (constraint de exclusão com `btree_gist` depois); `atribuirClipe` concorrente pode juntar as duas listas.
 
 ## Próximos passos

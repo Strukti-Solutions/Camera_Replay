@@ -59,6 +59,23 @@ describe("listar_cameras", () => {
     );
   });
 
+  it("arena suspensa: a câmera sai da lista e volta ao reativar", async () => {
+    const db = await novoBanco();
+    const a = await criarArena(db, "Ativa");
+    const qa = await criarQuadra(db, a.id);
+    const ca = await criarCamera(db, a.id, qa.id);
+    await criarBotao(db, a.id, qa.id, ca.id);
+    const s = await criarArena(db, "Suspensa");
+    const qs = await criarQuadra(db, s.id);
+    const cs = await criarCamera(db, s.id, qs.id);
+    await criarBotao(db, s.id, qs.id, cs.id);
+    await db.query("update arenas set status_assinatura = 'suspensa' where id = $1", [s.id]);
+    const lista = async () => (await db.query<Linha>("select * from listar_cameras()")).rows.map((x) => x.camera_id);
+    expect(await lista()).toEqual([ca.id]);
+    await db.query("update arenas set status_assinatura = 'ativa' where id = $1", [s.id]);
+    expect((await lista()).sort()).toEqual([ca.id, cs.id].sort());
+  });
+
   it("câmera com dois botões ativos aparece uma vez só", async () => {
     const db = await novoBanco();
     const a = await criarArena(db);
