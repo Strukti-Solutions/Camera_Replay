@@ -1,5 +1,6 @@
-import { FUSO, diasDisponiveis, hojeLocal } from "@/app/lib/disponibilidade";
-import { textoDeCentavos, textoHora } from "@/app/lib/precos";
+import { diasDisponiveis, hojeLocal, partesDoInstante } from "@/app/lib/disponibilidade";
+import { textoMinutos } from "@/app/lib/horarios";
+import { textoDeCentavos } from "@/app/lib/precos";
 import type { ItemAgenda } from "@/app/lib/reservas";
 
 // Textos e cortes da agenda do dono, sem cookie nem banco para testar direto.
@@ -64,9 +65,6 @@ export function porDia(dias: string[], itens: ItemAgenda[]): { dia: string; iten
   return dias.map((dia) => ({ dia, itens: itens.filter((i) => diaDo(i) === dia) }));
 }
 
-const HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", hourCycle: "h23" });
-const horaLocal = (d: Date) => Number(HORA.format(d));
-
 export function rotuloQuadra(nome: string, esporte: string): string {
   return esporte ? `${nome} — ${esporte}` : nome;
 }
@@ -78,9 +76,9 @@ function situacaoDono(i: ItemAgenda): string {
 }
 
 // "16h–18h · Quadra 1 — Padel · Ana · R$ 200,00 · Confirmada" ou
-// "16h–18h · Quadra 1 — Padel · Bloqueado · Aula" (horas cheias; meia-noite no fim = 24h).
+// "16h–18h · Quadra 1 — Padel · Bloqueado · Aula" (horas cheias saem sem minutos; meia-noite no fim = 24h).
 export function linhaItem(i: ItemAgenda): string {
-  const horario = `${textoHora(horaLocal(i.inicio))}–${textoHora(horaLocal(i.fim) || 24)}`;
+  const horario = `${textoMinutos(partesDoInstante(i.inicio).minuto)}–${textoMinutos(partesDoInstante(i.fim).minuto || 1440)}`;
   const quadra = rotuloQuadra(i.quadra, i.esporte);
   if (i.tipo === "bloqueio") {
     const partes = [horario, quadra, "Bloqueado", i.motivo ?? ""];
