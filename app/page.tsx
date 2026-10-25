@@ -3,6 +3,7 @@ import { BuscaArenas } from "@/app/componentes/busca-arenas";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
 import { CartaoDaArena } from "@/app/componentes/cartao-arena";
 import { MapaArenas, type PontoMapa } from "@/app/componentes/mapa-arenas";
+import { valido } from "@/app/componentes/mapa-arenas-calculo";
 import { cartoesDeArenas, esportesDasArenas, LIMITE_PUBLICO } from "@/app/lib/arenas-publicas";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { sessaoJogadorAtual } from "@/app/jogador/sessao-jogador";
@@ -34,6 +35,7 @@ export default async function EscolhaDaArena({ searchParams }: Props) {
   // Sem busca e sem filtro: vitrine ("em destaque", carrossel no celular).
   const vitrine = !busca && !esporte;
 
+  // Só pontos com coordenada válida: sem nenhum, a coluna do mapa nem aparece.
   const pontos: PontoMapa[] = arenas.flatMap((a) =>
     a.latitude === null || a.longitude === null
       ? []
@@ -49,7 +51,7 @@ export default async function EscolhaDaArena({ searchParams }: Props) {
             foto: a.fotos[0] ?? null,
           },
         ],
-  );
+  ).filter(valido);
 
   return (
     <>

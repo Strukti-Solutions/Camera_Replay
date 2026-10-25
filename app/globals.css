@@ -4158,3 +4158,9 @@ a.ar-quadra:focus-visible {
   z-index: 0;
   position: relative;
 }
+
+/* Faixa de fotos com foco (2+ fotos): o contorno fica por dentro, sem cortar. */
+.hm-faixa:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: -3px;
+}

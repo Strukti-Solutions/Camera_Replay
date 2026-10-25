@@ -3,8 +3,9 @@
 import { useRef, useState } from "react";
 
 // Fotos do card da arena numa faixa que rola de lado (deslizar no celular,
-// barra de rolagem ou Shift+roda no computador). As bolinhas acompanham a foto
-// à mostra. Sem JavaScript a faixa rola do mesmo jeito; só as bolinhas param.
+// barra de rolagem ou Shift+roda no computador; com 2+ fotos a faixa recebe foco
+// e rola pelas setas do teclado, inclusive no Safari). As bolinhas acompanham a
+// foto à mostra. Sem JavaScript a faixa rola do mesmo jeito; só as bolinhas param.
 export function FaixaDeFotos({ fotos, nome }: { fotos: string[]; nome: string }) {
   const [atual, setAtual] = useState(0);
   const faixa = useRef<HTMLDivElement>(null);
@@ -21,6 +22,7 @@ export function FaixaDeFotos({ fotos, nome }: { fotos: string[]; nome: string })
       <div
         ref={faixa}
         className="hm-faixa"
+        {...(fotos.length > 1 ? { tabIndex: 0, role: "region", "aria-label": `Fotos de ${nome}` } : {})}
         onScroll={() => {
           const f = faixa.current;
           if (f && f.clientWidth > 0) setAtual(Math.round(f.scrollLeft / f.clientWidth));
