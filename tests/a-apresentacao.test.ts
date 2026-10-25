@@ -1,8 +1,10 @@
 import { expect, test } from "vitest";
 import type { HorarioDoDia } from "../app/lib/disponibilidade";
 import {
-  diaPorExtenso, hrefDoHorario, hrefReservar, lerEscolha, lerReserva, linkComoChegar, textoDia, textoLances,
+  calendarioDoMes, diaPorExtenso, estadoDoDia, hrefDoHorario, hrefPasso1, hrefPasso2, hrefPasso3, hrefReservar, lerEscolha,
+  lerMes, lerReserva, linkComoChegar, livresPorDia, mesesDaJanela, nomeDoMes, passoDaEscolha, textoDia, textoLances,
 } from "../app/a/[slug]/apresentacao";
+import type { HorarioComId } from "../app/lib/horarios";
 
 // 17/10/2026, 17:00 em São Paulo.
 const agora = new Date("2026-10-17T20:00:00Z");
@@ -97,7 +99,7 @@ const consulta = (href: string) => Object.fromEntries(new URLSearchParams(href.s
 test("hrefDoHorario: sem seleção, escolhe só o alvo", () => {
   const h = alvoHref(null, 2);
   expect(h.startsWith("/a/arena-teste?")).toBe(true);
-  expect(h.endsWith("#quadra-q1")).toBe(true);
+  expect(h.endsWith("#reserva")).toBe(true);
   expect(consulta(h)).toEqual({ quadra: "q1", dia: "2026-10-26", inicio: "1080", qtd: "1" });
 });
 
@@ -127,7 +129,7 @@ test("hrefDoHorario: o último da seleção maior sai", () => {
 test("hrefDoHorario: o único selecionado tira a seleção", () => {
   const h = alvoHref({ inicio: 1080, qtd: 1 }, 2);
   expect(consulta(h)).toEqual({ quadra: "q1", dia: "2026-10-26" });
-  expect(h.endsWith("#quadra-q1")).toBe(true);
+  expect(h.endsWith("#reserva")).toBe(true);
 });
 
 test("hrefDoHorario: alvo no meio ou no começo de seleção maior recomeça nele", () => {
@@ -138,4 +140,76 @@ test("hrefDoHorario: alvo no meio ou no começo de seleção maior recomeça nel
 test("hrefDoHorario: alvo solto fora da seleção recomeça nele", () => {
   expect(consulta(alvoHref({ inicio: 930, qtd: 2 }, 5))).toMatchObject({ inicio: "1260", qtd: "1" });
   expect(consulta(alvoHref({ inicio: 1200, qtd: 1 }, 0))).toMatchObject({ inicio: "930", qtd: "1" });
+});
+
+// Domingo, 25/10/2026, 10h em São Paulo: a janela vai até 24/11.
+const domingo = new Date("2026-10-25T13:00:00Z");
+
+// Horários de 1 h, das 7h às 23h, todos os dias.
+const deHora: HorarioComId[] = [0, 1, 2, 3, 4, 5, 6].flatMap((d) =>
+  Array.from({ length: 16 }, (_, k) => ({ id: `h${d}-${k}`, diaSemana: d, inicio: (7 + k) * 60, fim: (8 + k) * 60, precoCentavos: 6000 })),
+);
+
+test("passo: sem quadra 1, quadra sem dia 2, quadra e dia 3", () => {
+  expect(passoDaEscolha({ quadra: null, diaNaUrl: false })).toBe(1);
+  expect(passoDaEscolha({ quadra: null, diaNaUrl: true })).toBe(1);
+  expect(passoDaEscolha({ quadra: "q1", diaNaUrl: false })).toBe(2);
+  expect(passoDaEscolha({ quadra: "q1", diaNaUrl: true })).toBe(3);
+});
+
+test("meses da janela e mês da URL: só os que tocam a janela", () => {
+  expect(mesesDaJanela(domingo)).toEqual(["2026-10", "2026-11"]);
+  expect(mesesDaJanela(new Date("2026-10-01T13:00:00Z"))).toEqual(["2026-10"]);
+  expect(lerMes("2026-11", domingo)).toBe("2026-11");
+  expect(lerMes(["2026-11"], domingo)).toBe("2026-11");
+  for (const v of ["2027-01", "2026-09", "lixo", "2026-1", "2026-13", undefined]) expect(lerMes(v, domingo)).toBe("2026-10");
+  expect(nomeDoMes("2026-10")).toBe("Outubro 2026");
+  expect(nomeDoMes("2026-03")).toBe("Março 2026");
+});
+
+test("estado do dia: 3+ livre, 1–2 poucos, 0 ou fora da janela indisponível", () => {
+  expect(estadoDoDia(3, true)).toBe("livre");
+  expect(estadoDoDia(2, true)).toBe("poucos");
+  expect(estadoDoDia(1, true)).toBe("poucos");
+  expect(estadoDoDia(0, true)).toBe("indisponivel");
+  expect(estadoDoDia(9, false)).toBe("indisponivel");
+});
+
+test("livres por dia: conta só o que começa depois de agora e não toca período ocupado", () => {
+  const ocupado = [{ inicio: new Date("2026-10-26T18:00:00-03:00"), fim: new Date("2026-10-26T20:00:00-03:00") }];
+  const m = livresPorDia(deHora, domingo, ocupado);
+  expect(m.get("2026-10-25")).toBe(12); // 11h a 22h
+  expect(m.get("2026-10-26")).toBe(14); // 16 menos 18h e 19h
+  expect(m.get("2026-11-24")).toBe(16);
+  expect(m.has("2026-11-25")).toBe(false);
+  expect(m.size).toBe(31);
+  // 23h30: o último horário de hoje (22h) já começou.
+  expect(livresPorDia(deHora, new Date("2026-10-26T02:30:00Z"), []).get("2026-10-25")).toBe(0);
+});
+
+test("calendário de outubro: semanas de domingo a sábado, passado e fora do mês apagados", () => {
+  const cal = calendarioDoMes("2026-10", domingo, livresPorDia(deHora, domingo, []));
+  expect(cal).toHaveLength(5);
+  expect(cal[0].map((d) => d.numero)).toEqual([27, 28, 29, 30, 1, 2, 3]);
+  expect(cal[0][0]).toMatchObject({ dia: "2026-09-27", doMes: false, estado: "indisponivel" });
+  const d = (dia: string) => cal.flat().find((x) => x.dia === dia)!;
+  expect(d("2026-10-24").estado).toBe("indisponivel");
+  expect(d("2026-10-25").estado).toBe("livre");
+  expect(cal[4].map((x) => x.numero)).toEqual([25, 26, 27, 28, 29, 30, 31]);
+});
+
+test("calendário de novembro: até 24/11 na janela, depois apagado", () => {
+  const cal = calendarioDoMes("2026-11", domingo, livresPorDia(deHora, domingo, []));
+  const d = (dia: string) => cal.flat().find((x) => x.dia === dia)!;
+  expect(cal[0][0].dia).toBe("2026-11-01");
+  expect(d("2026-11-24").estado).toBe("livre");
+  expect(d("2026-11-25").estado).toBe("indisponivel");
+  expect(cal[cal.length - 1].at(-1)).toMatchObject({ dia: "2026-12-05", doMes: false });
+});
+
+test("links dos passos: codificados e com a âncora do cartão", () => {
+  expect(hrefPasso1("a b")).toBe("/a/a%20b#reserva");
+  expect(hrefPasso2("slug", "q&1")).toBe("/a/slug?quadra=q%261#reserva");
+  expect(hrefPasso2("slug", "q1", "2026-11")).toBe("/a/slug?quadra=q1&mes=2026-11#reserva");
+  expect(hrefPasso3("slug", "q1", "2026-10-26")).toBe("/a/slug?quadra=q1&dia=2026-10-26#reserva");
 });

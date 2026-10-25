@@ -1,5 +1,7 @@
-import { FUSO, diaValido, hojeLocal, type HorarioDoDia } from "@/app/lib/disponibilidade";
-import { DURACAO_MAX, HORARIOS_SEGUIDOS_MAX } from "@/app/lib/horarios";
+import {
+  DIAS_A_FRENTE, FUSO, diaDaSemana, diaValido, hojeLocal, horariosDoDia, type HorarioDoDia, type Periodo,
+} from "@/app/lib/disponibilidade";
+import { DURACAO_MAX, HORARIOS_SEGUIDOS_MAX, type HorarioComId } from "@/app/lib/horarios";
 import { formatarHorario } from "@/app/lib/formato";
 
 // Regras de texto da página da arena (/a/<slug-da-arena>). Sem acesso a cookie nem a
@@ -135,8 +137,7 @@ export function hrefDoHorario(
     q.set("inicio", String(inicio));
     q.set("qtd", String(qtd));
   }
-  const quadra = encodeURIComponent(base.quadra);
-  return `/a/${encodeURIComponent(base.slug)}?${q.toString()}#quadra-${quadra}`;
+  return `/a/${encodeURIComponent(base.slug)}?${q.toString()}#reserva`;
 }
 
 const DIA_EXTENSO = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "long", day: "numeric", month: "long" });
@@ -147,4 +148,93 @@ export function diaPorExtenso(dia: string): string {
   const p = Object.fromEntries(DIA_EXTENSO.formatToParts(new Date(Date.UTC(a, m - 1, d, 15))).map((x) => [x.type, x.value]));
   const semana = p.weekday.charAt(0).toUpperCase() + p.weekday.slice(1);
   return `${semana}, ${p.day} de ${p.month}`;
+}
+
+// ---------- Passos da reserva (quadra → dia → horários) ----------
+
+// O passo vem da URL: sem quadra, 1; quadra sem dia, 2; quadra e dia, 3.
+export function passoDaEscolha(e: { quadra: string | null; diaNaUrl: boolean }): 1 | 2 | 3 {
+  if (e.quadra === null) return 1;
+  return e.diaNaUrl ? 3 : 2;
+}
+
+const somaDias = (dia: string, n: number) => {
+  const [a, m, d] = dia.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
+};
+
+// Dias da janela de reserva: hoje até hoje + DIAS_A_FRENTE.
+function diasDaJanela(agora: Date): string[] {
+  const hoje = hojeLocal(agora);
+  return Array.from({ length: DIAS_A_FRENTE + 1 }, (_, i) => somaDias(hoje, i));
+}
+
+// Meses (AAAA-MM) que tocam a janela: um ou dois.
+export function mesesDaJanela(agora: Date): string[] {
+  return [...new Set(diasDaJanela(agora).map((d) => d.slice(0, 7)))];
+}
+
+// Mês do calendário da URL; o que não toca a janela vira o mês de hoje.
+export function lerMes(v: string | string[] | undefined, agora: Date): string {
+  const m = primeiro(v);
+  const meses = mesesDaJanela(agora);
+  return m !== undefined && meses.includes(m) ? m : meses[0];
+}
+
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+export function nomeDoMes(mes: string): string {
+  return `${MESES[Number(mes.slice(5, 7)) - 1]} ${mes.slice(0, 4)}`;
+}
+
+export type EstadoDoDia = "livre" | "poucos" | "indisponivel";
+
+// 3 ou mais livres: livre; 1 ou 2: poucos; nenhum ou fora da janela: indisponível.
+export function estadoDoDia(livres: number, valido: boolean): EstadoDoDia {
+  if (!valido || livres <= 0) return "indisponivel";
+  return livres >= 3 ? "livre" : "poucos";
+}
+
+// Horários livres de cada dia da janela (só os que começam depois de agora).
+export function livresPorDia(horarios: HorarioComId[], agora: Date, ocupados: Periodo[]): Map<string, number> {
+  return new Map(diasDaJanela(agora).map((d) => [d, horariosDoDia(horarios, d, agora, ocupados).filter((x) => x.livre).length]));
+}
+
+export type DiaDoCalendario = { dia: string; numero: number; doMes: boolean; estado: EstadoDoDia };
+
+// Semanas de domingo a sábado cobrindo o mês; dias de fora do mês completam as pontas.
+export function calendarioDoMes(mes: string, agora: Date, livres: Map<string, number>): DiaDoCalendario[][] {
+  const primeiroDia = `${mes}-01`;
+  const [a, m] = mes.split("-").map(Number);
+  const ultimoDia = new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
+  const inicio = somaDias(primeiroDia, -diaDaSemana(primeiroDia));
+  const fim = somaDias(ultimoDia, 6 - diaDaSemana(ultimoDia));
+  const semanas: DiaDoCalendario[][] = [];
+  for (let d = inicio; d <= fim; d = somaDias(d, 1)) {
+    if (diaDaSemana(d) === 0) semanas.push([]);
+    const doMes = d.slice(0, 7) === mes;
+    semanas[semanas.length - 1].push({
+      dia: d,
+      numero: Number(d.slice(8)),
+      doMes,
+      estado: estadoDoDia(livres.get(d) ?? 0, doMes && livres.has(d)),
+    });
+  }
+  return semanas;
+}
+
+const caminhoDaArena = (slug: string) => `/a/${encodeURIComponent(slug)}`;
+
+export function hrefPasso1(slug: string): string {
+  return `${caminhoDaArena(slug)}#reserva`;
+}
+
+export function hrefPasso2(slug: string, quadra: string, mes?: string): string {
+  const q = new URLSearchParams({ quadra });
+  if (mes) q.set("mes", mes);
+  return `${caminhoDaArena(slug)}?${q.toString()}#reserva`;
+}
+
+export function hrefPasso3(slug: string, quadra: string, dia: string): string {
+  return `${caminhoDaArena(slug)}?${new URLSearchParams({ quadra, dia }).toString()}#reserva`;
 }

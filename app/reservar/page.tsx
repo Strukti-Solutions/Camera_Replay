@@ -75,7 +75,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
 
   const volta = `/a/${arena.slug}?${new URLSearchParams({
     quadra: quadra.id, dia: escolha.dia, inicio: String(preco.inicio), qtd: String(preco.itens.length),
-  }).toString()}#quadra-${quadra.id}`;
+  }).toString()}#reserva`;
 
   return (
     <>
