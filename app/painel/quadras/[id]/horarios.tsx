@@ -431,7 +431,23 @@ export function HorariosDaQuadra({
       (el && el.isConnected ? el : botaoNovo.current)?.focus();
     }
     estavaAberto.current = aberto;
-  }, [aberto]);
+  }, [aberto, horarios]);
+
+  // Foco pedido por quem apagou: roda depois do render, quando o botão já está habilitado.
+  const [focarNovo, setFocarNovo] = useState(false);
+  const [focarX, setFocarX] = useState<string | null>(null);
+  useEffect(() => {
+    if (focarNovo) {
+      botaoNovo.current?.focus();
+      setFocarNovo(false);
+    }
+  }, [focarNovo, horarios]);
+  useEffect(() => {
+    if (focarX) {
+      document.getElementById(`hr-x-${focarX}`)?.focus();
+      setFocarX(null);
+    }
+  }, [focarX]);
 
   const abrir = (p: Painel, el: HTMLElement) => {
     abridor.current = el;
@@ -445,14 +461,14 @@ export function HorariosDaQuadra({
   };
   const concluir = (m: string) => {
     // Apagou pela caixinha: a caixinha some e o foco iria para o body.
-    if (apagando) requestAnimationFrame(() => botaoNovo.current?.focus());
+    if (apagando) setFocarNovo(true);
     setMensagem(m);
     setApagando(null);
     fechar();
   };
   const cancelarApagar = (id: string) => {
     setApagando(null);
-    requestAnimationFrame(() => document.getElementById(`hr-x-${id}`)?.focus());
+    setFocarX(id);
   };
 
   return (

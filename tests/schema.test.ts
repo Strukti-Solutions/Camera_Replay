@@ -453,11 +453,15 @@ test("migração 0017 copia cada faixa de precos_quadra em horários de 1 hora",
     await db.query(
       "insert into precos_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1, $2, 1, 7, 9, 8000)",
       [a.id, q.id]);
+    await db.query(
+      "insert into precos_quadra (arena_id, quadra_id, dia_semana, inicio, fim, preco_centavos) values ($1, $2, 1, 23, 24, 9000)",
+      [a.id, q.id]);
     expect(await migrar(db)).toEqual(["0017_horarios.sql", "0018_sem_precos_quadra.sql"]);
     const r = await db.query("select dia_semana, inicio, fim, preco_centavos from horarios_quadra order by inicio");
     expect(r.rows).toEqual([
       { dia_semana: 1, inicio: 420, fim: 480, preco_centavos: 8000 },
       { dia_semana: 1, inicio: 480, fim: 540, preco_centavos: 8000 },
+      { dia_semana: 1, inicio: 1380, fim: 1440, preco_centavos: 9000 },
     ]);
   } finally {
     rmSync(pasta, { recursive: true, force: true });
