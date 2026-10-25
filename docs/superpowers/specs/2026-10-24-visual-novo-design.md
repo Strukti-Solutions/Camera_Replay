@@ -61,7 +61,7 @@ Sucesso: abrir no computador e no celular e as duas versões parecerem pensadas 
 - **Fotos e escolha de quadra:** enquanto o jogador não escolheu quadra, as fotos da arena passam sozinhas (troca a cada poucos segundos, com bolinhas). Ao escolher uma quadra, a foto muda para a capa daquela quadra e fica parada, com o nome da quadra no canto.
 - **Carrossel de 3 passos**, com tracinhos de progresso e "‹" para voltar ao passo anterior:
   1. **Quadra:** lista das quadras com esporte e "a partir de".
-  2. **Dia:** calendário do mês inteiro (todas as semanas visíveis, preenchendo o cartão até a altura da foto); dias com horário livre em azul, poucos horários em amarelo, indisponíveis (passados, lotados ou sem horário) apagados; setas para mudar de mês dentro da janela de reserva. Botão "Ver horários".
+  2. **Dia:** calendário do mês inteiro (todas as semanas visíveis, preenchendo o cartão até a altura da foto); dias com horário livre em azul, poucos horários em amarelo, indisponíveis (passados, lotados ou sem horário) apagados; setas para mudar de mês dentro da janela de reserva. Tocar num dia já abre os horários, sem botão "Ver horários" (decisão do dono, 25/10).
   3. **Horário:** os horários do dia criados pelo dono, em caixinhas com preço; ocupados tracejados. No computador, mostrar o dia inteiro agrupado em "madrugada e manhã", "tarde" e "noite", para preencher o cartão. O jogador pode marcar horários seguidos para jogar mais tempo. Resumo (quadra, dia, horário, total, "Pagamento na arena · cancelamento grátis até 24 h antes") e botão Reservar.
 
 ### Horários e preços (dono, dentro da quadra) — muda o modelo
