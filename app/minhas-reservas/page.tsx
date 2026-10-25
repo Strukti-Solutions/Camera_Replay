@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CabecalhoPublico } from "@/app/componentes/cabecalho-publico";
+import { CartaoInclinavel } from "@/app/componentes/cartao-inclinavel";
 import { exigirJogador } from "@/app/jogador/sessao-jogador";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { poolCompartilhado } from "@/app/lib/pool";
@@ -27,8 +28,8 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
   const comoChegar = passada ? null : linkComoChegar(r.arena);
   const quadra = r.esporte ? `${r.quadra} · ${r.esporte}` : r.quadra;
   return (
-    <li className="rv-cartao">
-      <span className={`rv-foto rv-foto-${indice % 2}`} aria-hidden="true">
+    <CartaoInclinavel className="rv-cartao">
+      <span className={`rv-foto vidro rv-foto-${indice % 2}`} aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element -- rota própria, já com cache */}
         {r.fotoId && <img src={`/fotos/${r.fotoId}`} alt="" loading="lazy" />}
       </span>
@@ -89,7 +90,7 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
           )}
         </div>
       </div>
-    </li>
+    </CartaoInclinavel>
   );
 }
 
