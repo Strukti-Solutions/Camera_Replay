@@ -164,3 +164,9 @@
 - [ ] Rodar a suíte e o typecheck.
 - [ ] Conferir no navegador.
 - [ ] Commit `feat(agenda): calendário do dono com caixinhas e ações`.
+
+## Decisões tomadas na construção
+
+- `podeBloquear` não existe: as caixinhas livres já saem de `horariosDoDia`, que só traz horários que ainda não começaram, então todo "Bloquear" mostrado é válido.
+- "Bloquear o dia todo" só aparece com 2 ou mais horários livres; com 1, o "Bloquear" do próprio horário faz o mesmo.
+- A paginação da agenda é só com setas (‹ e ›) e "Página X de Y" no meio, a pedido do dono.
