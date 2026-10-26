@@ -20,6 +20,7 @@ import {
   FormularioCredenciais,
   FormularioNovaQuadra,
   FormularioRenomear,
+  FormularioCarteira,
   FormularioTaxa,
   NovoBotao,
 } from "./formularios";
@@ -84,10 +85,18 @@ export default async function PaginaArenaAdmin({ params }: Props) {
             <dt>Taxa</dt>
             <dd>{textoTaxa(arena.taxaPercentual)}</dd>
           </div>
+          <div>
+            <dt>Pagamento</dt>
+            <dd>{arena.carteiraAsaas ? "Online (Asaas)" : "Na arena"}</dd>
+          </div>
         </dl>
 
         <section className="secao">
           <FormularioTaxa arenaId={arena.id} taxa={String(arena.taxaPercentual).replace(".", ",")} />
+        </section>
+
+        <section className="secao">
+          <FormularioCarteira arenaId={arena.id} carteira={arena.carteiraAsaas ?? ""} />
         </section>
 
         <section className="secao" aria-labelledby="fotos-arena">

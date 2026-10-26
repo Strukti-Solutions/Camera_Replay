@@ -3,7 +3,7 @@ import { novoBanco } from "./db";
 import { criarArena, criarQuadra } from "./fixtures";
 import { hashSenha } from "../app/lib/senha";
 import {
-  criarArenaAdmin, criarSuperAdmin, definirStatusArena, definirTaxaArena, detalheArenaAdmin, listarArenasAdmin,
+  criarArenaAdmin, criarSuperAdmin, definirCarteiraAsaas, definirStatusArena, definirTaxaArena, detalheArenaAdmin, listarArenasAdmin,
 } from "../app/lib/plataforma";
 import { listarArenasPublicas } from "../app/lib/arenas-publicas";
 import { entrarUnico } from "../app/lib/entrar-unico";
@@ -144,4 +144,18 @@ test("definirTaxaArena aceita 0, 7,5 e 30 e recusa -1, 30,01 e 7,555", async () 
   expect((await detalheArenaAdmin(db, a.id))?.taxaPercentual).toBe(30);
   expect(await definirTaxaArena(db, "00000000-0000-4000-8000-000000000000", 5)).toBe(false);
   expect(await definirTaxaArena(db, "x", 5)).toBe(false);
+});
+
+test("definirCarteiraAsaas: aceita walletId (uuid), em branco desvincula; lixo e arena inexistente recusam", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db);
+  expect((await detalheArenaAdmin(db, a.id))?.carteiraAsaas).toBeNull();
+  const w = "0F0E8C2A-6C4E-4C4C-9A3C-1B2D3E4F5A6B";
+  expect(await definirCarteiraAsaas(db, a.id, ` ${w} `)).toBe(true);
+  expect((await detalheArenaAdmin(db, a.id))?.carteiraAsaas).toBe(w.toLowerCase());
+  expect(await definirCarteiraAsaas(db, a.id, "lixo")).toBe(false);
+  expect((await detalheArenaAdmin(db, a.id))?.carteiraAsaas).toBe(w.toLowerCase());
+  expect(await definirCarteiraAsaas(db, a.id, "")).toBe(true);
+  expect((await detalheArenaAdmin(db, a.id))?.carteiraAsaas).toBeNull();
+  expect(await definirCarteiraAsaas(db, "00000000-0000-4000-8000-000000000000", w)).toBe(false);
 });

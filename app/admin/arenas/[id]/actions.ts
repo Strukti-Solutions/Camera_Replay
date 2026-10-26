@@ -10,7 +10,7 @@ import {
   renomearQuadra,
   revogarBotao,
 } from "@/app/lib/painel";
-import { definirTaxaArena, detalheArenaAdmin } from "@/app/lib/plataforma";
+import { definirCarteiraAsaas, definirTaxaArena, detalheArenaAdmin } from "@/app/lib/plataforma";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { mensagemDoErro } from "@/app/painel/apresentacao";
 import { lerTaxa } from "../../apresentacao";
@@ -61,6 +61,25 @@ export async function definirTaxaAction(_estado: EstadoTaxa, form: FormData): Pr
   }
   revalidar(arenaId);
   return { erro: null, ok: true, valor };
+}
+
+// ---------- Carteira Asaas ----------
+
+export type EstadoCarteira = { erro: string | null; ok: boolean; valor: string };
+
+export async function definirCarteiraAction(_estado: EstadoCarteira, form: FormData): Promise<EstadoCarteira> {
+  const valor = campo(form, "carteira").slice(0, 60);
+  const arenaId = await arenaConferida(form);
+  if (!arenaId) return { erro: ARENA_NAO_ENCONTRADA, ok: false, valor };
+  try {
+    const ok = await definirCarteiraAsaas(poolCompartilhado(), arenaId, valor);
+    if (!ok) return { erro: "Carteira inválida: copie o walletId do Asaas do dono (ex.: 0f0e8c2a-6c4e-…).", ok: false, valor };
+  } catch (e) {
+    return { erro: mensagemDoErro(e, "definir carteira"), ok: false, valor };
+  }
+  revalidar(arenaId);
+  revalidatePath("/a/[slug]", "page");
+  return { erro: null, ok: true, valor: valor.trim().toLowerCase() };
 }
 
 // ---------- Quadras ----------

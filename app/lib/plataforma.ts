@@ -80,6 +80,7 @@ export async function criarSuperAdmin(db: Db, dados: { email: string; senha: str
 export type DetalheArenaAdmin = {
   id: string; nome: string; slug: string; status: StatusArena;
   taxaPercentual: number; donoEmail: string | null;
+  carteiraAsaas: string | null; // walletId do dono no Asaas; null = "pagar na arena"
 };
 
 // Uma arena para a página de configuração. Id malformado vale como inexistente
@@ -88,15 +89,28 @@ export async function detalheArenaAdmin(db: Db, arenaId: string): Promise<Detalh
   if (typeof arenaId !== "string" || !UUID.test(arenaId)) return null;
   const { rows } = await db.query<{
     id: string; nome: string; slug: string; status: StatusArena; taxa: string | number; dono_email: string | null;
+    carteira: string | null;
   }>(
-    `select a.id, a.nome, a.slug, a.status_assinatura as status, a.taxa_percentual as taxa,
+    `select a.id, a.nome, a.slug, a.status_assinatura as status, a.taxa_percentual as taxa, a.asaas_wallet_id as carteira,
             (select min(u.email) from usuarios u where u.arena_id = a.id and u.papel = 'dono') as dono_email
        from arenas a where a.id = $1`,
     [arenaId],
   );
   const r = rows[0];
   if (!r) return null;
-  return { id: r.id, nome: r.nome, slug: r.slug, status: r.status, taxaPercentual: Number(r.taxa), donoEmail: r.dono_email };
+  return { id: r.id, nome: r.nome, slug: r.slug, status: r.status, taxaPercentual: Number(r.taxa), donoEmail: r.dono_email,
+    carteiraAsaas: r.carteira };
+}
+
+// Carteira Asaas do dono (walletId, um uuid) para o split das reservas online.
+// Em branco desvincula: a arena volta ao "pagar na arena". Formato inválido ou
+// arena inexistente devolvem false sem gravar.
+export async function definirCarteiraAsaas(db: Db, arenaId: string, carteira: string): Promise<boolean> {
+  if (typeof arenaId !== "string" || !UUID.test(arenaId) || typeof carteira !== "string") return false;
+  const valor = carteira.trim().toLowerCase();
+  if (valor !== "" && !UUID.test(valor)) return false;
+  const r = await db.query("update arenas set asaas_wallet_id = $2 where id = $1 returning id", [arenaId, valor || null]);
+  return r.rows.length === 1;
 }
 
 export const TAXA_MAX = 30;

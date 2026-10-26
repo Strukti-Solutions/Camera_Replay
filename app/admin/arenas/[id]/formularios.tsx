@@ -6,11 +6,13 @@ import {
   cadastrarCameraAction,
   criarBotaoAction,
   criarQuadraAction,
+  definirCarteiraAction,
   definirTaxaAction,
   renomearQuadraAction,
   type EstadoCredenciais,
   type EstadoNovoBotao,
   type EstadoRenomear,
+  type EstadoCarteira,
   type EstadoTaxa,
 } from "./actions";
 
@@ -50,6 +52,46 @@ export function FormularioTaxa({ arenaId, taxa }: { arenaId: string; taxa: strin
       </p>
       <button type="submit" className="botao botao-cheio" disabled={pendente}>
         {pendente ? "Salvando…" : "Salvar taxa"}
+      </button>
+    </form>
+  );
+}
+
+// walletId da conta Asaas do próprio dono (a conta da Strukti é PF e não cria
+// subcontas). Com carteira, a arena cobra online; em branco, "pagar na arena".
+export function FormularioCarteira({ arenaId, carteira }: { arenaId: string; carteira: string }) {
+  const inicial: EstadoCarteira = { erro: null, ok: false, valor: carteira };
+  const [estado, acao, pendente] = useActionState(definirCarteiraAction, inicial);
+  return (
+    <form action={acao} className="formulario" aria-labelledby="titulo-carteira">
+      <h2 id="titulo-carteira">Pagamento online (Asaas)</h2>
+      <input type="hidden" name="arenaId" value={arenaId} />
+      <div className="campo">
+        <label htmlFor="carteira-valor">Carteira Asaas do dono (walletId)</label>
+        <input
+          id="carteira-valor"
+          name="carteira"
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={60}
+          className="mono"
+          defaultValue={estado.valor}
+          aria-describedby="carteira-dica"
+        />
+        <p id="carteira-dica" className="suave">
+          O dono acha em Asaas → Integrações (identificador da carteira). Com a carteira preenchida, as reservas são pagas
+          online e o valor vai direto para a conta dele, menos a taxa da Strukti. Em branco, o jogador paga na arena.
+        </p>
+      </div>
+      <p className="erro-form" role="alert">
+        {estado.erro}
+      </p>
+      <p className="ok-form" role="status">
+        {estado.ok ? (estado.valor ? "Carteira salva: a arena cobra online." : "Carteira removida: pagamento na arena.") : ""}
+      </p>
+      <button type="submit" className="botao botao-cheio" disabled={pendente}>
+        {pendente ? "Salvando…" : "Salvar carteira"}
       </button>
     </form>
   );
