@@ -111,8 +111,8 @@ export default async function PaginaAdmin() {
             {pendencias.estornos.length > 0 && (
               <>
                 <p className="suave">
-                  Estornos que o Asaas recusou (por exemplo, dono sem saldo). Resolva no painel do Asaas ou com o dono e marque
-                  como resolvido.
+                  Estornos que não saíram (por exemplo, dono sem saldo ou falha no meio). Confira no painel do Asaas se a
+                  cobrança já foi estornada antes de estornar de novo; resolva com o dono e marque como resolvido.
                 </p>
                 <ul className="lista-simples">
                   {pendencias.estornos.map((e) => (

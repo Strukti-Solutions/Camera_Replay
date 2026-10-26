@@ -103,3 +103,14 @@ test("split sem totalValue: calcula pelo percentual sobre o líquido; pagamento(
   });
   expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/payments/pay_2");
 });
+
+test("criarCheckout: link que não é https do Asaas é recusado (o site redireciona para ele)", async () => {
+  const pedido = {
+    reservaId: "res-1", item: "Quadra 1", descricao: "x", totalCentavos: 20000, carteiraDono: WALLET, percentualDono: 95,
+    urlRetorno: "https://x.com/minhas-reservas",
+  };
+  for (const link of ["https://evil.com/c/1", "http://sandbox.asaas.com/c/1", "https://asaas.com.evil.com/c", "javascript:alert(1)"]) {
+    const f = fetcherCom({ corpo: { id: "chk-1", link } });
+    await expect(criarAsaas(CONFIG, f.fetcher).criarCheckout(pedido)).rejects.toThrow();
+  }
+});

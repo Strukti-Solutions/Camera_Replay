@@ -89,7 +89,8 @@ export async function estornarReserva(
   const { rows } = await db.query<{ pagamento: string | null; carteira: string | null }>(
     `update reservas r set estorno = 'solicitado'
        from arenas a
-      where r.id = $1 and a.id = r.arena_id and r.asaas_pagamento_id is not null and r.estorno is null
+      where r.id = $1 and a.id = r.arena_id and r.situacao = 'cancelada'
+        and r.asaas_pagamento_id is not null and r.estorno is null
       returning r.asaas_pagamento_id as pagamento, a.asaas_wallet_id as carteira`,
     [reservaId],
   );
@@ -99,13 +100,16 @@ export async function estornarReserva(
     db.query("update reservas set estorno = $2, estorno_centavos = $3 where id = $1", [reservaId, estorno, centavos]);
   try {
     const p = await asaas.pagamento(l.pagamento);
-    const split = p.splits.find((s) => s.carteira === l.carteira) ?? p.splits[0];
+    // Sem o split do dono não há como devolver a parte dele: fica pendente
+    // (senão o estorno inteiro sairia da conta da Strukti).
+    const split = p.splits.find((s) => s.carteira === l.carteira);
+    if (!split) throw new Error("cobrança sem o split da carteira da arena");
     const tarifa = Math.max(0, p.valorCentavos - p.liquidoCentavos);
     const descricao = regra === "integral" ? "Reserva cancelada pela arena" : "Reserva cancelada (sem a tarifa do Asaas)";
     if (regra === "sem_tarifa") {
       await asaas.estornar(p.id, {
         valorCentavos: p.liquidoCentavos,
-        splits: split ? [{ id: split.id, valorCentavos: split.valorCentavos }] : [],
+        splits: [{ id: split.id, valorCentavos: split.valorCentavos }],
         descricao,
       });
       await marcar("solicitado", p.liquidoCentavos);
@@ -114,11 +118,11 @@ export async function estornarReserva(
     try {
       await asaas.estornar(p.id, {
         valorCentavos: p.valorCentavos,
-        splits: split ? [{ id: split.id, valorCentavos: split.valorCentavos + tarifa }] : [],
+        splits: [{ id: split.id, valorCentavos: split.valorCentavos + tarifa }],
         descricao,
       });
     } catch (e) {
-      if (!(e instanceof ErroAsaas && e.status === 400) || !split) throw e;
+      if (!(e instanceof ErroAsaas && e.status === 400)) throw e;
       await asaas.estornar(p.id, { valorCentavos: p.valorCentavos, splits: [{ id: split.id, valorCentavos: split.valorCentavos }], descricao });
     }
     await marcar("solicitado", p.valorCentavos);
@@ -163,7 +167,8 @@ export async function estornarAposCancelar(
 // ---------- Webhook ----------
 
 const CONFIRMAM = new Set(["CHECKOUT_PAID", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]);
-const PAGO = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
+// RECEIVED_IN_CASH (baixa manual) não confirma reserva online.
+const PAGO = new Set(["CONFIRMED", "RECEIVED"]);
 const texto = (v: unknown) => (typeof v === "string" && v.length > 0 && v.length <= 200 ? v : null);
 
 type Evento = {
@@ -186,11 +191,14 @@ function lerEvento(e: unknown): Evento | null {
 }
 
 async function acharReserva(db: Pick<Db, "query">, ev: { checkout: string | null; referencia: string | null }) {
-  const { rows } = await db.query<{ id: string; total: number; checkout: string | null; pagamento: string | null }>(
-    `select id, total_centavos as total, asaas_checkout_id as checkout, asaas_pagamento_id as pagamento
-       from reservas
-      where tipo = 'reserva' and pagamento = 'online'
-        and (($1::text is not null and asaas_checkout_id = $1) or ($2::uuid is not null and id = $2::uuid))
+  const { rows } = await db.query<{
+    id: string; total: number; checkout: string | null; pagamento: string | null; carteira: string | null; por: string | null;
+  }>(
+    `select r.id, r.total_centavos as total, r.asaas_checkout_id as checkout, r.asaas_pagamento_id as pagamento,
+            a.asaas_wallet_id as carteira, r.cancelada_por as por
+       from reservas r join arenas a on a.id = r.arena_id
+      where r.tipo = 'reserva' and r.pagamento = 'online'
+        and (($1::text is not null and r.asaas_checkout_id = $1) or ($2::uuid is not null and r.id = $2::uuid))
       limit 1`,
     [ev.checkout, ev.referencia && ehUuid(ev.referencia) ? ev.referencia : null],
   );
@@ -200,26 +208,24 @@ async function acharReserva(db: Pick<Db, "query">, ev: { checkout: string | null
 class ErroEvento extends Error {}
 
 // Devolve o id da reserva quando este evento a confirmou (para os avisos).
+// O evento só aponta a reserva; a cobrança tem de estar entre as do Checkout
+// da própria reserva, lidas da API, com o valor total e o split para a
+// carteira da arena. Nada do evento decide dinheiro.
 async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Evento, agora: Date): Promise<string | null> {
-  // Primeiro a reserva (evento de Checkout que não é nosso nem chama a API);
-  // depois a cobrança, sempre lida da API (o evento é só o gatilho).
-  let r = await acharReserva(db, { checkout: ev.checkout ?? ev.sessao, referencia: ev.referencia });
-  if (!r && ev.tipo === "CHECKOUT_PAID") throw new ErroEvento("reserva não encontrada");
-  let p: PagamentoAsaas | undefined;
-  if (ev.tipo === "CHECKOUT_PAID") {
-    if (ev.checkout) p = (await asaas.pagamentosDoCheckout(ev.checkout)).find((x) => PAGO.has(x.status));
-  } else if (ev.pagamento) {
-    p = await asaas.pagamento(ev.pagamento);
-  }
-  if (!p || !PAGO.has(p.status)) throw new ErroEvento("sem cobrança confirmada");
-  r ??= await acharReserva(db, { checkout: p.checkout, referencia: null });
+  const r = await acharReserva(db, { checkout: ev.checkout ?? ev.sessao, referencia: ev.referencia });
   if (!r) throw new ErroEvento("reserva não encontrada");
+  if (!r.checkout) throw new ErroEvento("reserva sem Checkout");
+  const doCheckout = await asaas.pagamentosDoCheckout(r.checkout);
+  const evPagamento = ev.tipo === "CHECKOUT_PAID" ? null : ev.pagamento;
+  if (evPagamento && !doCheckout.some((x) => x.id === evPagamento)) throw new ErroEvento("cobrança de outro Checkout");
+  const p = doCheckout.find((x) => PAGO.has(x.status) && (!evPagamento || x.id === evPagamento));
+  if (!p) throw new ErroEvento("sem cobrança confirmada");
   if (r.pagamento) {
     if (r.pagamento !== p.id) throw new ErroEvento("outra cobrança para a mesma reserva");
     return null; // já processado por outro evento
   }
-  if (r.checkout && p.checkout && r.checkout !== p.checkout) throw new ErroEvento("cobrança de outro Checkout");
   if (p.valorCentavos !== Number(r.total)) throw new ErroEvento("valor pago diferente do total");
+  if (!r.carteira || !p.splits.some((x) => x.carteira === r.carteira)) throw new ErroEvento("split para outra carteira");
 
   const dados = [r.id, p.id, p.valorCentavos, p.liquidoCentavos, agora];
   try {
@@ -244,11 +250,14 @@ async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Event
       returning id`,
     dados,
   );
-  if (cancelou.rows.length === 1) await estornarReserva(db, asaas, r.id, "sem_tarifa");
+  // O dono já tinha cancelado a segurada: o jogador recebe tudo (regra do dono).
+  if (cancelou.rows.length === 1) await estornarReserva(db, asaas, r.id, r.por === "dono" ? "integral" : "sem_tarifa");
   return null;
 }
 
-export type ResultadoEvento = "ok" | "repetido" | "ignorado" | "invalido" | "erro";
+// "falhou": erro passageiro (Asaas fora do ar, rede, banco). O evento é
+// apagado e o webhook responde 503 para o Asaas reenviar.
+export type ResultadoEvento = "ok" | "repetido" | "ignorado" | "invalido" | "erro" | "falhou";
 
 export async function processarEventoAsaas(
   db: Pick<Db, "query">, asaas: Asaas, bruto: unknown, agora: Date, aoConfirmar?: (reservaId: string) => void,
@@ -268,11 +277,14 @@ export async function processarEventoAsaas(
       if (confirmada) aoConfirmar?.(confirmada);
     } else if (ev.tipo === "CHECKOUT_EXPIRED" || ev.tipo === "CHECKOUT_CANCELED") {
       await db.query("update reservas set situacao = 'expirada' where asaas_checkout_id = $1 and situacao = 'segurada'", [ev.checkout]);
-    } else if (ev.tipo === "PAYMENT_REFUNDED") {
+    } else if (ev.tipo === "PAYMENT_REFUNDED" || ev.tipo === "PAYMENT_PARTIALLY_REFUNDED") {
+      // O estorno "sem a tarifa" é parcial: chega como PARTIALLY_REFUNDED.
       await db.query(
         "update reservas set estorno = 'concluido' where asaas_pagamento_id = $1 and estorno in ('solicitado', 'pendente')",
         [ev.pagamento],
       );
+    } else if (ev.tipo === "PAYMENT_REFUND_DENIED") {
+      await db.query("update reservas set estorno = 'pendente' where asaas_pagamento_id = $1 and estorno = 'solicitado'", [ev.pagamento]);
     } else {
       await fechar(null);
       return "ignorado";
@@ -282,6 +294,11 @@ export async function processarEventoAsaas(
   } catch (e) {
     const erro = e instanceof ErroEvento ? e.message : mensagem(e);
     console.error(`asaas: evento ${ev.tipo} não processado: ${erro}`);
+    const definitivo = e instanceof ErroEvento || (e instanceof ErroAsaas && e.status < 500);
+    if (!definitivo) {
+      await db.query("delete from asaas_eventos where id = $1", [ev.id]).catch(() => undefined);
+      return "falhou";
+    }
     await fechar(erro.slice(0, 200));
     return "erro";
   }
@@ -290,9 +307,11 @@ export async function processarEventoAsaas(
 const json = (corpo: unknown, status: number) =>
   new Response(JSON.stringify(corpo), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
-// POST do Asaas com o cabeçalho asaas-access-token. Erro de processamento
-// responde 200 mesmo assim: o evento fica gravado com o erro (visível no admin)
-// e a fila do Asaas não pausa.
+// POST do Asaas com o cabeçalho asaas-access-token. Erro definitivo (reserva
+// desconhecida, valor diferente…) responde 200: o evento fica gravado com o
+// erro, visível no admin, e a fila do Asaas não pausa. Erro passageiro
+// responde 503 para o Asaas reenviar.
+const CORPO_MAX = 64_000;
 export function criarHandlerWebhookAsaas(
   db: Pick<Db, "query">, asaas: Asaas | null, token: string | undefined, relogio: () => Date = () => new Date(),
   aoConfirmar?: (reservaId: string) => void,
@@ -300,13 +319,15 @@ export function criarHandlerWebhookAsaas(
   return async (req) => {
     if (!token || !asaas) return json({ erro: "webhook não configurado" }, 503);
     if (!segredoConfere(req.headers.get("asaas-access-token") ?? "", token)) return json({ erro: "não autorizado" }, 401);
+    const bruto = await req.text();
+    if (bruto.length > CORPO_MAX) return json({ erro: "corpo grande demais" }, 413);
     let corpo: unknown;
     try {
-      corpo = JSON.parse(await req.text());
+      corpo = JSON.parse(bruto);
     } catch {
       return json({ erro: "corpo inválido" }, 400);
     }
     const r = await processarEventoAsaas(db, asaas, corpo, relogio(), aoConfirmar);
-    return json({ resultado: r }, r === "invalido" ? 400 : 200);
+    return json({ resultado: r }, r === "invalido" ? 400 : r === "falhou" ? 503 : 200);
   };
 }

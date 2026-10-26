@@ -1,7 +1,8 @@
 import { expect, test, vi } from "vitest";
 import { ErroAsaas, type PagamentoAsaas } from "../app/lib/asaas";
 import type { Db } from "../app/lib/db";
-import { abrirPagamento, estornarAposCancelar, processarEventoAsaas } from "../app/lib/pagamentos";
+import { abrirPagamento, estornarAposCancelar, estornarReserva, processarEventoAsaas } from "../app/lib/pagamentos";
+import { marcarEstornoResolvido, pendenciasDePagamento } from "../app/lib/plataforma";
 import { cancelarPeloDono, cancelarPeloJogador, criarReserva } from "../app/lib/reservas";
 import { novoBanco } from "./db";
 import { arenaOnline, asaasFalso, WALLET } from "./fixtures-asaas";
@@ -95,4 +96,41 @@ test("dono cancela reserva segurada (ainda sem pagamento): cancela o Checkout, s
   expect(await estornarAposCancelar(db, f.asaas, r.reservaId)).toBe("nada");
   expect(f.asaas.cancelarCheckout).toHaveBeenCalledWith("chk-1");
   expect(f.estornos).toEqual([]);
+});
+
+test("estornarReserva só em reserva cancelada; sem o split da carteira da arena fica pendente", async () => {
+  const { db, reservaId, f } = await paga();
+  expect(await estornarReserva(db, f.asaas, reservaId, "sem_tarifa")).toBe(false); // confirmada: não estorna
+  expect(f.estornos).toEqual([]);
+  await db.query("update reservas set situacao = 'cancelada', cancelada_por = 'jogador' where id = $1", [reservaId]);
+  vi.mocked(f.asaas.pagamento).mockResolvedValueOnce({ ...PAGO, splits: [] });
+  expect(await estornarReserva(db, f.asaas, reservaId, "sem_tarifa")).toBe(false);
+  expect(f.estornos).toEqual([]);
+  expect(await reserva(db, reservaId)).toMatchObject({ estorno: "pendente" });
+});
+
+test("duas chamadas de estornarReserva ao mesmo tempo estornam uma vez só", async () => {
+  const { db, jogadorId, reservaId, f } = await paga();
+  await cancelarPeloJogador(db, jogadorId, reservaId, AGORA);
+  const r = await Promise.all([
+    estornarReserva(db, f.asaas, reservaId, "sem_tarifa"), estornarReserva(db, f.asaas, reservaId, "sem_tarifa"),
+  ]);
+  expect(r.filter(Boolean)).toHaveLength(1);
+  expect(f.estornos).toHaveLength(1);
+});
+
+test("admin: reserva paga cancelada sem pedido de estorno (a função caiu no meio) aparece nas pendências", async () => {
+  const { db, jogadorId, reservaId } = await paga();
+  await cancelarPeloJogador(db, jogadorId, reservaId, AGORA);
+  await db.query("update reservas set cancelada_em = now() - interval '10 minutes' where id = $1", [reservaId]);
+  expect((await pendenciasDePagamento(db)).estornos.map((e) => e.reservaId)).toEqual([reservaId]);
+  expect(await marcarEstornoResolvido(db, reservaId)).toBe(true);
+  expect((await pendenciasDePagamento(db)).estornos).toEqual([]);
+});
+
+test("admin: evento parado (sem processado_em) há mais de 5 min aparece como não processado", async () => {
+  const db = await novoBanco();
+  await db.query("insert into asaas_eventos (id, tipo, payload, recebido_em) values ('evt_p', 'CHECKOUT_PAID', '{}', now() - interval '10 minutes')");
+  await db.query("insert into asaas_eventos (id, tipo, payload) values ('evt_novo', 'CHECKOUT_PAID', '{}')");
+  expect((await pendenciasDePagamento(db)).eventos.map((e) => [e.id, e.erro])).toEqual([["evt_p", "não processado"]]);
 });

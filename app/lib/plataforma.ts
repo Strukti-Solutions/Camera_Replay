@@ -151,11 +151,16 @@ export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento
               r.inicio, r.cancelada_por as por
          from reservas r join arenas a on a.id = r.arena_id left join jogadores j on j.id = r.jogador_id
         where r.estorno = 'pendente'
+           -- Cancelada e paga, mas o pedido de estorno não chegou a sair (a função caiu no meio).
+           or (r.situacao = 'cancelada' and r.asaas_pagamento_id is not null and r.estorno is null
+               and r.cancelada_em < now() - interval '5 minutes')
         order by r.cancelada_em, r.id
         limit 100`,
     ),
     db.query<{ id: string; tipo: string; erro: string; recebido_em: Date }>(
-      "select id, tipo, erro, recebido_em from asaas_eventos where erro is not null order by recebido_em desc limit 50",
+      `select id, tipo, coalesce(erro, 'não processado') as erro, recebido_em from asaas_eventos
+        where erro is not null or (processado_em is null and recebido_em < now() - interval '5 minutes')
+        order by recebido_em desc limit 50`,
     ),
   ]);
   return {
@@ -168,8 +173,16 @@ export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento
 }
 
 // A Strukti resolveu o estorno fora do sistema (no painel do Asaas ou com o dono).
+// Antes, conferir no Asaas: um estorno "pendente" pode ter saído e só a
+// gravação local ter falhado.
 export async function marcarEstornoResolvido(db: Db, reservaId: string): Promise<boolean> {
   if (typeof reservaId !== "string" || !UUID.test(reservaId)) return false;
-  const r = await db.query("update reservas set estorno = 'concluido' where id = $1 and estorno = 'pendente' returning id", [reservaId]);
+  const r = await db.query(
+    `update reservas set estorno = 'concluido'
+      where id = $1 and situacao = 'cancelada' and asaas_pagamento_id is not null
+        and (estorno = 'pendente' or estorno is null)
+      returning id`,
+    [reservaId],
+  );
   return r.rows.length === 1;
 }

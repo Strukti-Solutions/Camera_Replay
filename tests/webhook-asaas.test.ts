@@ -146,3 +146,78 @@ test("aoConfirmar: chamado uma vez, só quando o evento confirmou a reserva", as
   await processarEventoAsaas(db, f.asaas, { id: "evt_2", event: "PAYMENT_RECEIVED", payment: { id: "pay_1", externalReference: reservaId } }, AGORA, ao);
   expect(confirmadas).toEqual([reservaId]);
 });
+
+// ---------- Achados da revisão ----------
+
+test("cobrança com valor diferente do total não confirma", async () => {
+  const { db, reservaId, f } = await cenario({ "chk-1": [{ ...pago(), valorCentavos: 100 }] });
+  expect(await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("erro");
+  expect(await reserva(db, reservaId)).toMatchObject({ situacao: "segurada", asaas_pagamento_id: null });
+  expect((await db.query<{ erro: string }>("select erro from asaas_eventos")).rows[0].erro).toBe("valor pago diferente do total");
+});
+
+test("PAYMENT_* de cobrança que não é do Checkout da reserva não confirma (mesmo com a externalReference certa)", async () => {
+  const { db, reservaId, f } = await cenario({ "chk-1": [], "chk-outro": [{ ...pago("pay_x"), checkout: "chk-outro" }] });
+  const ev = { id: "evt_1", event: "PAYMENT_CONFIRMED", payment: { id: "pay_x", externalReference: reservaId } };
+  expect(await processarEventoAsaas(db, f.asaas, ev, AGORA)).toBe("erro");
+  expect(await reserva(db, reservaId)).toMatchObject({ situacao: "segurada", asaas_pagamento_id: null });
+  expect((await db.query<{ erro: string }>("select erro from asaas_eventos")).rows[0].erro).toBe("cobrança de outro Checkout");
+});
+
+test("segunda cobrança para a reserva já paga não é aceita", async () => {
+  const { db, reservaId, f } = await cenario({ "chk-1": [pago("pay_1"), pago("pay_2")] });
+  expect(await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("ok");
+  const ev = { id: "evt_2", event: "PAYMENT_CONFIRMED", payment: { id: "pay_2", externalReference: reservaId } };
+  expect(await processarEventoAsaas(db, f.asaas, ev, AGORA)).toBe("erro");
+  expect(await reserva(db, reservaId)).toMatchObject({ asaas_pagamento_id: "pay_1" });
+});
+
+test("split para outra carteira não confirma; baixa em dinheiro (RECEIVED_IN_CASH) também não", async () => {
+  const outra = { ...pago(), splits: [{ id: "spl_1", carteira: "11111111-2222-3333-4444-555555555555", valorCentavos: 18812 }] };
+  const a = await cenario({ "chk-1": [outra] });
+  expect(await processarEventoAsaas(a.db, a.f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("erro");
+  expect(await reserva(a.db, a.reservaId)).toMatchObject({ situacao: "segurada" });
+  const b = await cenario({ "chk-1": [pago("pay_1", "RECEIVED_IN_CASH")] });
+  expect(await processarEventoAsaas(b.db, b.f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("erro");
+  expect(await reserva(b.db, b.reservaId)).toMatchObject({ situacao: "segurada" });
+});
+
+test("erro passageiro (Asaas fora do ar): apaga o evento e responde 503 para o Asaas reenviar", async () => {
+  const { db, reservaId, f } = await cenario();
+  vi.mocked(f.asaas.pagamentosDoCheckout).mockRejectedValueOnce(new Error("fetch failed"));
+  const handler = criarHandlerWebhookAsaas(db, f.asaas, "tok", () => AGORA);
+  const req = () => new Request("https://x/api/asaas/webhook", {
+    method: "POST", headers: { "asaas-access-token": "tok" }, body: JSON.stringify(evtCheckout("evt_1", "CHECKOUT_PAID")),
+  });
+  expect((await handler(req())).status).toBe(503);
+  expect((await db.query("select 1 from asaas_eventos")).rows).toEqual([]);
+  expect((await handler(req())).status).toBe(200);
+  expect(await reserva(db, reservaId)).toMatchObject({ situacao: "confirmada" });
+});
+
+test("corpo grande demais: 413", async () => {
+  const { db, f } = await cenario();
+  const handler = criarHandlerWebhookAsaas(db, f.asaas, "tok", () => AGORA);
+  const r = await handler(new Request("https://x/api/asaas/webhook", {
+    method: "POST", headers: { "asaas-access-token": "tok" }, body: "x".repeat(70_000),
+  }));
+  expect(r.status).toBe(413);
+});
+
+test("estorno parcial (PAYMENT_PARTIALLY_REFUNDED) conclui; estorno negado volta a pendente", async () => {
+  const { db, reservaId, f } = await cenario();
+  await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA);
+  await db.query("update reservas set situacao = 'cancelada', estorno = 'solicitado' where id = $1", [reservaId]);
+  await processarEventoAsaas(db, f.asaas, { id: "evt_2", event: "PAYMENT_REFUND_DENIED", payment: { id: "pay_1" } }, AGORA);
+  expect(await reserva(db, reservaId)).toMatchObject({ estorno: "pendente" });
+  await processarEventoAsaas(db, f.asaas, { id: "evt_3", event: "PAYMENT_PARTIALLY_REFUNDED", payment: { id: "pay_1" } }, AGORA);
+  expect(await reserva(db, reservaId)).toMatchObject({ estorno: "concluido" });
+});
+
+test("dono cancelou a segurada e o jogador pagou depois: estorno integral", async () => {
+  const { db, reservaId, f } = await cenario();
+  await db.query("update reservas set situacao = 'cancelada', cancelada_por = 'dono', cancelada_em = now() where id = $1", [reservaId]);
+  expect(await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("ok");
+  expect(await reserva(db, reservaId)).toMatchObject({ situacao: "cancelada", estorno: "solicitado", estorno_centavos: 20000 });
+  expect(f.estornos[0].valorCentavos).toBe(20000);
+});

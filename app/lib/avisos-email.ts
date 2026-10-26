@@ -108,7 +108,7 @@ export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono",
         texto:
           `${nome} cancelou a reserva de ${periodo}, na ${rotuloQuadra(d)}.\n` +
           `O horário voltou a ficar livre para reservas.\n` +
-          (d.pagamento === "online" ? "O pagamento online foi estornado ao jogador, menos a tarifa do Asaas.\n" : "") +
+          (d.pagamento === "online" ? "O pagamento online volta ao jogador, menos a tarifa do Asaas.\n" : "") +
           `\n` +
           `Agenda do dia: ${appUrl}/painel/reservas?dia=${hojeLocal(d.inicio)}` + ASSINATURA,
       });

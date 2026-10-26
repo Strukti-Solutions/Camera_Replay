@@ -107,7 +107,17 @@ export function criarAsaas(config: ConfigAsaas, fetcher: Fetcher = fetch): Asaas
         // Sem customerData: a página do Asaas pede nome e CPF ao pagador.
         splits: [{ walletId: p.carteiraDono, percentageValue: p.percentualDono }],
       });
-      return { id: String(d.id), link: String(d.link) };
+      // O site redireciona o jogador para este link: só https do próprio Asaas.
+      const link = String(d.link ?? "");
+      let host = "";
+      try {
+        const u = new URL(link);
+        host = u.protocol === "https:" ? u.hostname : "";
+      } catch {
+        host = "";
+      }
+      if (host !== "asaas.com" && !host.endsWith(".asaas.com")) throw new ErroAsaas(502, "link_inesperado");
+      return { id: String(d.id), link };
     },
     async cancelarCheckout(checkout) {
       await chamar("POST", `checkouts/${id(checkout)}/cancel`);
