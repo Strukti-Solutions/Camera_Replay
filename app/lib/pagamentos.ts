@@ -1,6 +1,7 @@
 import { textoPeriodo } from "@/app/minhas-reservas/apresentacao";
 import { ErroAsaas, type Asaas, type PagamentoAsaas } from "./asaas";
 import type { Db } from "./db";
+import { cancelarCobrancaMensalidade, processarCobrancaMensalidade } from "./mensalidades";
 import { segredoConfere } from "./limpeza";
 
 // Pagamento online das reservas pelo Asaas: abrir o Checkout, processar o
@@ -174,6 +175,7 @@ const texto = (v: unknown) => (typeof v === "string" && v.length > 0 && v.length
 type Evento = {
   id: string; tipo: string;
   checkout: string | null; pagamento: string | null; referencia: string | null; sessao: string | null;
+  assinatura: string | null; // cobrança da mensalidade do dono
 };
 
 function lerEvento(e: unknown): Evento | null {
@@ -186,7 +188,7 @@ function lerEvento(e: unknown): Evento | null {
   const pg = (o.payment && typeof o.payment === "object" ? o.payment : {}) as Record<string, unknown>;
   return {
     id, tipo, checkout: texto(ck.id), pagamento: texto(pg.id),
-    referencia: texto(pg.externalReference), sessao: texto(pg.checkoutSession),
+    referencia: texto(pg.externalReference), sessao: texto(pg.checkoutSession), assinatura: texto(pg.subscription),
   };
 }
 
@@ -272,7 +274,17 @@ export async function processarEventoAsaas(
   const fechar = (erro: string | null) =>
     db.query("update asaas_eventos set processado_em = $2, erro = $3 where id = $1", [ev.id, agora, erro]);
   try {
-    if (CONFIRMAM.has(ev.tipo)) {
+    if (ev.assinatura && ev.tipo.startsWith("PAYMENT_")) {
+      // Mensalidade do dono: o payload só aponta a cobrança; os dados vêm da API.
+      if (ev.tipo === "PAYMENT_DELETED") {
+        if (ev.pagamento) await cancelarCobrancaMensalidade(db, ev.pagamento, agora);
+      } else {
+        if (!ev.pagamento) throw new ErroEvento("evento sem cobrança");
+        const p = await asaas.pagamento(ev.pagamento);
+        if (!p.assinatura) throw new ErroEvento("cobrança sem assinatura");
+        if (!(await processarCobrancaMensalidade(db, p, agora))) throw new ErroEvento("assinatura desconhecida");
+      }
+    } else if (CONFIRMAM.has(ev.tipo)) {
       const confirmada = await confirmarPagamento(db, asaas, ev, agora);
       if (confirmada) aoConfirmar?.(confirmada);
     } else if (ev.tipo === "CHECKOUT_EXPIRED" || ev.tipo === "CHECKOUT_CANCELED") {

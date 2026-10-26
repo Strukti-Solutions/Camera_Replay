@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { ErroAsaas, type PagamentoAsaas } from "../app/lib/asaas";
 import type { Db } from "../app/lib/db";
+import { criarArenaComDono } from "../app/lib/donos";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { abrirPagamento, criarHandlerWebhookAsaas, processarEventoAsaas } from "../app/lib/pagamentos";
 import { criarReserva } from "../app/lib/reservas";
@@ -227,4 +228,30 @@ test("429 do Asaas (limite de requisições) é passageiro: evento apagado para 
   vi.mocked(f.asaas.pagamentosDoCheckout).mockRejectedValueOnce(new ErroAsaas(429, "too_many_requests"));
   expect(await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("falhou");
   expect((await db.query("select 1 from asaas_eventos")).rows).toEqual([]);
+});
+
+// ---------- Mensalidade ----------
+
+test("cobrança de assinatura vai para a mensalidade, com os dados lidos da API", async () => {
+  const db = await novoBanco();
+  const { arenaId } = await criarArenaComDono(db, { arena: "Arena Sol", email: "dono@arena.com", senha: "senha-do-dono-123" });
+  await db.query("update arenas set asaas_assinatura_id = 'sub_1', mensalidade_centavos = 14990, mensalidade_dia = 10 where id = $1", [arenaId]);
+  const cobr: PagamentoAsaas = {
+    id: "pay_m1", status: "OVERDUE", valorCentavos: 14990, liquidoCentavos: 14891, checkout: null, splits: [],
+    assinatura: "sub_1", vencimento: "2026-11-10", link: "https://sandbox.asaas.com/i/m1",
+  };
+  const f = asaasFalso(false, { "": [cobr] });
+  // O payload diz RECEIVED e outro valor; vale o que a API devolve.
+  const ev = { id: "evt_m1", event: "PAYMENT_OVERDUE", payment: { id: "pay_m1", subscription: "sub_1", status: "RECEIVED", value: 1 } };
+  expect(await processarEventoAsaas(db, f.asaas, ev, AGORA)).toBe("ok");
+  const m = await db.query("select arena_id, valor_centavos, situacao from mensalidades");
+  expect(m.rows).toEqual([{ arena_id: arenaId, valor_centavos: 14990, situacao: "atrasada" }]);
+  const del = { id: "evt_m2", event: "PAYMENT_DELETED", payment: { id: "pay_m1", subscription: "sub_1" } };
+  expect(await processarEventoAsaas(db, f.asaas, del, AGORA)).toBe("ok");
+  expect((await db.query("select situacao from mensalidades")).rows).toEqual([{ situacao: "cancelada" }]);
+  // Assinatura que não é de nenhuma arena: erro registrado, nada gravado.
+  const outra = asaasFalso(false, { "": [{ ...cobr, id: "pay_m9", assinatura: "sub_x" }] });
+  const ev9 = { id: "evt_m9", event: "PAYMENT_CREATED", payment: { id: "pay_m9", subscription: "sub_x" } };
+  expect(await processarEventoAsaas(db, outra.asaas, ev9, AGORA)).toBe("erro");
+  expect((await db.query<{ erro: string }>("select erro from asaas_eventos where id = 'evt_m9'")).rows[0].erro).toBe("assinatura desconhecida");
 });
