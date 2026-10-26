@@ -114,7 +114,7 @@ test("pagamento online: selo aguardando, prazo para pagar, estorno e mensagem do
   expect(seloDaReserva({ situacao: "segurada", canceladaPor: null, motivoCancelamento: null, fim: new Date("2026-10-27T00:00:00Z") }, agora))
     .toEqual({ texto: "Aguardando pagamento", tom: "aguardando" });
   expect(textoPagarAte(new Date("2026-10-26T15:42:30-03:00"))).toBe("Pague até 15h42 para garantir o horário.");
-  expect(textoEstornoReserva({ estorno: "solicitado", estornoCentavos: 19802 })).toBe("Estorno de R$ 198,02 a caminho.");
+  expect(textoEstornoReserva({ estorno: "solicitado", estornoCentavos: 19802 })).toBe("Estorno de R$ 198,02 solicitado. O dinheiro volta assim que for aprovado.");
   expect(textoEstornoReserva({ estorno: "concluido", estornoCentavos: 19802 })).toBe("Estorno de R$ 198,02 feito.");
   expect(textoEstornoReserva({ estorno: "pendente", estornoCentavos: null })).toBe("Estorno em análise pela Strukti.");
   expect(textoEstornoReserva({ estorno: null, estornoCentavos: null })).toBeNull();

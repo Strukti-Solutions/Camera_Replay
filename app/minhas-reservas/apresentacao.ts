@@ -91,7 +91,7 @@ export function textoPagarAte(seguraAte: Date): string {
 export function textoEstornoReserva(r: { estorno: string | null; estornoCentavos: number | null }): string | null {
   if (r.estorno === "pendente") return "Estorno em análise pela Strukti.";
   if (r.estornoCentavos == null) return null;
-  if (r.estorno === "solicitado") return `Estorno de ${textoDeCentavos(r.estornoCentavos)} a caminho.`;
+  if (r.estorno === "solicitado") return `Estorno de ${textoDeCentavos(r.estornoCentavos)} solicitado. O dinheiro volta assim que for aprovado.`;
   if (r.estorno === "concluido") return `Estorno de ${textoDeCentavos(r.estornoCentavos)} feito.`;
   return null;
 }

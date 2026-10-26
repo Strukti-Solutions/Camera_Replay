@@ -14,7 +14,7 @@ const paraJogador = (d: DadosAviso, quem: "jogador" | "dono") =>
 test("jogador cancela reserva paga: diz o estorno sem a tarifa e o prazo de Pix e cartão", () => {
   const t = paraJogador(BASE, "jogador");
   expect(t).toContain("Estorno: R$ 198,02 (o valor pago menos a tarifa do Asaas).");
-  expect(t).toContain("No Pix o dinheiro volta em instantes; no cartão, aparece na fatura em até 10 dias úteis.");
+  expect(t).toContain("O estorno passa por aprovação da Strukti. Depois de aprovado, no Pix o dinheiro volta em instantes; no cartão, aparece na fatura em até 10 dias úteis.");
   const dono = mensagensDoCancelamento(BASE, "jogador", APP).find((m) => m.para === "dono@arena.com")!.texto;
   expect(dono).toContain("O pagamento online volta ao jogador, menos a tarifa do Asaas.");
 });

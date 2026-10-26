@@ -90,7 +90,9 @@ function textoEstorno(d: DadosAviso): string {
   const como = d.canceladaPor === "dono" ? "o valor inteiro" : "o valor pago menos a tarifa do Asaas";
   return (
     `Estorno: ${textoDeCentavos(d.estornoCentavos)} (${como}).\n` +
-    "No Pix o dinheiro volta em instantes; no cartão, aparece na fatura em até 10 dias úteis.\n"
+    // Estorno pela API espera aprovação manual no Asaas (evento crítico).
+    "O estorno passa por aprovação da Strukti. Depois de aprovado, no Pix o dinheiro volta em instantes; " +
+    "no cartão, aparece na fatura em até 10 dias úteis.\n"
   );
 }
 

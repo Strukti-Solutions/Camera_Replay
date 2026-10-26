@@ -34,3 +34,7 @@ Data: 26/10/2026. Emenda a fase 4 de `2026-10-22-reservas-publicas-design.md` (s
 - Parcelamento no cartão, boleto, assinatura.
 - O dono escolher aceitar também "pagar na arena" numa arena com conta vinculada.
 - Conta PJ da Strukti com subcontas criadas pela API.
+
+## Aprovação manual dos estornos (decisão do dono, 26/10/2026)
+
+O Asaas trata o estorno pedido pela API como evento crítico, e ele fica em `AWAITING_CRITICAL_ACTION_AUTHORIZATION` até alguém aprovar com o token no painel ou no app. Para desligar isso é preciso uma whitelist de IP fixo, e a Vercel não tem. **Por enquanto a Strukti aprova cada estorno à mão.** O jogador vê "Estorno de R$ X solicitado. O dinheiro volta assim que for aprovado.", e o e-mail diz que o estorno passa por aprovação da Strukti. Rever com volume maior: IP fixo na Vercel, ou pedir ao Asaas.
