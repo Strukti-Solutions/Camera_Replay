@@ -140,6 +140,53 @@ export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono",
   return msgs;
 }
 
+// Pagamento online confirmado pelo webhook: confirmação ao jogador e aviso ao dono.
+export function mensagensDoPagamento(d: DadosAviso, appUrl: string): MensagemEmail[] {
+  const periodo = textoPeriodo(d.inicio, d.fim);
+  const valor = textoDeCentavos(d.totalCentavos);
+  const msgs: MensagemEmail[] = [];
+  if (d.jogadorEmail) {
+    msgs.push({
+      para: d.jogadorEmail,
+      assunto: `Reserva confirmada · ${d.arena}`,
+      texto:
+        `Pagamento de ${valor} recebido. Sua reserva está confirmada.\n\n` +
+        `${d.arena}\n${periodo}\n${rotuloQuadra(d)}\n` +
+        (d.endereco ? `${d.endereco}\n` : "") +
+        `\nCancelamento até 24 h antes, em ${appUrl}/minhas-reservas (a tarifa do Asaas não é devolvida).` + ASSINATURA,
+    });
+  }
+  for (const dono of d.donos) {
+    msgs.push({
+      para: dono,
+      assunto: `Nova reserva paga · ${d.quadra}`,
+      texto:
+        `${d.jogador ?? "Conta apagada"} reservou e pagou online ${valor}: ${periodo}, na ${rotuloQuadra(d)}.\n` +
+        `O valor cai na sua conta Asaas, menos a tarifa do Asaas e a taxa da Strukti.\n\n` +
+        `Agenda do dia: ${appUrl}/painel/reservas?dia=${hojeLocal(d.inicio)}` + ASSINATURA,
+    });
+  }
+  return msgs;
+}
+
+export async function avisarPagamento(
+  db: Pick<Db, "query">, reservaId: string, enviar: EnviarEmail, appUrl: string,
+): Promise<number> {
+  let d: DadosAviso | null;
+  try {
+    d = await dadosDoAviso(db, reservaId);
+  } catch (e) {
+    console.error("e-mail: aviso de pagamento sem dados:", e instanceof Error ? e.message : "erro");
+    return 0;
+  }
+  if (!d || d.situacao !== "confirmada" || d.pagamento !== "online") return 0;
+  let n = 0;
+  for (const m of mensagensDoPagamento(d, appUrl)) {
+    if (await enviarSemLancar(enviar, m, "aviso de pagamento")) n++;
+  }
+  return n;
+}
+
 export function mensagemDoLembrete(d: DadosAviso, appUrl: string, agora: Date): MensagemEmail | null {
   if (!d.jogadorEmail) return null;
   const hora = textoMinutos(partesDoInstante(d.inicio).minuto);

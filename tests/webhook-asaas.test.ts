@@ -137,3 +137,12 @@ test("dois eventos de pagamento ao mesmo tempo: confirma uma vez e nunca estorna
   expect(await reserva(db, reservaId)).toMatchObject({ situacao: "confirmada", estorno: null });
   expect(f.estornos).toEqual([]);
 });
+
+test("aoConfirmar: chamado uma vez, só quando o evento confirmou a reserva", async () => {
+  const { db, reservaId, f } = await cenario();
+  const confirmadas: string[] = [];
+  const ao = (id: string) => void confirmadas.push(id);
+  await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA, ao);
+  await processarEventoAsaas(db, f.asaas, { id: "evt_2", event: "PAYMENT_RECEIVED", payment: { id: "pay_1", externalReference: reservaId } }, AGORA, ao);
+  expect(confirmadas).toEqual([reservaId]);
+});

@@ -66,9 +66,8 @@ Reserva pelo site **sem pagamento online** (emenda no spec de 23/10, decisão do
 2. Merge na `main` e push; esperar o deploy da Vercel ficar Ready.
 3. Aplicar a 0018 (remove `precos_quadra`).
 
-## Próxima: fase 4b (pagamento com Asaas)
-Falta a conta Asaas do dono. Pesquisa em `docs/pesquisa/asaas.md` (Checkout com split e webhook). Antes de implementar, o dono decide os conflitos com o spec listados lá: o split sai do valor líquido (não do bruto), a tarifa do estorno sai da conta da Strukti, o saldo da subconta no estorno, o walletId de conta já existente e a URL de retorno no domínio cadastrado.
-
+## Em andamento: fase 4b (pagamento com Asaas)
+Spec `docs/superpowers/specs/2026-10-26-pagamento-asaas-design.md`, plano `docs/superpowers/plans/2026-10-26-fase4b-asaas.md`. Feito na branch (26/10): migração 0022, cliente do Asaas, carteira da arena no admin, reserva online segurada + Checkout, webhook (`/api/asaas/webhook`), estorno ao cancelar, telas e e-mails. Falta o teste de ponta a ponta no sandbox (precisa de uma segunda conta sandbox fazendo o papel do dono) e a configuração de produção (chave, `ASAAS_AMBIENTE=producao`, token e webhook no Asaas, carteira de cada arena, migração 0022).
 ---
 
 ## Histórico (17/10) — ainda válido onde não foi resolvido

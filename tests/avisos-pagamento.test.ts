@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { mensagemDoLembrete, mensagensDoCancelamento, type DadosAviso } from "../app/lib/avisos-email";
+import { mensagemDoLembrete, mensagensDoCancelamento, mensagensDoPagamento, type DadosAviso } from "../app/lib/avisos-email";
 
 const APP = "https://replay.exemplo";
 const BASE: DadosAviso = {
@@ -38,4 +38,17 @@ test("lembrete: já pago online ou pagar na arena", () => {
   expect(online.texto).toContain("Pagamento: R$ 200,00, já pago online.");
   const arena = mensagemDoLembrete({ ...BASE, situacao: "confirmada", pagamento: "arena", estorno: null, estornoCentavos: null }, APP, agora)!;
   expect(arena.texto).toContain("Pagamento: R$ 200,00, na arena.");
+});
+
+test("pagamento confirmado: jogador recebe a confirmação e o dono o aviso de reserva paga", () => {
+  const msgs = mensagensDoPagamento({ ...BASE, situacao: "confirmada", canceladaPor: null, estorno: null, estornoCentavos: null }, APP);
+  const jog = msgs.find((m) => m.para === "ana@x.com")!;
+  expect(jog.assunto).toBe("Reserva confirmada · Arena Sol");
+  expect(jog.texto).toContain("Pagamento de R$ 200,00 recebido. Sua reserva está confirmada.");
+  expect(jog.texto).toContain("Terça-feira, 10 de novembro · 18h às 20h");
+  expect(jog.texto).toContain(`${APP}/minhas-reservas`);
+  const dono = msgs.find((m) => m.para === "dono@arena.com")!;
+  expect(dono.assunto).toBe("Nova reserva paga · Quadra 1");
+  expect(dono.texto).toContain("Ana reservou e pagou online R$ 200,00");
+  expect(dono.texto).not.toContain("ana@x.com");
 });

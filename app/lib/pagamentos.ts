@@ -199,7 +199,8 @@ async function acharReserva(db: Pick<Db, "query">, ev: { checkout: string | null
 
 class ErroEvento extends Error {}
 
-async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Evento, agora: Date): Promise<void> {
+// Devolve o id da reserva quando este evento a confirmou (para os avisos).
+async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Evento, agora: Date): Promise<string | null> {
   // Primeiro a reserva (evento de Checkout que não é nosso nem chama a API);
   // depois a cobrança, sempre lida da API (o evento é só o gatilho).
   let r = await acharReserva(db, { checkout: ev.checkout ?? ev.sessao, referencia: ev.referencia });
@@ -215,7 +216,7 @@ async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Event
   if (!r) throw new ErroEvento("reserva não encontrada");
   if (r.pagamento) {
     if (r.pagamento !== p.id) throw new ErroEvento("outra cobrança para a mesma reserva");
-    return; // já processado por outro evento
+    return null; // já processado por outro evento
   }
   if (r.checkout && p.checkout && r.checkout !== p.checkout) throw new ErroEvento("cobrança de outro Checkout");
   if (p.valorCentavos !== Number(r.total)) throw new ErroEvento("valor pago diferente do total");
@@ -228,7 +229,7 @@ async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Event
         where id = $1 and asaas_pagamento_id is null and situacao in ('segurada', 'expirada') returning id`,
       dados,
     );
-    if (ok.rows.length === 1) return;
+    if (ok.rows.length === 1) return r.id;
   } catch (e) {
     if ((e as { code?: string }).code !== "23P01") throw e;
   }
@@ -244,12 +245,13 @@ async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Event
     dados,
   );
   if (cancelou.rows.length === 1) await estornarReserva(db, asaas, r.id, "sem_tarifa");
+  return null;
 }
 
 export type ResultadoEvento = "ok" | "repetido" | "ignorado" | "invalido" | "erro";
 
 export async function processarEventoAsaas(
-  db: Pick<Db, "query">, asaas: Asaas, bruto: unknown, agora: Date,
+  db: Pick<Db, "query">, asaas: Asaas, bruto: unknown, agora: Date, aoConfirmar?: (reservaId: string) => void,
 ): Promise<ResultadoEvento> {
   const ev = lerEvento(bruto);
   if (!ev) return "invalido";
@@ -262,7 +264,8 @@ export async function processarEventoAsaas(
     db.query("update asaas_eventos set processado_em = $2, erro = $3 where id = $1", [ev.id, agora, erro]);
   try {
     if (CONFIRMAM.has(ev.tipo)) {
-      await confirmarPagamento(db, asaas, ev, agora);
+      const confirmada = await confirmarPagamento(db, asaas, ev, agora);
+      if (confirmada) aoConfirmar?.(confirmada);
     } else if (ev.tipo === "CHECKOUT_EXPIRED" || ev.tipo === "CHECKOUT_CANCELED") {
       await db.query("update reservas set situacao = 'expirada' where asaas_checkout_id = $1 and situacao = 'segurada'", [ev.checkout]);
     } else if (ev.tipo === "PAYMENT_REFUNDED") {
@@ -292,6 +295,7 @@ const json = (corpo: unknown, status: number) =>
 // e a fila do Asaas não pausa.
 export function criarHandlerWebhookAsaas(
   db: Pick<Db, "query">, asaas: Asaas | null, token: string | undefined, relogio: () => Date = () => new Date(),
+  aoConfirmar?: (reservaId: string) => void,
 ): (req: Request) => Promise<Response> {
   return async (req) => {
     if (!token || !asaas) return json({ erro: "webhook não configurado" }, 503);
@@ -302,7 +306,7 @@ export function criarHandlerWebhookAsaas(
     } catch {
       return json({ erro: "corpo inválido" }, 400);
     }
-    const r = await processarEventoAsaas(db, asaas, corpo, relogio());
+    const r = await processarEventoAsaas(db, asaas, corpo, relogio(), aoConfirmar);
     return json({ resultado: r }, r === "invalido" ? 400 : 200);
   };
 }
