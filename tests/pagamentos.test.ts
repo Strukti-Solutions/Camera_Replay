@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { abrirPagamento, quadraCobraOnline } from "../app/lib/pagamentos";
-import { criarReserva, periodosOcupados } from "../app/lib/reservas";
+import { criarReserva, periodosOcupados, reservasDoJogador } from "../app/lib/reservas";
 import { novoBanco } from "./db";
 import { arenaOnline, asaasFalso, WALLET } from "./fixtures-asaas";
 
@@ -101,4 +101,18 @@ test("quadraCobraOnline: só com carteira; id inválido é false", async () => {
   await db.query("update arenas set asaas_wallet_id = null");
   expect(await quadraCobraOnline(db, com.quadra.id)).toBe(false);
   expect(await quadraCobraOnline(db, "lixo")).toBe(false);
+});
+
+test("Minhas reservas: segurada no prazo aparece em Próximas com o prazo; expirada some", async () => {
+  const db = await novoBanco();
+  const { quadra, jogadorId } = await arenaOnline(db);
+  const r = await criarReserva(db, jogadorId, { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 1 }, AGORA, { online: true });
+  if (!r.ok) throw new Error();
+  const { proximas } = await reservasDoJogador(db, jogadorId, AGORA);
+  expect(proximas).toHaveLength(1);
+  expect(proximas[0]).toMatchObject({ situacao: "segurada", pagamento: "online", podeCancelar: false, estorno: null });
+  expect(proximas[0].seguraAte?.getTime()).toBe(AGORA.getTime() + 10 * 60_000);
+  const depois = new Date(AGORA.getTime() + 11 * 60_000);
+  const lista = await reservasDoJogador(db, jogadorId, depois);
+  expect([...lista.proximas, ...lista.historico]).toEqual([]);
 });

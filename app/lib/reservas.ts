@@ -276,6 +276,10 @@ export type ReservaJogador = {
   motivoCancelamento: string | null;
   podeCancelar: boolean;
   lances: number;
+  seguraAte: Date | null; // segurada: prazo para pagar online
+  liquidoCentavos: number | null; // pago online: o que volta se o jogador cancelar
+  estorno: string | null;
+  estornoCentavos: number | null;
 };
 
 // Próximas: confirmadas que ainda não terminaram, da mais próxima à mais
@@ -289,7 +293,8 @@ export async function reservasDoJogador(
     rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null;
     quadra_id: string; quadra: string; esporte: string; foto_id: string | null; inicio: Date; fim: Date;
     total_centavos: number; pagamento: string; situacao: string; cancelada_por: string | null; lances: number;
-    motivo_cancelamento: string | null;
+    motivo_cancelamento: string | null; segura_ate: Date | null; liquido_centavos: number | null;
+    estorno: string | null; estorno_centavos: number | null;
   }>(
     `select r.id, a.nome as arena_nome, a.slug as arena_slug, a.latitude, a.longitude,
             a.endereco_rua as rua, a.endereco_numero as numero, a.endereco_bairro as bairro,
@@ -303,13 +308,16 @@ export async function reservasDoJogador(
                 order by f.posicao, f.criado_em, f.id limit 1)
             ) end as foto_id,
             r.total_centavos, r.pagamento, r.situacao, r.cancelada_por, r.motivo_cancelamento,
+            r.segura_ate, r.liquido_centavos, r.estorno, r.estorno_centavos,
             case when r.situacao = 'confirmada' then (select count(*)::int ${CLIPES_DA_JANELA}) else 0 end as lances
        from reservas r
        join arenas a on a.id = r.arena_id
        join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
-      where r.jogador_id = $1 and r.tipo = 'reserva' and r.situacao in ('confirmada', 'cancelada')
+      where r.jogador_id = $1 and r.tipo = 'reserva'
+        and (r.situacao in ('confirmada', 'cancelada')
+             or (r.situacao = 'segurada' and r.pagamento = 'online' and r.segura_ate > $2::timestamptz))
       order by r.inicio desc, r.criado_em desc, r.id`,
-    [jogadorId],
+    [jogadorId, agora],
   );
   const lista: ReservaJogador[] = rows.map((r) => {
     const inicio = new Date(r.inicio);
@@ -335,9 +343,14 @@ export async function reservasDoJogador(
       motivoCancelamento: r.motivo_cancelamento,
       podeCancelar: r.situacao === "confirmada" && podeCancelarJogador(inicio, agora),
       lances: Number(r.lances),
+      seguraAte: r.segura_ate ? new Date(r.segura_ate) : null,
+      liquidoCentavos: r.liquido_centavos == null ? null : Number(r.liquido_centavos),
+      estorno: r.estorno,
+      estornoCentavos: r.estorno_centavos == null ? null : Number(r.estorno_centavos),
     };
   });
-  const proxima = (r: ReservaJogador) => r.situacao === "confirmada" && r.fim.getTime() > agora.getTime();
+  const proxima = (r: ReservaJogador) =>
+    (r.situacao === "confirmada" || r.situacao === "segurada") && r.fim.getTime() > agora.getTime();
   return { proximas: lista.filter(proxima).reverse(), historico: lista.filter((r) => !proxima(r)) };
 }
 

@@ -1,5 +1,6 @@
 import { hojeLocal, minutoDoFim, partesDoInstante } from "@/app/lib/disponibilidade";
 import { textoMinutos } from "@/app/lib/horarios";
+import { textoDeCentavos } from "@/app/lib/precos";
 import { diaPorExtenso } from "@/app/a/[slug]/apresentacao";
 
 // Textos de Minhas reservas, sem cookie nem banco para poder testar direto.
@@ -16,6 +17,8 @@ export function mensagemOk(valor: string | string[] | undefined): string | null 
   const v = Array.isArray(valor) ? valor[0] : valor;
   if (v === "reservada") return "Reserva confirmada.";
   if (v === "cancelada") return "Reserva cancelada.";
+  if (v === "paga") return "Pagamento enviado. A reserva aparece como confirmada assim que o Asaas avisar, em instantes.";
+  if (v === "sem-pagamento") return "Não foi possível abrir o pagamento. O horário foi liberado; tente reservar de novo.";
   return null;
 }
 
@@ -62,19 +65,35 @@ export function textoHorario(inicio: Date, fim: Date): string {
   return `${textoMinutos(partesDoInstante(inicio).minuto)} às ${textoMinutos(minutoDoFim(fim))}`;
 }
 
-// "cancelamento grátis até dom 25, 18h": 24 h antes do início.
-export function textoCancelaAte(inicio: Date): string {
+// "cancelamento grátis até dom 25, 18h": 24 h antes do início. Pago online não
+// é grátis (a tarifa do Asaas não volta): "cancelamento até dom 25, 18h".
+export function textoCancelaAte(inicio: Date, gratis = true): string {
   const limite = new Date(inicio.getTime() - 24 * 3_600_000);
   const { semana, dia } = seloData(limite);
-  return `cancelamento grátis até ${semana} ${dia}, ${textoMinutos(partesDoInstante(limite).minuto)}`;
+  return `cancelamento${gratis ? " grátis" : ""} até ${semana} ${dia}, ${textoMinutos(partesDoInstante(limite).minuto)}`;
 }
 
 export function seloDaReserva(
   r: { situacao: string; canceladaPor: string | null; motivoCancelamento: string | null; fim: Date },
   agora: Date,
-): { texto: string; tom: "ok" | "jogada" | "cancelada" } {
+): { texto: string; tom: "ok" | "jogada" | "cancelada" | "aguardando" } {
+  if (r.situacao === "segurada") return { texto: "Aguardando pagamento", tom: "aguardando" };
   if (r.situacao === "cancelada") return { texto: rotuloSituacao(r.situacao, r.canceladaPor, r.motivoCancelamento), tom: "cancelada" };
   return r.fim.getTime() > agora.getTime() ? { texto: "Confirmada", tom: "ok" } : { texto: "Jogada", tom: "jogada" };
+}
+
+// Segurada esperando o pagamento online: "Pague até 15h42 para garantir o horário."
+export function textoPagarAte(seguraAte: Date): string {
+  return `Pague até ${textoMinutos(partesDoInstante(seguraAte).minuto)} para garantir o horário.`;
+}
+
+// Situação do estorno de uma reserva paga online e cancelada.
+export function textoEstornoReserva(r: { estorno: string | null; estornoCentavos: number | null }): string | null {
+  if (r.estorno === "pendente") return "Estorno em análise pela Strukti.";
+  if (r.estornoCentavos == null) return null;
+  if (r.estorno === "solicitado") return `Estorno de ${textoDeCentavos(r.estornoCentavos)} a caminho.`;
+  if (r.estorno === "concluido") return `Estorno de ${textoDeCentavos(r.estornoCentavos)} feito.`;
+  return null;
 }
 
 // Volta à página da arena com a mesma quadra escolhida.

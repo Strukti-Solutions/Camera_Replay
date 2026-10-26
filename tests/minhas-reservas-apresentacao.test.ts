@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import {
   POR_PAGINA, hrefLista, hrefReservarDeNovo, lerAba, mensagemOk, paginar, rotuloSituacao, seloDaReserva, seloData, textoCancelaAte, textoHorario,
-  textoPeriodo,
+  textoEstornoReserva, textoPagarAte, textoPeriodo,
 } from "../app/minhas-reservas/apresentacao";
 
 test("situação: confirmada, cancelada por você ou pela arena", () => {
@@ -107,4 +107,23 @@ test("selo da reserva: confirmada, jogada ou cancelada (com o motivo da arena)",
 test("reservar de novo: página da arena com a quadra escolhida", () => {
   expect(hrefReservarDeNovo("SFGth-S7Bi", "q-1")).toBe("/a/SFGth-S7Bi?quadra=q-1#reserva");
   expect(hrefReservarDeNovo("a b", "x&y")).toBe("/a/a%20b?quadra=x%26y#reserva");
+});
+
+test("pagamento online: selo aguardando, prazo para pagar, estorno e mensagem do retorno do Asaas", () => {
+  const agora = new Date("2026-10-26T12:00:00Z");
+  expect(seloDaReserva({ situacao: "segurada", canceladaPor: null, motivoCancelamento: null, fim: new Date("2026-10-27T00:00:00Z") }, agora))
+    .toEqual({ texto: "Aguardando pagamento", tom: "aguardando" });
+  expect(textoPagarAte(new Date("2026-10-26T15:42:30-03:00"))).toBe("Pague até 15h42 para garantir o horário.");
+  expect(textoEstornoReserva({ estorno: "solicitado", estornoCentavos: 19802 })).toBe("Estorno de R$ 198,02 a caminho.");
+  expect(textoEstornoReserva({ estorno: "concluido", estornoCentavos: 19802 })).toBe("Estorno de R$ 198,02 feito.");
+  expect(textoEstornoReserva({ estorno: "pendente", estornoCentavos: null })).toBe("Estorno em análise pela Strukti.");
+  expect(textoEstornoReserva({ estorno: null, estornoCentavos: null })).toBeNull();
+  expect(mensagemOk("paga")).toBe("Pagamento enviado. A reserva aparece como confirmada assim que o Asaas avisar, em instantes.");
+  expect(mensagemOk("sem-pagamento")).toBe("Não foi possível abrir o pagamento. O horário foi liberado; tente reservar de novo.");
+});
+
+test("prazo de cancelar de reserva paga online não diz grátis", () => {
+  const inicio = new Date("2026-10-26T18:00:00-03:00");
+  expect(textoCancelaAte(inicio, false)).toBe(textoCancelaAte(inicio).replace("cancelamento grátis", "cancelamento"));
+  expect(textoCancelaAte(inicio, false)).not.toContain("grátis");
 });

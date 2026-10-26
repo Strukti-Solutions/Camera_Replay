@@ -3293,6 +3293,12 @@ a.ar-quadra:focus-visible {
   color: var(--perigo);
 }
 
+/* Segurada esperando o pagamento online: contorno, sem cor de situação final. */
+.rv-selo-aguardando {
+  border: 1px solid var(--borda-selo);
+  color: var(--tinta);
+}
+
 .rv-selo-jogada,
 .rv-selo-lances {
   background: var(--realce);

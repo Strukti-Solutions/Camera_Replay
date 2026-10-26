@@ -126,6 +126,7 @@ test("reserva ocupa e libera ao cancelar", async () => {
     id, arena: { nome: "Arena A", slug: arena.slug, latitude: null, longitude: null, endereco: SEM_ENDERECO },
     quadraId: quadra.id, quadra: "Quadra 1", esporte: "", fotoId: null, inicio: h(18), fim: h(20),
     totalCentavos: 20000, pagamento: "arena", situacao: "confirmada", canceladaPor: null, motivoCancelamento: null, podeCancelar: true, lances: 0,
+    seguraAte: null, liquidoCentavos: null, estorno: null, estornoCentavos: null,
   }]);
   expect(antes.historico).toEqual([]);
 

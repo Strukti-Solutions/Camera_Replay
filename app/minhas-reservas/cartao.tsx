@@ -13,6 +13,6 @@ export function SeloData({ inicio, passada }: { inicio: Date; passada: boolean }
   );
 }
 
-export function SeloSituacao({ texto, tom }: { texto: string; tom: "ok" | "jogada" | "cancelada" }) {
+export function SeloSituacao({ texto, tom }: { texto: string; tom: "ok" | "jogada" | "cancelada" | "aguardando" }) {
   return <span className={`rv-selo rv-selo-${tom}`}>{texto}</span>;
 }

@@ -7,9 +7,10 @@ import { poolCompartilhado } from "@/app/lib/pool";
 import { textoDeCentavos } from "@/app/lib/precos";
 import { reservasDoJogador, type ReservaJogador } from "@/app/lib/reservas";
 import { linkComoChegar, textoLances } from "@/app/a/[slug]/apresentacao";
-import { cancelarReservaAction } from "./actions";
+import { cancelarReservaAction, pagarReservaAction } from "./actions";
 import {
-  hrefLista, hrefReservarDeNovo, lerAba, mensagemOk, paginar, seloDaReserva, textoCancelaAte, textoHorario, type Aba,
+  hrefLista, hrefReservarDeNovo, lerAba, mensagemOk, paginar, seloDaReserva, textoCancelaAte, textoEstornoReserva, textoHorario,
+  textoPagarAte, type Aba,
 } from "./apresentacao";
 import { CancelarIndisponivel } from "./cancelar-indisponivel";
 import { SeloData, SeloSituacao } from "./cartao";
@@ -27,6 +28,12 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
   const passada = aba === "historico";
   const comoChegar = passada ? null : linkComoChegar(r.arena);
   const quadra = r.esporte ? `${r.quadra} · ${r.esporte}` : r.quadra;
+  const estorno = textoEstornoReserva(r);
+  const online = r.pagamento === "online";
+  // O cancelamento de reserva paga online devolve o valor sem a tarifa do Asaas.
+  const pergunta = online && r.liquidoCentavos != null
+    ? `Cancelar esta reserva? O horário volta a ficar livre e você recebe ${textoDeCentavos(r.liquidoCentavos)} de volta (a tarifa do Asaas não é devolvida).`
+    : "Cancelar esta reserva? O horário volta a ficar livre.";
   return (
     <li className="rv-cartao">
       <span className={`rv-foto rv-foto-${indice % 2}`} aria-hidden="true">
@@ -50,13 +57,18 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
           <SeloSituacao {...seloDaReserva(r, agora)} />
           {passada && r.lances > 0 && <span className="rv-selo rv-selo-lances">{textoLances(r.lances)}</span>}
         </p>
-        {!passada && (r.pagamento === "arena" || r.podeCancelar) && (
-          <p className="rv-nota">
-            {r.pagamento === "arena" ? "Pagamento na arena" : null}
-            {r.pagamento === "arena" && r.podeCancelar ? " · " : null}
-            {r.podeCancelar ? textoCancelaAte(r.inicio) : null}
-          </p>
+        {r.situacao === "segurada" && r.seguraAte ? (
+          <p className="rv-nota">{textoPagarAte(r.seguraAte)}</p>
+        ) : (
+          !passada && (r.pagamento === "arena" || online || r.podeCancelar) && (
+            <p className="rv-nota">
+              {r.pagamento === "arena" ? "Pagamento na arena" : online ? "Pago online" : null}
+              {(r.pagamento === "arena" || online) && r.podeCancelar ? " · " : null}
+              {r.podeCancelar ? textoCancelaAte(r.inicio, !online) : null}
+            </p>
+          )
         )}
+        {estorno && <p className="rv-nota">{estorno}</p>}
         <div className="rv-acoes">
           {passada ? (
             <>
@@ -76,13 +88,20 @@ function Cartao({ r, aba, agora, indice }: { r: ReservaJogador; aba: Aba; agora:
                   Como chegar
                 </a>
               )}
-              {r.podeCancelar ? (
+              {r.situacao === "segurada" ? (
+                <form action={pagarReservaAction}>
+                  <input type="hidden" name="reservaId" value={r.id} />
+                  <button type="submit" className="botao botao-cheio">
+                    Pagar
+                  </button>
+                </form>
+              ) : r.podeCancelar ? (
                 <Confirmar
                   acao={cancelarReservaAction}
                   campo="reservaId"
                   valor={r.id}
                   rotulo="Cancelar"
-                  pergunta="Cancelar esta reserva? O horário volta a ficar livre."
+                  pergunta={pergunta}
                   confirmar="Cancelar"
                 />
               ) : (
