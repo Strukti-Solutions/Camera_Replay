@@ -1,7 +1,7 @@
 import { textoPeriodo } from "@/app/minhas-reservas/apresentacao";
 import { ErroAsaas, type Asaas, type PagamentoAsaas } from "./asaas";
 import type { Db } from "./db";
-import { cancelarCobrancaMensalidade, processarCobrancaMensalidade } from "./mensalidades";
+import { processarCobrancaMensalidade } from "./mensalidades";
 import { segredoConfere } from "./limpeza";
 
 // Pagamento online das reservas pelo Asaas: abrir o Checkout, processar o
@@ -268,14 +268,17 @@ export async function processarEventoAsaas(
     db.query("update asaas_eventos set processado_em = $2, erro = $3 where id = $1", [ev.id, agora, erro]);
   try {
     if (ev.assinatura && ev.tipo.startsWith("PAYMENT_")) {
-      // Mensalidade do dono: o payload só aponta a cobrança; os dados vêm da API.
-      if (ev.tipo === "PAYMENT_DELETED") {
-        if (ev.pagamento) await cancelarCobrancaMensalidade(db, ev.pagamento, agora);
-      } else {
-        if (!ev.pagamento) throw new ErroEvento("evento sem cobrança");
-        const p = await asaas.pagamento(ev.pagamento);
-        if (!p.assinatura) throw new ErroEvento("cobrança sem assinatura");
-        if (!(await processarCobrancaMensalidade(db, p, agora))) throw new ErroEvento("assinatura desconhecida");
+      // Mensalidade do dono: o payload só aponta a cobrança; os dados vêm da API
+      // (inclusive "deleted" no PAYMENT_DELETED).
+      if (!ev.pagamento) throw new ErroEvento("evento sem cobrança");
+      const p = await asaas.pagamento(ev.pagamento);
+      if (!p.assinatura) throw new ErroEvento("cobrança sem assinatura");
+      const r = await processarCobrancaMensalidade(db, p, agora);
+      // Passageiro: a assinatura ainda está sendo gravada na arena; o Asaas reenvia.
+      if (r === "aguardar") throw new Error("assinatura ainda não gravada");
+      if (r === "alheia") {
+        await fechar(null);
+        return "ignorado";
       }
     } else if (CONFIRMAM.has(ev.tipo)) {
       const confirmada = await confirmarPagamento(db, asaas, ev, agora);

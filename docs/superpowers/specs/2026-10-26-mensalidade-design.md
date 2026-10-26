@@ -40,3 +40,18 @@ Emenda da spec `2026-10-22-reservas-publicas-design.md`, item 5 ("Cobrança da m
 - Cobrança proporcional (pro rata).
 - Desconto.
 - O dono ver a mensalidade no painel dele (o Asaas já manda o e-mail com o link).
+
+## Revisão e sandbox (26/10/2026, tarde)
+
+- **Alterar** lê o `nextDueDate` atual da assinatura (`GET /subscriptions/{id}`). Se só o valor mudou, reenvia esse mesmo vencimento. Se o dia mudou, usa o novo dia no mesmo mês do próximo vencimento atual; se essa data já passou, usa o mês seguinte.
+- Fatos do sandbox que levaram a essa regra:
+  - o PUT sem `nextDueDate` dá HTTP 500;
+  - o PUT aceita uma data igual ou anterior à cobrança já gerada, o que faria duas cobranças no mesmo mês;
+  - o PUT não move a cobrança pendente.
+- **Cadastro concorrente:** a assinatura só é gravada `where asaas_assinatura_id is null`. Quem perde a corrida exclui no Asaas a assinatura que acabou de criar.
+- **Webhook:**
+  - Cobrança excluída: a API devolve o status antigo com `deleted: true`. O sistema lê esse campo e marca a cobrança como cancelada; o `PAYMENT_DELETED` também passa pela API.
+  - Primeira cobrança que chega antes de a assinatura ser gravada: é a cobrança de uma arena que ainda não tem assinatura, criada hoje ou ontem. O webhook responde 503 e o Asaas reenvia.
+  - Assinatura que não é do Replay: o evento é ignorado.
+- **Excluir com 404** (a assinatura já tinha sido excluída) conta como sucesso.
+- **Nome, documento e e-mail** valem no cadastro. Para trocar, a Strukti apaga a mensalidade e cadastra de novo; a tela diz isso.

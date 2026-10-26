@@ -92,6 +92,7 @@ export type DetalheArenaAdmin = {
   taxaPercentual: number; donoEmail: string | null;
   carteiraAsaas: string | null; // walletId do dono no Asaas; null = "pagar na arena"
   mensalidade: { valorCentavos: number | null; dia: number | null; documento: string | null; nome: string | null };
+  situacaoMensalidade: string | null; // como na lista de arenas
 };
 
 // Uma arena para a página de configuração. Id malformado vale como inexistente
@@ -101,10 +102,11 @@ export async function detalheArenaAdmin(db: Db, arenaId: string): Promise<Detalh
   const { rows } = await db.query<{
     id: string; nome: string; slug: string; status: StatusArena; taxa: string | number; dono_email: string | null;
     carteira: string | null; mensalidade: number | null; dia: number | null; documento: string | null; nome_cobranca: string | null;
+    situacao: string | null;
   }>(
     `select a.id, a.nome, a.slug, a.status_assinatura as status, a.taxa_percentual as taxa, a.asaas_wallet_id as carteira,
             a.mensalidade_centavos as mensalidade, a.mensalidade_dia as dia, a.dono_documento as documento,
-            a.dono_nome_cobranca as nome_cobranca,
+            a.dono_nome_cobranca as nome_cobranca, ${SQL_SITUACAO_MENSALIDADE} as situacao,
             (select min(u.email) from usuarios u where u.arena_id = a.id and u.papel = 'dono') as dono_email
        from arenas a where a.id = $1`,
     [arenaId],
@@ -116,7 +118,8 @@ export async function detalheArenaAdmin(db: Db, arenaId: string): Promise<Detalh
     mensalidade: {
       valorCentavos: r.mensalidade === null ? null : Number(r.mensalidade), dia: r.dia === null ? null : Number(r.dia),
       documento: r.documento, nome: r.nome_cobranca,
-    } };
+    },
+    situacaoMensalidade: r.situacao };
 }
 
 // Carteira Asaas do dono (walletId, um uuid) para o split das reservas online.
@@ -155,7 +158,7 @@ export type PendenciasPagamento = {
     inicio: Date; canceladaPor: string | null;
   }[];
   eventos: { id: string; tipo: string; erro: string; recebidoEm: Date }[];
-  mensalidades: { arenaId: string; arena: string; valorCentavos: number; vencimento: string; link: string | null }[];
+  mensalidades: { id: string; arenaId: string; arena: string; valorCentavos: number; vencimento: string; link: string | null }[];
 };
 
 // O que a Strukti precisa resolver à mão: estornos que o Asaas recusou (ex.:
@@ -181,8 +184,8 @@ export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento
         where erro is not null or (processado_em is null and recebido_em < now() - interval '5 minutes')
         order by recebido_em desc limit 50`,
     ),
-    db.query<{ arena_id: string; arena: string; valor: number; vencimento: string; link: string | null }>(
-      `select m.arena_id, a.nome as arena, m.valor_centavos as valor, to_char(m.vencimento, 'YYYY-MM-DD') as vencimento, m.link
+    db.query<{ id: string; arena_id: string; arena: string; valor: number; vencimento: string; link: string | null }>(
+      `select m.id, m.arena_id, a.nome as arena, m.valor_centavos as valor, to_char(m.vencimento, 'YYYY-MM-DD') as vencimento, m.link
          from mensalidades m join arenas a on a.id = m.arena_id
         where m.situacao = 'atrasada'
         order by m.vencimento, m.id limit 100`,
@@ -195,7 +198,7 @@ export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento
     })),
     eventos: v.rows.map((r) => ({ id: r.id, tipo: r.tipo, erro: r.erro, recebidoEm: new Date(r.recebido_em) })),
     mensalidades: m.rows.map((r) => ({
-      arenaId: r.arena_id, arena: r.arena, valorCentavos: Number(r.valor), vencimento: r.vencimento, link: r.link,
+      id: r.id, arenaId: r.arena_id, arena: r.arena, valorCentavos: Number(r.valor), vencimento: r.vencimento, link: r.link,
     })),
   };
 }

@@ -34,6 +34,16 @@ export function proximoVencimento(dia: number, agora: Date): string {
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
+// Dia novo ao alterar a assinatura: no mesmo mês do próximo vencimento atual
+// (a cobrança deste ciclo já existe; o PUT não a move). Nunca hoje nem antes.
+export function vencimentoAoAlterar(proximoAtual: string, dia: number, agora: Date): string {
+  const [a, m] = proximoAtual.split("-").map(Number);
+  const data = `${a}-${String(m).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  if (data > hojeLocal(agora)) return data;
+  const [ano, mes] = m === 12 ? [a + 1, 1] : [a, m + 1];
+  return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
 export type EntradaMensalidade = { valor: string; dia: string; documento: string; nome: string };
 export type ResultadoMensalidade = { ok: true } | { ok: false; erro: string };
 
@@ -67,7 +77,8 @@ export async function definirMensalidade(
       try {
         await asaas.excluirAssinatura(a.assinatura);
       } catch (err) {
-        return { ok: false, erro: erroDoAsaas(err) };
+        // 404: já excluída (ex.: o banco falhou depois de uma exclusão anterior).
+        if (!(err instanceof ErroAsaas && err.status === 404)) return { ok: false, erro: erroDoAsaas(err) };
       }
     }
     await db.query(
@@ -99,7 +110,9 @@ export async function definirMensalidade(
     }
     if (a.valor !== valor || a.dia !== dia) {
       try {
-        await asaas.alterarAssinatura(a.assinatura, { valorCentavos: valor, vencimento: proximoVencimento(dia, agora) });
+        const { proximoVencimento: atual } = await asaas.lerAssinatura(a.assinatura);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(atual)) return { ok: false, erro: "O Asaas não informou o próximo vencimento. Tente de novo." };
+        await asaas.alterarAssinatura(a.assinatura, { valorCentavos: valor, vencimento: vencimentoAoAlterar(atual, dia, agora) });
       } catch (err) {
         return { ok: false, erro: erroDoAsaas(err) };
       }
@@ -123,19 +136,25 @@ export async function definirMensalidade(
   } catch (err) {
     return { ok: false, erro: erroDoAsaas(err) };
   }
+  // Só grava se ninguém gravou outra assinatura no meio-tempo (duas abas, dois
+  // admins); senão a recém-criada é excluída para não cobrar o dono em dobro.
+  let gravou = false;
   try {
-    await db.query(
+    const r = await db.query(
       `update arenas set mensalidade_centavos = $2, mensalidade_dia = $3, dono_documento = $4, dono_nome_cobranca = $5,
               asaas_cliente_id = $6, asaas_assinatura_id = $7
-        where id = $1`,
+        where id = $1 and asaas_assinatura_id is null
+        returning id`,
       [arenaId, valor, dia, documento, nome, cliente, assinatura],
     );
+    gravou = r.rows.length === 1;
   } catch (err) {
-    console.error("mensalidade: assinatura criada mas não gravada; excluindo:", err instanceof Error ? err.message : "erro");
-    await asaas.excluirAssinatura(assinatura).catch(() => console.error("mensalidade: assinatura órfã no Asaas, excluir à mão"));
-    return { ok: false, erro: "Não foi possível salvar. Tente de novo." };
+    console.error("mensalidade: assinatura criada mas não gravada:", err instanceof Error ? err.message : "erro");
   }
-  return { ok: true };
+  if (gravou) return { ok: true };
+  await asaas.excluirAssinatura(assinatura).catch(() =>
+    console.error(`mensalidade: assinatura órfã no Asaas (${assinatura}), excluir à mão`));
+  return { ok: false, erro: "Outra alteração foi salva ao mesmo tempo ou o banco falhou. Recarregue a página e confira." };
 }
 
 function situacaoDoStatus(status: string): "pendente" | "atrasada" | "paga" | "estornada" {
@@ -146,10 +165,13 @@ function situacaoDoStatus(status: string): "pendente" | "atrasada" | "paga" | "e
 }
 
 // Cobrança da assinatura, já lida da API (nunca do payload do webhook). A arena
-// sai da assinatura ou de uma linha já gravada. false = não é de nenhuma arena.
+// sai da assinatura gravada ou de uma linha já gravada.
+// "aguardar": a primeira cobrança chegou antes de a assinatura ser gravada na
+// arena (o webhook responde 503 e o Asaas reenvia). "alheia": não é do Replay
+// (outra assinatura da conta da Strukti) ou já não importa.
 export async function processarCobrancaMensalidade(
   db: Pick<Db, "query">, p: PagamentoAsaas, agora: Date,
-): Promise<boolean> {
+): Promise<"ok" | "aguardar" | "alheia"> {
   const { rows } = await db.query<{ arena_id: string }>(
     `select id as arena_id from arenas where $1::text is not null and asaas_assinatura_id = $1
      union all
@@ -158,8 +180,16 @@ export async function processarCobrancaMensalidade(
     [p.assinatura, p.id],
   );
   const arenaId = rows[0]?.arena_id;
-  if (!arenaId || !p.vencimento) return false;
-  const situacao = situacaoDoStatus(p.status);
+  if (!arenaId) {
+    if (p.excluida || !p.referencia || !UUID.test(p.referencia) || !p.criadoEm) return "alheia";
+    // Só espera por cobrança criada hoje ou ontem, de arena que ainda não gravou a assinatura.
+    const ontem = hojeLocal(new Date(agora.getTime() - 86_400_000));
+    if (p.criadoEm < ontem) return "alheia";
+    const a = await db.query("select 1 from arenas where id = $1 and asaas_assinatura_id is null", [p.referencia]);
+    return a.rows.length === 1 ? "aguardar" : "alheia";
+  }
+  if (!p.vencimento) return "alheia";
+  const situacao = p.excluida ? "cancelada" : situacaoDoStatus(p.status);
   await db.query(
     `insert into mensalidades (id, arena_id, valor_centavos, vencimento, situacao, link, pago_em, atualizado_em)
      values ($1, $2, $3, $4, $5, $6, case when $5 = 'paga' then $7::timestamptz end, $7)
@@ -170,15 +200,7 @@ export async function processarCobrancaMensalidade(
        atualizado_em = excluded.atualizado_em`,
     [p.id, arenaId, p.valorCentavos, p.vencimento, situacao, p.link, agora],
   );
-  return true;
-}
-
-// Cobrança excluída no Asaas (assinatura apagada ou alterada): sem efeito em dinheiro.
-export async function cancelarCobrancaMensalidade(db: Pick<Db, "query">, pagamentoId: string, agora: Date): Promise<void> {
-  await db.query(
-    "update mensalidades set situacao = 'cancelada', atualizado_em = $2 where id = $1 and situacao in ('pendente', 'atrasada')",
-    [pagamentoId, agora],
-  );
+  return "ok";
 }
 
 export type Mensalidade = {

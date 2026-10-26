@@ -23,6 +23,7 @@ export async function arenaOnline(db: Db, comCarteira = true) {
 export function asaasFalso(falhar = false, pagamentos: Record<string, PagamentoAsaas[]> = {}) {
   const estornos: { pagamento: string; valorCentavos: number; splits: { id: string; valorCentavos: number }[] }[] = [];
   const checkouts: Parameters<Asaas["criarCheckout"]>[0][] = [];
+  let assinaturas = 0;
   const asaas: Asaas = {
     criarCheckout: vi.fn(async (p) => {
       if (falhar) throw new Error("asaas: HTTP 500");
@@ -44,7 +45,8 @@ export function asaasFalso(falhar = false, pagamentos: Record<string, PagamentoA
       if (falhar) throw new Error("asaas: HTTP 400 (invalid_cpfCnpj)");
       return "cus_1";
     }),
-    criarAssinatura: vi.fn(async () => "sub_1"),
+    criarAssinatura: vi.fn(async () => `sub_${++assinaturas}`),
+    lerAssinatura: vi.fn(async () => ({ proximoVencimento: "2026-12-10" })),
     alterarAssinatura: vi.fn(async () => {}),
     excluirAssinatura: vi.fn(async () => {}),
   };

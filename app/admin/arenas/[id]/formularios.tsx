@@ -128,7 +128,8 @@ export function FormularioMensalidade({ arenaId, inicial }: { arenaId: string; i
         <input id="mensalidade-documento" name="documento" type="text" inputMode="numeric" autoComplete="off" maxLength={30}
           className="mono" defaultValue={estado.documento} aria-describedby="mensalidade-documento-dica" />
         <p id="mensalidade-documento-dica" className="suave">
-          O Asaas exige. A cobrança vai para o e-mail do dono da arena.
+          O Asaas exige. A cobrança vai para o e-mail do dono da arena. Nome, CPF ou CNPJ e e-mail valem no cadastro: para trocar
+          depois, apague a mensalidade (valor em branco) e cadastre de novo.
         </p>
       </div>
       <p className="erro-form" role="alert">

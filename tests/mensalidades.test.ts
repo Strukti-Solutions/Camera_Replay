@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import type { PagamentoAsaas } from "../app/lib/asaas";
+import { ErroAsaas, type PagamentoAsaas } from "../app/lib/asaas";
 import { criarArenaComDono } from "../app/lib/donos";
 import {
   definirMensalidade, documentoValido, mensalidadesDaArena, processarCobrancaMensalidade, proximoVencimento,
@@ -62,7 +62,9 @@ test("alterar valor ou dia: altera a assinatura; nada mudou: não chama o Asaas"
     .toEqual({ ok: true });
   expect(f.asaas.alterarAssinatura).not.toHaveBeenCalled();
   await definirMensalidade(db, f.asaas, arenaId, { valor: "199", dia: "15", documento: CPF, nome: "João Dono" }, AGORA);
-  expect(f.asaas.alterarAssinatura).toHaveBeenCalledWith("sub_1", { valorCentavos: 19900, vencimento: "2026-11-15" });
+  // O próximo vencimento atual da assinatura é 10/12 (a cobrança de 10/11 já existe):
+  // o dia novo vale a partir de dezembro, sem segunda cobrança em novembro.
+  expect(f.asaas.alterarAssinatura).toHaveBeenCalledWith("sub_1", { valorCentavos: 19900, vencimento: "2026-12-15" });
   expect(f.asaas.criarAssinatura).toHaveBeenCalledTimes(1);
   expect(await linha(db, arenaId)).toMatchObject({ mensalidade_centavos: 19900, mensalidade_dia: 15 });
 });
@@ -117,8 +119,8 @@ test("Asaas aceita a assinatura mas o banco falha: a assinatura criada é exclu�
 test("cobranças da assinatura: grava, atualiza a situação e ignora assinatura desconhecida", async () => {
   const { db, arenaId, f } = await arena();
   await definirMensalidade(db, f.asaas, arenaId, { valor: "149,90", dia: "10", documento: CPF, nome: "João Dono" }, AGORA);
-  expect(await processarCobrancaMensalidade(db, cobranca({}), AGORA)).toBe(true);
-  expect(await processarCobrancaMensalidade(db, cobranca({ status: "OVERDUE" }), AGORA)).toBe(true);
+  expect(await processarCobrancaMensalidade(db, cobranca({}), AGORA)).toBe("ok");
+  expect(await processarCobrancaMensalidade(db, cobranca({ status: "OVERDUE" }), AGORA)).toBe("ok");
   let m = await mensalidadesDaArena(db, arenaId);
   expect(m).toEqual([{
     id: "pay_m1", valorCentavos: 14990, vencimento: "2026-11-10", situacao: "atrasada", link: "https://sandbox.asaas.com/i/abc", pagoEm: null,
@@ -130,7 +132,7 @@ test("cobranças da assinatura: grava, atualiza a situação e ignora assinatura
   expect(m[0]).toMatchObject({ situacao: "paga", pagoEm: depois });
   await processarCobrancaMensalidade(db, cobranca({ status: "REFUNDED" }), AGORA);
   expect((await mensalidadesDaArena(db, arenaId))[0].situacao).toBe("estornada");
-  expect(await processarCobrancaMensalidade(db, cobranca({ id: "pay_x", assinatura: "sub_outra" }), AGORA)).toBe(false);
+  expect(await processarCobrancaMensalidade(db, cobranca({ id: "pay_x", assinatura: "sub_outra" }), AGORA)).toBe("alheia");
 });
 
 test("admin: lista, detalhe e pendências mostram a mensalidade e a cobrança atrasada", async () => {
@@ -145,9 +147,60 @@ test("admin: lista, detalhe e pendências mostram a mensalidade e a cobrança at
   // Uma atrasada pesa mais que a pendente mais nova.
   expect((await listarArenasAdmin(db))[0].situacaoMensalidade).toBe("atrasada");
   expect((await pendenciasDePagamento(db)).mensalidades).toEqual([{
-    arenaId, arena: "Arena Sol", valorCentavos: 14990, vencimento: "2026-10-10", link: "https://sandbox.asaas.com/i/abc",
+    id: "pay_out", arenaId, arena: "Arena Sol", valorCentavos: 14990, vencimento: "2026-10-10", link: "https://sandbox.asaas.com/i/abc",
   }]);
   await processarCobrancaMensalidade(db, cobranca({ id: "pay_out", vencimento: "2026-10-10", status: "RECEIVED" }), AGORA);
   expect((await listarArenasAdmin(db))[0].situacaoMensalidade).toBe("pendente");
   expect((await pendenciasDePagamento(db)).mensalidades).toEqual([]);
+});
+
+test("vencimento ao alterar: só o valor mantém o próximo vencimento; dia novo fica no mesmo mês dele", async () => {
+  const { db, arenaId, f } = await arena();
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "149,90", dia: "10", documento: CPF, nome: "João Dono" }, AGORA);
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "199", dia: "10", documento: CPF, nome: "João Dono" }, AGORA);
+  expect(f.asaas.alterarAssinatura).toHaveBeenLastCalledWith("sub_1", { valorCentavos: 19900, vencimento: "2026-12-10" });
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "199", dia: "5", documento: CPF, nome: "João Dono" }, AGORA);
+  expect(f.asaas.alterarAssinatura).toHaveBeenLastCalledWith("sub_1", { valorCentavos: 19900, vencimento: "2026-12-05" });
+  // Próximo vencimento ainda neste mês e dia novo já passou: vai para o mês seguinte.
+  vi.mocked(f.asaas.lerAssinatura).mockResolvedValueOnce({ proximoVencimento: "2026-10-28" });
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "199", dia: "20", documento: CPF, nome: "João Dono" }, AGORA);
+  expect(f.asaas.alterarAssinatura).toHaveBeenLastCalledWith("sub_1", { valorCentavos: 19900, vencimento: "2026-11-20" });
+});
+
+test("dois cadastros ao mesmo tempo: só uma assinatura fica; a outra é excluída no Asaas", async () => {
+  const { db, arenaId, f } = await arena();
+  const e = { valor: "149,90", dia: "10", documento: CPF, nome: "João Dono" };
+  const r = await Promise.all([definirMensalidade(db, f.asaas, arenaId, e, AGORA), definirMensalidade(db, f.asaas, arenaId, e, AGORA)]);
+  expect(r.filter((x) => x.ok)).toHaveLength(1);
+  const gravada = (await linha(db, arenaId)).asaas_assinatura_id;
+  expect(["sub_1", "sub_2"]).toContain(gravada);
+  expect(f.asaas.excluirAssinatura).toHaveBeenCalledTimes(1);
+  expect(f.asaas.excluirAssinatura).toHaveBeenCalledWith(gravada === "sub_1" ? "sub_2" : "sub_1");
+});
+
+test("tirar a mensalidade com a assinatura já excluída no Asaas (404) não trava", async () => {
+  const { db, arenaId, f } = await arena();
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "149,90", dia: "10", documento: CPF, nome: "João Dono" }, AGORA);
+  vi.mocked(f.asaas.excluirAssinatura).mockRejectedValueOnce(new ErroAsaas(404, null));
+  expect(await definirMensalidade(db, f.asaas, arenaId, { valor: "", dia: "", documento: CPF, nome: "João Dono" }, AGORA)).toEqual({ ok: true });
+  expect(await linha(db, arenaId)).toMatchObject({ asaas_assinatura_id: null });
+});
+
+test("cobrança excluída (deleted na API) fica cancelada, mesmo lida com status PENDING", async () => {
+  const { db, arenaId, f } = await arena();
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "149,90", dia: "10", documento: CPF, nome: "João Dono" }, AGORA);
+  await processarCobrancaMensalidade(db, cobranca({}), AGORA);
+  expect(await processarCobrancaMensalidade(db, cobranca({ excluida: true }), AGORA)).toBe("ok");
+  expect((await mensalidadesDaArena(db, arenaId))[0].situacao).toBe("cancelada");
+  // Excluída e nunca gravada: nada a fazer.
+  expect(await processarCobrancaMensalidade(db, cobranca({ id: "pay_z", assinatura: "sub_velha", excluida: true }), AGORA)).toBe("alheia");
+});
+
+test("cobrança de assinatura ainda não gravada: aguardar se a arena dela ainda não tem assinatura; senão é alheia", async () => {
+  const { db, arenaId } = await arena();
+  const nova = cobranca({ id: "pay_n", assinatura: "sub_9", referencia: arenaId, criadoEm: "2026-10-26" });
+  expect(await processarCobrancaMensalidade(db, nova, AGORA)).toBe("aguardar");
+  // Criada há dias: não fica esperando para sempre.
+  expect(await processarCobrancaMensalidade(db, { ...nova, criadoEm: "2026-10-20" }, AGORA)).toBe("alheia");
+  expect(await processarCobrancaMensalidade(db, cobranca({ id: "pay_o", assinatura: "sub_o", referencia: "outra-coisa" }), AGORA)).toBe("alheia");
 });

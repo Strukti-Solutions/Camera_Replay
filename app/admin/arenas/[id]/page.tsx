@@ -58,8 +58,6 @@ export default async function PaginaArenaAdmin({ params }: Props) {
     Promise.all(detalhes.map((q) => listarFotos(db, arena.id, q.id))),
     mensalidadesDaArena(db, arena.id),
   ]);
-  const atrasada = cobrancas.find((c) => c.situacao === "atrasada")?.situacao ?? null;
-  const situacaoMensalidade = atrasada ?? cobrancas.find((c) => c.situacao !== "cancelada")?.situacao ?? null;
   const armazenamento = lerConfigR2() !== null;
   const admin = { acoes: ACOES_FOTOS, arenaId: arena.id };
   const agora = new Date();
@@ -97,7 +95,7 @@ export default async function PaginaArenaAdmin({ params }: Props) {
           </div>
           <div>
             <dt>Mensalidade</dt>
-            <dd>{textoMensalidade(arena.mensalidade.valorCentavos, situacaoMensalidade)}</dd>
+            <dd>{textoMensalidade(arena.mensalidade.valorCentavos, arena.situacaoMensalidade)}</dd>
           </div>
         </dl>
 

@@ -77,7 +77,7 @@ test("cancelarCheckout e pagamentosDoCheckout", async () => {
   expect(f.chamadas[0].init.method).toBe("POST");
   expect(await asaas.pagamentosDoCheckout("chk-1")).toEqual([
     { id: "pay_1", status: "CONFIRMED", valorCentavos: 20000, liquidoCentavos: 19802, checkout: null, splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }],
-      assinatura: null, vencimento: null, link: null },
+      assinatura: null, vencimento: null, link: null, excluida: false, referencia: "res-1", criadoEm: null },
   ]);
   expect(f.chamadas[1].url).toBe("https://api-sandbox.asaas.com/v3/payments?checkoutSession=chk-1");
 });
@@ -101,6 +101,7 @@ test("split sem totalValue: calcula pelo percentual sobre o líquido; pagamento(
   expect(await criarAsaas(CONFIG, f.fetcher).pagamento("pay_2")).toEqual({
     id: "pay_2", status: "RECEIVED", valorCentavos: 10000, liquidoCentavos: 9901, checkout: "chk-9",
     splits: [{ id: "spl_2", carteira: WALLET, valorCentavos: 9406 }], assinatura: null, vencimento: null, link: null,
+    excluida: false, referencia: null, criadoEm: null,
   });
   expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/payments/pay_2");
 });
@@ -159,4 +160,16 @@ test("cobrança de assinatura: lê assinatura, vencimento e link (só https do A
     assinatura: "sub_1", vencimento: "2026-11-10", link: "https://sandbox.asaas.com/i/abc", valorCentavos: 14990,
   });
   expect(await asaas.pagamento("pay_4")).toMatchObject({ link: null, vencimento: "2026-12-10" });
+});
+
+test("lerAssinatura devolve o próximo vencimento; cobrança excluída e data de criação", async () => {
+  const f = fetcherCom(
+    { corpo: { id: "sub_1", nextDueDate: "2026-12-10", status: "ACTIVE" } },
+    { corpo: { id: "pay_5", status: "PENDING", value: 10, deleted: true, subscription: "sub_1", externalReference: "arena-1",
+      dateCreated: "2026-10-26", dueDate: "2026-11-10" } },
+  );
+  const asaas = criarAsaas(CONFIG, f.fetcher);
+  expect(await asaas.lerAssinatura("sub_1")).toEqual({ proximoVencimento: "2026-12-10" });
+  expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/subscriptions/sub_1");
+  expect(await asaas.pagamento("pay_5")).toMatchObject({ excluida: true, referencia: "arena-1", criadoEm: "2026-10-26" });
 });

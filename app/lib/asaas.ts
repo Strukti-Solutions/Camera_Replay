@@ -44,6 +44,10 @@ export type PagamentoAsaas = {
   assinatura: string | null; // id da assinatura, quando é cobrança de mensalidade
   vencimento: string | null; // AAAA-MM-DD
   link: string | null; // fatura do Asaas (só https do próprio Asaas)
+  // Opcionais só para os testes montarem cobranças curtas; lerPagamento sempre preenche.
+  excluida?: boolean; // deleted: a API continua devolvendo o status de antes (ex.: PENDING)
+  referencia?: string | null; // externalReference (reserva ou arena)
+  criadoEm?: string | null; // dateCreated, AAAA-MM-DD
 };
 
 export type Asaas = {
@@ -58,6 +62,7 @@ export type Asaas = {
   // Mensalidade do dono: cliente e assinatura na conta da Strukti.
   criarCliente(p: { nome: string; documento: string; email: string; arenaId: string }): Promise<string>;
   criarAssinatura(p: { cliente: string; valorCentavos: number; vencimento: string; descricao: string; arenaId: string }): Promise<string>;
+  lerAssinatura(id: string): Promise<{ proximoVencimento: string }>;
   alterarAssinatura(id: string, p: { valorCentavos: number; vencimento: string }): Promise<void>;
   excluirAssinatura(id: string): Promise<void>;
 };
@@ -85,6 +90,9 @@ function lerPagamento(p: Record<string, unknown>): PagamentoAsaas {
     assinatura: typeof p.subscription === "string" ? p.subscription : null,
     vencimento: typeof p.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.dueDate) ? p.dueDate : null,
     link: linkDoAsaas(p.invoiceUrl),
+    excluida: p.deleted === true,
+    referencia: typeof p.externalReference === "string" ? p.externalReference : null,
+    criadoEm: typeof p.dateCreated === "string" && /^\d{4}-\d{2}-\d{2}/.test(p.dateCreated) ? p.dateCreated.slice(0, 10) : null,
     splits: (Array.isArray(p.split) ? (p.split as Record<string, unknown>[]) : []).map((s) => {
       const percentual = Number(s.percentualValue ?? s.percentageValue ?? 0);
       return {
@@ -168,6 +176,11 @@ export function criarAsaas(config: ConfigAsaas, fetcher: Fetcher = fetch): Asaas
       });
       return String(d.id);
     },
+    async lerAssinatura(assinatura) {
+      const d = await chamar("GET", `subscriptions/${id(assinatura)}`);
+      return { proximoVencimento: String(d.nextDueDate ?? "") };
+    },
+    // nextDueDate é obrigatório no PUT (sem ele, HTTP 500 no sandbox).
     async alterarAssinatura(assinatura, p) {
       await chamar("PUT", `subscriptions/${id(assinatura)}`, {
         value: reaisDeCentavos(p.valorCentavos), nextDueDate: p.vencimento, updatePendingPayments: true,

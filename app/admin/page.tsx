@@ -142,7 +142,7 @@ export default async function PaginaAdmin() {
                 <p className="suave">Mensalidades atrasadas. Nada é suspenso sozinho: decida se suspende a arena.</p>
                 <ul className="lista-simples">
                   {pendencias.mensalidades.map((m) => (
-                    <li key={`${m.arenaId}-${m.vencimento}`}>
+                    <li key={m.id}>
                       <Link href={`/admin/arenas/${m.arenaId}`}>
                         <strong>{m.arena}</strong>
                       </Link>{" "}

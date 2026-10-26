@@ -246,12 +246,27 @@ test("cobrança de assinatura vai para a mensalidade, com os dados lidos da API"
   expect(await processarEventoAsaas(db, f.asaas, ev, AGORA)).toBe("ok");
   const m = await db.query("select arena_id, valor_centavos, situacao from mensalidades");
   expect(m.rows).toEqual([{ arena_id: arenaId, valor_centavos: 14990, situacao: "atrasada" }]);
+  // PAYMENT_DELETED também confere na API (deleted: true).
+  vi.mocked(f.asaas.pagamento).mockResolvedValueOnce({ ...cobr, excluida: true });
   const del = { id: "evt_m2", event: "PAYMENT_DELETED", payment: { id: "pay_m1", subscription: "sub_1" } };
   expect(await processarEventoAsaas(db, f.asaas, del, AGORA)).toBe("ok");
   expect((await db.query("select situacao from mensalidades")).rows).toEqual([{ situacao: "cancelada" }]);
-  // Assinatura que não é de nenhuma arena: erro registrado, nada gravado.
-  const outra = asaasFalso(false, { "": [{ ...cobr, id: "pay_m9", assinatura: "sub_x" }] });
+  // Assinatura que não é do Replay (outra da conta da Strukti): ignorada, sem erro no admin.
+  const outra = asaasFalso(false, { "": [{ ...cobr, id: "pay_m9", assinatura: "sub_x", referencia: "nao-e-arena" }] });
   const ev9 = { id: "evt_m9", event: "PAYMENT_CREATED", payment: { id: "pay_m9", subscription: "sub_x" } };
-  expect(await processarEventoAsaas(db, outra.asaas, ev9, AGORA)).toBe("erro");
-  expect((await db.query<{ erro: string }>("select erro from asaas_eventos where id = 'evt_m9'")).rows[0].erro).toBe("assinatura desconhecida");
+  expect(await processarEventoAsaas(db, outra.asaas, ev9, AGORA)).toBe("ignorado");
+  expect((await db.query("select erro from asaas_eventos where id = 'evt_m9'")).rows).toEqual([{ erro: null }]);
+  // Primeira cobrança chegou antes de a assinatura ser gravada: 503 para o Asaas reenviar.
+  const { arenaId: nova } = await criarArenaComDono(db, { arena: "Arena Lua", email: "lua@arena.com", senha: "senha-do-dono-123" });
+  const cedo = asaasFalso(false, { "": [{ ...cobr, id: "pay_c1", assinatura: "sub_novo", referencia: nova, criadoEm: "2026-11-09" }] });
+  const ev10 = { id: "evt_m10", event: "PAYMENT_CREATED", payment: { id: "pay_c1", subscription: "sub_novo" } };
+  expect(await processarEventoAsaas(db, cedo.asaas, ev10, AGORA)).toBe("falhou");
+  expect((await db.query("select 1 from asaas_eventos where id = 'evt_m10'")).rows).toEqual([]);
+});
+
+test("reserva com subscription forjado no payload: a API diz que não é assinatura e nada muda na reserva", async () => {
+  const { db, reservaId, f } = await cenario();
+  const ev = { id: "evt_f", event: "PAYMENT_CONFIRMED", payment: { id: "pay_1", subscription: "sub_1", externalReference: reservaId } };
+  expect(await processarEventoAsaas(db, f.asaas, ev, AGORA)).toBe("erro");
+  expect(await reserva(db, reservaId)).toMatchObject({ situacao: "segurada", asaas_pagamento_id: null });
 });
