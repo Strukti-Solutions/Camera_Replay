@@ -5,7 +5,7 @@ Data: 26/10/2026. Emenda a fase 4 de `2026-10-22-reservas-publicas-design.md` (s
 ## Decisões do dono (26/10)
 
 - **Tarifa do Asaas no cancelamento pelo jogador:** o jogador **não recebe de volta a tarifa do Asaas** (Pix ou cartão). Ele é avisado disso **antes de pagar** e **antes de confirmar o cancelamento**. Assim nem a Strukti nem o dono pagam a tarifa, e o aviso desestimula cancelar. *(Substitui "recebe o valor inteiro de volta, inclusive a taxa".)*
-- **Cancelamento pelo dono:** o jogador recebe **tudo de volta**; a tarifa que o Asaas não devolve **sai da parte do dono**. Se o Asaas não permitir tirar do dono mais do que o split dele, a diferença fica com a Strukti (confirmar no sandbox antes de ir ao ar).
+- **Cancelamento pelo dono:** o jogador recebe **tudo de volta**; a tarifa que o Asaas não devolve sairia da parte do dono, mas o Asaas **não permite** estornar do split mais do que o próprio split (testado no sandbox em 26/10/2026: "O valor total estornado do split excede o valor total do split"). Por isso o dono devolve o split inteiro e **a tarifa fica com a Strukti** (cerca de 1% da reserva). Se for preciso repassar ao dono, dá para somar na mensalidade dele.
 - **Por arena:** arena com **conta Asaas vinculada** cobra online; arena sem conta continua no **"pagar na arena"** da fase 4a. *(Substitui "arena sem conta vinculada não recebe reservas pagas".)*
 - **A conta da Strukti no Asaas é de pessoa física (CPF)**, então não cria subcontas: **cada dono abre a própria conta Asaas** e informa o identificador da carteira (walletId), que o super admin cadastra na arena.
 

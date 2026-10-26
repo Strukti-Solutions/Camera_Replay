@@ -83,11 +83,11 @@ export function textoPagamentoDono(pagamento: string | null): string {
 }
 
 // Pergunta do cancelamento pelo dono: na reserva paga online, avisa que o
-// jogador recebe tudo de volta e que a tarifa do Asaas sai da parte da arena.
+// jogador recebe tudo de volta.
 export function perguntaCancelarDono(descricao: string, pagamento: string | null): string {
   const base = `Cancelar a reserva ${descricao}? O horário volta a ficar livre.`;
   return pagamento === "online"
-    ? `${base} O jogador recebe o valor inteiro de volta; a tarifa do Asaas sai da parte da arena.`
+    ? `${base} O jogador recebe o valor inteiro de volta.`
     : base;
 }
 

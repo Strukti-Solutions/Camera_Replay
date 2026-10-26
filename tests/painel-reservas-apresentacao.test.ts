@@ -272,5 +272,5 @@ test("pagamento na agenda do dono e pergunta do cancelamento de reserva paga onl
   expect(textoPagamentoDono("arena")).toBe("pagar na arena");
   expect(perguntaCancelarDono("18h · Ana", "arena")).toBe("Cancelar a reserva 18h · Ana? O horário volta a ficar livre.");
   expect(perguntaCancelarDono("18h · Ana", "online")).toBe(
-    "Cancelar a reserva 18h · Ana? O horário volta a ficar livre. O jogador recebe o valor inteiro de volta; a tarifa do Asaas sai da parte da arena.");
+    "Cancelar a reserva 18h · Ana? O horário volta a ficar livre. O jogador recebe o valor inteiro de volta.");
 });

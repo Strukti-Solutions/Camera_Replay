@@ -79,9 +79,8 @@ export async function quadraCobraOnline(db: Pick<Db, "query">, quadraId: string)
 
 // "sem_tarifa": cancelamento pelo jogador ou pagamento atrasado — volta o
 // líquido; o dono devolve o split inteiro e a Strukti a parte dela.
-// "integral": cancelamento pelo dono — volta tudo; o dono devolve o split mais a
-// tarifa. Se o Asaas não aceitar tirar do dono mais que o split, a diferença
-// fica com a Strukti. Sucesso = "solicitado" (o webhook conclui); falha = "pendente".
+// "integral": cancelamento pelo dono — volta tudo; o dono devolve o split
+// inteiro e a tarifa sai da parte da Strukti. Sucesso = "solicitado" (o webhook conclui); falha = "pendente".
 export async function estornarReserva(
   db: Pick<Db, "query">, asaas: Asaas, reservaId: string, regra: "sem_tarifa" | "integral",
 ): Promise<boolean> {
@@ -105,7 +104,6 @@ export async function estornarReserva(
     // (senão o estorno inteiro sairia da conta da Strukti).
     const split = p.splits.find((s) => s.carteira === l.carteira);
     if (!split) throw new Error("cobrança sem o split da carteira da arena");
-    const tarifa = Math.max(0, p.valorCentavos - p.liquidoCentavos);
     const descricao = regra === "integral" ? "Reserva cancelada pela arena" : "Reserva cancelada (sem a tarifa do Asaas)";
     if (regra === "sem_tarifa") {
       await asaas.estornar(p.id, {
@@ -116,16 +114,11 @@ export async function estornarReserva(
       await marcar("solicitado", p.liquidoCentavos);
       return true;
     }
-    try {
-      await asaas.estornar(p.id, {
-        valorCentavos: p.valorCentavos,
-        splits: [{ id: split.id, valorCentavos: split.valorCentavos + tarifa }],
-        descricao,
-      });
-    } catch (e) {
-      if (!(e instanceof ErroAsaas && e.status === 400)) throw e;
-      await asaas.estornar(p.id, { valorCentavos: p.valorCentavos, splits: [{ id: split.id, valorCentavos: split.valorCentavos }], descricao });
-    }
+    // O Asaas não deixa estornar do split mais que o split (sandbox, 26/10/2026):
+    // o dono devolve o split inteiro e a tarifa sai da parte da Strukti.
+    await asaas.estornar(p.id, {
+      valorCentavos: p.valorCentavos, splits: [{ id: split.id, valorCentavos: split.valorCentavos }], descricao,
+    });
     await marcar("solicitado", p.valorCentavos);
     return true;
   } catch (e) {

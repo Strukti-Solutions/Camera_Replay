@@ -269,3 +269,13 @@ Fonte: <https://www.asaas.com/precos-e-taxas>. A página não tem data; o rodap�
 - Com `customerData` (nome, CPF, e-mail, telefone) o Asaas exige `address`, `addressNumber`, `postalCode` e `province`. **Sem `customerData`** o Checkout é criado e a própria página pede os dados ao pagador.
 - O campo do split no Checkout é `percentageValue` (a doc antiga cita `percentualValue`).
 - Cobrança Pix de R$ 100,00 → `netValue` R$ 99,01 (tarifa promocional de R$ 0,99).
+
+## Sandbox, 26/10/2026 (tarde): estorno com split
+
+Testes com a segunda conta sandbox fazendo o papel do dono, numa cobrança Pix de R$ 100 com split de 95% (R$ 94,05 ao dono; tarifa R$ 0,99):
+- **`splitRefunds` não pode passar do valor do split:** "O valor total estornado do split [R$ 95,04] excede o valor total do split [R$ 94,05]". O dono devolve no máximo o split dele, então a tarifa de um estorno integral sai da Strukti.
+- **Estorno integral com o split inteiro funciona.** **Estorno do líquido (R$ 99,01) com o split inteiro também funciona:** a conta da Strukti paga só a parte dela (R$ 4,96).
+- **A conta da Strukti precisa de folga de saldo.** Com saldo igual à parte dela, o Asaas respondeu "Saldo insuficiente"; depois de entrar mais dinheiro, o mesmo estorno passou.
+- **Logo depois da confirmação, o estorno pode dar 400** com "Não é possível solicitar estorno para essa cobrança no momento. Tente novamente em alguns instantes." Em seguida passou.
+- **O estorno pela API ficou com status `AWAITING_CRITICAL_ACTION_AUTHORIZATION`:** a conta exige autorizar ações críticas (token) também nas chamadas da API. Para estornar sozinho, é preciso liberar isso nas configurações de segurança da conta (Integrações), senão cada estorno espera autorização manual no painel.
+- A assinatura (mensalidade) foi testada antes: a primeira cobrança é criada na hora; `PUT` com `updatePendingPayments` muda o valor da pendente, mas não o vencimento; `DELETE` apaga as pendentes.

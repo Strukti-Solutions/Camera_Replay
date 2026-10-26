@@ -41,24 +41,13 @@ test("jogador cancela reserva paga: volta o líquido (sem a tarifa), dono devolv
   expect(f.estornos).toHaveLength(1);
 });
 
-test("dono cancela reserva paga: volta tudo, o dono devolve o split mais a tarifa", async () => {
+test("dono cancela reserva paga: volta tudo; o dono devolve o split inteiro e a Strukti cobre a tarifa", async () => {
+  // O Asaas recusa estornar do split mais que o próprio split (sandbox, 26/10/2026).
   const { db, arena, reservaId, f } = await paga();
   expect(await cancelarPeloDono(db, arena.id, reservaId, "Chuva", AGORA)).toBe(true);
   expect(await estornarAposCancelar(db, f.asaas, reservaId)).toBe("solicitado");
-  expect(f.estornos).toEqual([{ pagamento: "pay_1", valorCentavos: 20000, splits: [{ id: "spl_1", valorCentavos: 18812 + 198 }] }]);
+  expect(f.estornos).toEqual([{ pagamento: "pay_1", valorCentavos: 20000, splits: [{ id: "spl_1", valorCentavos: 18812 }] }]);
   expect(await reserva(db, reservaId)).toMatchObject({ estorno: "solicitado", estorno_centavos: 20000 });
-});
-
-test("dono cancela e o Asaas recusa tirar do dono mais que o split: tenta de novo com o split só", async () => {
-  const { db, arena, reservaId, f } = await paga();
-  const chamadas: number[] = [];
-  f.asaas.estornar = vi.fn(async (_p: string, e: { splits: { valorCentavos: number }[] }) => {
-    chamadas.push(e.splits[0].valorCentavos);
-    if (chamadas.length === 1) throw new ErroAsaas(400, "invalid_action");
-  });
-  await cancelarPeloDono(db, arena.id, reservaId, "", AGORA);
-  expect(await estornarAposCancelar(db, f.asaas, reservaId)).toBe("solicitado");
-  expect(chamadas).toEqual([18812 + 198, 18812]);
 });
 
 test("estorno que falha fica pendente (aparece no admin)", async () => {
