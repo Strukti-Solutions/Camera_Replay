@@ -12,7 +12,7 @@ Fase 4a na branch `feat/fase4a-reservas`, **sem merge e sem push**. Fases 1 a 3 
 - `conferirSenha` registra no log (sem senha nem hash) quando o próprio scrypt falha.
 
 ## Ainda pendente da fase 1
-- E-mail: conta no Resend, DNS do domínio do remetente (SPF e DKIM) e as variáveis `RESEND_API_KEY` e `EMAIL_REMETENTE` na Vercel (`APP_URL` já está configurada; o link é montado com ela). Depois, um teste real de "Esqueci a senha". **Até lá o link "Esqueci a senha" fica escondido em `/entrar` em produção** (`envioEmailConfigurado` em `app/lib/email.ts`).
+- E-mail (25/10): envio pelo SMTP do Gmail da Strukti (spec `docs/superpowers/specs/2026-10-25-emails-design.md`). Variáveis `SMTP_USUARIO` e `SMTP_SENHA` (senha de app) na Vercel; sem elas o "Esqueci a senha" fica escondido em produção (`envioEmailConfigurado` em `app/lib/email.ts`). Limite do Gmail: ~500 e-mails/dia.
 
 ## Decisões pendentes do dono
 - Confirmação de e-mail no cadastro: hoje a enumeração de contas em `/criar-conta` só é contida pelo limite de tentativas.
