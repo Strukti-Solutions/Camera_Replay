@@ -5,6 +5,7 @@ import type { EnviarEmail, MensagemEmail } from "./email";
 import { textoMinutos } from "./horarios";
 import { lerBearer, segredoConfere } from "./limpeza";
 import { textoDeCentavos } from "./precos";
+import { podeCancelarJogador } from "./reservas";
 
 // Avisos por e-mail das reservas: cancelamento (pelo jogador ou pela arena) e
 // lembrete da véspera. Spec: docs/superpowers/specs/2026-10-25-emails-design.md.
@@ -67,6 +68,13 @@ export async function dadosDoAviso(db: Pick<Db, "query">, reservaId: string): Pr
   };
 }
 
+// Base dos links dos e-mails, sem barra no fim. Vazia sem APP_URL (o log avisa).
+export function urlDoApp(env: Record<string, string | undefined> = process.env): string {
+  const url = (env.APP_URL ?? "").trim().replace(/\/+$/, "");
+  if (!url && env.NODE_ENV === "production") console.error("e-mail: APP_URL não configurada; links sem endereço");
+  return url;
+}
+
 const rotuloQuadra = (d: DadosAviso) => (d.esporte ? `${d.quadra} (${d.esporte})` : d.quadra);
 const ASSINATURA = "\n\n—\nReplay, por Strukti. Este e-mail é automático; não precisa responder.";
 
@@ -109,7 +117,7 @@ export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono",
   return msgs;
 }
 
-export function mensagemDoLembrete(d: DadosAviso, appUrl: string): MensagemEmail | null {
+export function mensagemDoLembrete(d: DadosAviso, appUrl: string, agora: Date): MensagemEmail | null {
   if (!d.jogadorEmail) return null;
   const hora = textoMinutos(partesDoInstante(d.inicio).minuto);
   return {
@@ -119,8 +127,12 @@ export function mensagemDoLembrete(d: DadosAviso, appUrl: string): MensagemEmail
       `Oi, ${d.jogador ?? ""}! Amanhã você joga na ${d.arena}.\n\n` +
       `${textoPeriodo(d.inicio, d.fim)}\n${rotuloQuadra(d)}\n` +
       (d.endereco ? `${d.endereco}\n` : "") +
+      // Hoje todo pagamento é na arena (fase 4a); com o Asaas (4b) este texto muda.
       `Pagamento: ${textoDeCentavos(d.totalCentavos)}, na arena.\n\n` +
-      `Precisa cancelar? Até 24 h antes é grátis, em ${appUrl}/minhas-reservas` + ASSINATURA,
+      (podeCancelarJogador(d.inicio, agora)
+        ? `Precisa cancelar? Até 24 h antes é grátis, em ${appUrl}/minhas-reservas`
+        : `O prazo para cancelar pelo site já passou; se precisar, fale com a arena.\nSuas reservas: ${appUrl}/minhas-reservas`) +
+      ASSINATURA,
   };
 }
 
@@ -159,36 +171,55 @@ const somaUmDia = (dia: string) => {
   return new Date(Date.UTC(a, m - 1, d + 1)).toISOString().slice(0, 10);
 };
 
+// Tempo máximo de um cron de lembretes (a função tem 300 s na Vercel). O que
+// não couber fica desmarcado; como o cron é diário, essas reservas ficam sem
+// lembrete (o log avisa).
+const PRAZO_LOTE_MS = 240_000;
+
 // Lembrete da véspera: reservas confirmadas que começam amanhã (dia local),
-// de arena ativa e com conta de jogador. Marca antes de enviar (quem marca,
-// envia); falha desmarca para o próximo cron.
+// de arena ativa e com conta de jogador. Uma reserva por vez: marca (quem
+// marca, envia; skip locked evita que dois crons peguem a mesma), envia e, se
+// falhar, desmarca. Nada fica marcado sem ter sido enviado.
 export async function enviarLembretes(
   db: Pick<Db, "query">, agora: Date, enviar: EnviarEmail, appUrl: string,
+  esgotou: () => boolean = ((t0) => () => Date.now() - t0 > PRAZO_LOTE_MS)(Date.now()),
 ): Promise<{ enviados: number; falhas: number }> {
   const amanha = somaUmDia(hojeLocal(agora));
   const de = new Date(instanteDoMinuto(amanha, 0));
   const ate = new Date(instanteDoMinuto(somaUmDia(amanha), 0));
-  const { rows } = await db.query<{ id: string }>(
-    `update reservas r set lembrete_enviado_em = $3
-       from arenas a
-      where a.id = r.arena_id and a.status_assinatura = 'ativa'
-        and r.tipo = 'reserva' and r.situacao = 'confirmada' and r.jogador_id is not null
-        and r.lembrete_enviado_em is null and r.inicio >= $1 and r.inicio < $2
-      returning r.id`,
-    [de, ate, agora],
-  );
   let enviados = 0;
   let falhas = 0;
-  for (const { id } of rows) {
-    const d = await dadosDoAviso(db, id);
-    const m = d && mensagemDoLembrete(d, appUrl);
-    if (m && (await enviarSemLancar(enviar, m, "lembrete"))) {
-      enviados++;
-      continue;
+  const tentadas: string[] = []; // as que falharam neste cron não voltam no mesmo lote
+  while (!esgotou()) {
+    const { rows } = await db.query<{ id: string }>(
+      `update reservas set lembrete_enviado_em = $3
+        where id = (
+          select r.id from reservas r join arenas a on a.id = r.arena_id
+           where a.status_assinatura = 'ativa'
+             and r.tipo = 'reserva' and r.situacao = 'confirmada' and r.jogador_id is not null
+             and r.lembrete_enviado_em is null and r.inicio >= $1 and r.inicio < $2
+             and not (r.id = any($4::uuid[]))
+           order by r.inicio, r.id
+           limit 1
+           for update of r skip locked)
+        returning id`,
+      [de, ate, agora, tentadas],
+    );
+    const id = rows[0]?.id;
+    if (!id) return { enviados, falhas };
+    tentadas.push(id);
+    let ok = false;
+    try {
+      const d = await dadosDoAviso(db, id);
+      const m = d && mensagemDoLembrete(d, appUrl, agora);
+      ok = !!m && (await enviarSemLancar(enviar, m, "lembrete"));
+      if (m && !ok) falhas++;
+    } finally {
+      if (ok) enviados++;
+      else await db.query("update reservas set lembrete_enviado_em = null where id = $1", [id]);
     }
-    if (m) falhas++;
-    await db.query("update reservas set lembrete_enviado_em = null where id = $1", [id]);
   }
+  console.error("lembretes: prazo do cron esgotado; reservas restantes ficaram sem lembrete");
   return { enviados, falhas };
 }
 

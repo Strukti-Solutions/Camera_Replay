@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
 import type { MensagemEmail } from "../app/lib/email";
-import { avisarCancelamento, criarHandlerLembretes, dadosDoAviso, enviarLembretes } from "../app/lib/avisos-email";
+import { avisarCancelamento, criarHandlerLembretes, dadosDoAviso, enviarLembretes, urlDoApp } from "../app/lib/avisos-email";
 import { apagarContaJogador, criarContaJogador } from "../app/lib/jogadores";
 import { bloquearHorario, cancelarPeloDono, cancelarPeloJogador, criarReserva } from "../app/lib/reservas";
 import { novoBanco } from "./db";
@@ -66,6 +66,18 @@ test("jogador cancela: dono recebe o aviso e o jogador a confirmação", async (
   const jog = c.enviados.find((m) => m.para === "ana@x.com")!;
   expect(jog.assunto).toBe("Reserva cancelada · Arena Sol");
   expect(jog.texto).toContain("Sua reserva na Arena Sol foi cancelada");
+  expect(dono.texto).not.toContain("ana@x.com"); // o dono vê o nome, nunca o e-mail
+});
+
+test("dono de outra arena não recebe o aviso", async () => {
+  const db = await novoBanco();
+  const { jogadorId, reservaId } = await base(db);
+  const outra = await criarArena(db, "Outra");
+  await db.query("insert into usuarios (arena_id, email, senha_hash, papel) values ($1, 'outro@arena.com', 'x', 'dono')", [outra.id]);
+  await cancelarPeloJogador(db, jogadorId, reservaId, AGORA);
+  const c = coletor();
+  await avisarCancelamento(db, reservaId, "jogador", c.enviar, APP);
+  expect(c.enviados.map((m) => m.para).sort()).toEqual(["ana@x.com", "dono@arena.com"]);
 });
 
 test("dono cancela: só o jogador recebe, com o motivo", async () => {
@@ -119,6 +131,8 @@ test("lembrete: na véspera, uma vez por reserva, só confirmada de arena ativa"
   expect(c.enviados[0]).toMatchObject({ para: "ana@x.com", assunto: "Lembrete: amanhã às 18h · Arena Sol" });
   expect(c.enviados[0].texto).toContain("Rua A, 10 · Centro · Fortaleza/CE");
   expect(c.enviados[0].texto).toContain("Pagamento: R$ 200,00, na arena.");
+  // Às 18h da véspera, uma reserva das 18h de amanhã já está a menos de 24 h... exatamente 24 h: ainda pode.
+  expect(c.enviados[0].texto).toContain("Até 24 h antes é grátis");
   // De novo no mesmo dia: nada (já foi).
   expect(await enviarLembretes(db, VESPERA_18H, c.enviar, APP)).toEqual({ enviados: 0, falhas: 0 });
   expect(c.enviados).toHaveLength(1);
@@ -145,7 +159,73 @@ test("lembrete: falha no envio desmarca para tentar no próximo cron; cancelada 
   expect(await enviarLembretes(db, VESPERA_18H, c.enviar, APP)).toEqual({ enviados: 0, falhas: 0 });
 });
 
-test("lembrete: conta apagada pelo fluxo normal some da lista", async () => {
+test("lembrete: fora do prazo de cancelar, o texto manda falar com a arena", async () => {
+  const db = await novoBanco();
+  const { quadra } = await base(db);
+  await db.query("delete from reservas");
+  const c2 = await criarContaJogador(db, { nome: "Bia", email: "bia@x.com", senha: "senha-boa-1", aceitouTermos: true });
+  if (!c2.ok) throw new Error("conta");
+  expect((await criarReserva(db, c2.jogadorId, { quadraId: quadra.id, dia: DIA, inicio: 8 * 60, qtd: 1 }, AGORA)).ok).toBe(true);
+  const c = coletor();
+  await enviarLembretes(db, VESPERA_18H, c.enviar, APP);
+  expect(c.enviados[0].texto).toContain("O prazo para cancelar pelo site já passou; se precisar, fale com a arena.");
+  expect(c.enviados[0].texto).not.toContain("grátis");
+});
+
+test("lembrete: bordas da janela de amanhã e reserva segurada", async () => {
+  const db = await novoBanco();
+  const { quadra } = await base(db);
+  await db.query("delete from reservas");
+  const j = await criarContaJogador(db, { nome: "Bia", email: "bia@x.com", senha: "senha-boa-1", aceitouTermos: true });
+  if (!j.ok) throw new Error("conta");
+  const r1 = await criarReserva(db, j.jogadorId, { quadraId: quadra.id, dia: DIA, inicio: 7 * 60, qtd: 1 }, AGORA);
+  const r2 = await criarReserva(db, j.jogadorId, { quadraId: quadra.id, dia: "2026-11-11", inicio: 7 * 60, qtd: 1 }, AGORA);
+  // Limite de 2 por jogador na arena: a terceira é de outra conta.
+  const k = await criarContaJogador(db, { nome: "Caio", email: "caio@x.com", senha: "senha-boa-1", aceitouTermos: true });
+  if (!k.ok) throw new Error("conta");
+  const r3 = await criarReserva(db, k.jogadorId, { quadraId: quadra.id, dia: DIA, inicio: 9 * 60, qtd: 1 }, AGORA);
+  if (!r1.ok || !r2.ok || !r3.ok) throw new Error("reserva");
+  // Bordas exatas: meia-noite de amanhã entra, meia-noite de depois de amanhã não.
+  await db.query("update reservas set inicio = $2, fim = $3 where id = $1",
+    [r1.reservaId, new Date("2026-11-10T00:00:00-03:00"), new Date("2026-11-10T01:00:00-03:00")]);
+  await db.query("update reservas set inicio = $2, fim = $3 where id = $1",
+    [r2.reservaId, new Date("2026-11-11T00:00:00-03:00"), new Date("2026-11-11T01:00:00-03:00")]);
+  await db.query("update reservas set situacao = 'segurada', segura_ate = now() + interval '1 hour' where id = $1", [r3.reservaId]);
+  const c = coletor();
+  expect(await enviarLembretes(db, VESPERA_18H, c.enviar, APP)).toEqual({ enviados: 1, falhas: 0 });
+  const marcadas = await db.query<{ id: string }>("select id from reservas where lembrete_enviado_em is not null");
+  expect(marcadas.rows.map((r) => r.id)).toEqual([r1.reservaId]);
+});
+
+test("lembrete: falha no meio do lote só desmarca a que falhou; prazo esgotado deixa o resto desmarcado", async () => {
+  const db = await novoBanco();
+  const { quadra } = await base(db);
+  const j = await criarContaJogador(db, { nome: "Bia", email: "bia@x.com", senha: "senha-boa-1", aceitouTermos: true });
+  if (!j.ok) throw new Error("conta");
+  expect((await criarReserva(db, j.jogadorId, { quadraId: quadra.id, dia: DIA, inicio: 8 * 60, qtd: 1 }, AGORA)).ok).toBe(true);
+  const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+  let n = 0;
+  const umaFalha = async (m: MensagemEmail) => { if (n++ === 0) throw new Error("smtp caiu"); void m; };
+  expect(await enviarLembretes(db, VESPERA_18H, umaFalha, APP)).toEqual({ enviados: 1, falhas: 1 });
+  const r = await db.query<{ n: number }>("select count(*)::int as n from reservas where lembrete_enviado_em is not null");
+  expect(r.rows[0].n).toBe(1);
+  erro.mockRestore();
+
+  // Prazo já esgotado antes do primeiro: nada é marcado.
+  await db.query("update reservas set lembrete_enviado_em = null");
+  const c = coletor();
+  expect(await enviarLembretes(db, VESPERA_18H, c.enviar, APP, () => true)).toEqual({ enviados: 0, falhas: 0 });
+  const r2 = await db.query<{ n: number }>("select count(*)::int as n from reservas where lembrete_enviado_em is not null");
+  expect(r2.rows[0].n).toBe(0);
+});
+
+test("urlDoApp: tira espaços e a barra do fim", () => {
+  expect(urlDoApp({ APP_URL: " https://x.com/ " })).toBe("https://x.com");
+  expect(urlDoApp({ APP_URL: "https://x.com" })).toBe("https://x.com");
+  expect(urlDoApp({})).toBe("");
+});
+
+test("lembrete: reserva cancelada não recebe, mesmo com a conta apagada depois", async () => {
   const db = await novoBanco();
   const { jogadorId, arena, reservaId } = await base(db);
   await cancelarPeloDono(db, arena.id, reservaId, "", AGORA);

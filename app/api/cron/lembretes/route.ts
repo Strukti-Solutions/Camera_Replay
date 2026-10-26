@@ -1,4 +1,4 @@
-import { criarHandlerLembretes } from "../../../lib/avisos-email";
+import { criarHandlerLembretes, urlDoApp } from "../../../lib/avisos-email";
 import { criarEnvioEmail } from "../../../lib/email";
 import { poolCompartilhado } from "../../../lib/pool";
 
@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 // o cron da Vercel chama com GET e Authorization: Bearer <CRON_SECRET>.
 export const GET = (req: Request) =>
   criarHandlerLembretes(
-    poolCompartilhado(), criarEnvioEmail(), process.env.APP_URL?.trim() ?? "", process.env.CRON_SECRET?.trim(),
+    poolCompartilhado(), criarEnvioEmail(), urlDoApp(), process.env.CRON_SECRET?.trim(),
   )(req);
