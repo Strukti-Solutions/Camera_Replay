@@ -84,9 +84,13 @@ export async function quadraCobraOnline(db: Pick<Db, "query">, quadraId: string)
 export async function estornarReserva(
   db: Pick<Db, "query">, asaas: Asaas, reservaId: string, regra: "sem_tarifa" | "integral",
 ): Promise<boolean> {
+  // Marca antes de chamar o Asaas: quem marca, estorna (duas chamadas ao mesmo
+  // tempo não estornam duas vezes).
   const { rows } = await db.query<{ pagamento: string | null; carteira: string | null }>(
-    `select r.asaas_pagamento_id as pagamento, a.asaas_wallet_id as carteira
-       from reservas r join arenas a on a.id = r.arena_id where r.id = $1`,
+    `update reservas r set estorno = 'solicitado'
+       from arenas a
+      where r.id = $1 and a.id = r.arena_id and r.asaas_pagamento_id is not null and r.estorno is null
+      returning r.asaas_pagamento_id as pagamento, a.asaas_wallet_id as carteira`,
     [reservaId],
   );
   const l = rows[0];
@@ -124,6 +128,36 @@ export async function estornarReserva(
     await marcar("pendente", null);
     return false;
   }
+}
+
+// Depois que o jogador ou o dono cancelou: reserva paga online é estornada
+// (regra conforme quem cancelou); segurada sem pagamento só tem o Checkout
+// cancelado. Sem o Asaas configurado, o estorno fica pendente para a Strukti.
+export async function estornarAposCancelar(
+  db: Pick<Db, "query">, asaas: Asaas | null, reservaId: string,
+): Promise<"solicitado" | "pendente" | "nada"> {
+  if (!ehUuid(reservaId)) return "nada";
+  const { rows } = await db.query<{
+    situacao: string; pagamento: string | null; por: string | null; pago: string | null; checkout: string | null; estorno: string | null;
+  }>(
+    `select situacao, pagamento, cancelada_por as por, asaas_pagamento_id as pago, asaas_checkout_id as checkout, estorno
+       from reservas where id = $1`,
+    [reservaId],
+  );
+  const r = rows[0];
+  if (!r || r.situacao !== "cancelada" || r.pagamento !== "online" || r.estorno) return "nada";
+  if (!r.pago) {
+    if (r.checkout && asaas) {
+      await asaas.cancelarCheckout(r.checkout).catch((e) => console.error("pagamento: Checkout não cancelado:", mensagem(e)));
+    }
+    return "nada";
+  }
+  if (!asaas) {
+    console.error("pagamento: estorno pendente (Asaas não configurado)");
+    await db.query("update reservas set estorno = 'pendente' where id = $1 and estorno is null", [reservaId]);
+    return "pendente";
+  }
+  return (await estornarReserva(db, asaas, reservaId, r.por === "dono" ? "integral" : "sem_tarifa")) ? "solicitado" : "pendente";
 }
 
 // ---------- Webhook ----------
@@ -199,15 +233,17 @@ async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Event
     if ((e as { code?: string }).code !== "23P01") throw e;
   }
   // Horário já ocupado (pagou depois do prazo) ou reserva já cancelada: grava o
-  // pagamento, cancela e estorna sem a tarifa.
-  await db.query(
+  // pagamento, cancela e estorna sem a tarifa. Só estorna quem gravou: se outro
+  // evento da mesma cobrança confirmou no meio-tempo, nada muda e nada é estornado.
+  const cancelou = await db.query(
     `update reservas set situacao = 'cancelada', cancelada_em = coalesce(cancelada_em, $5),
             motivo_cancelamento = coalesce(motivo_cancelamento, 'Pagamento depois do prazo; o horário já estava ocupado.'),
             asaas_pagamento_id = $2, pago_centavos = $3, liquido_centavos = $4, pago_em = $5
-      where id = $1 and asaas_pagamento_id is null`,
+      where id = $1 and asaas_pagamento_id is null and situacao <> 'confirmada'
+      returning id`,
     dados,
   );
-  await estornarReserva(db, asaas, r.id, "sem_tarifa");
+  if (cancelou.rows.length === 1) await estornarReserva(db, asaas, r.id, "sem_tarifa");
 }
 
 export type ResultadoEvento = "ok" | "repetido" | "ignorado" | "invalido" | "erro";

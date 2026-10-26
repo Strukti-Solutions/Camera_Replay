@@ -125,3 +125,15 @@ test("handler: 503 sem token configurado, 401 com token errado, 400 com corpo ru
   expect(r.status).toBe(200);
   erro.mockRestore();
 });
+
+test("dois eventos de pagamento ao mesmo tempo: confirma uma vez e nunca estorna", async () => {
+  const { db, reservaId, f } = await cenario();
+  const outro = { id: "evt_2", event: "PAYMENT_CONFIRMED", payment: { id: "pay_1", externalReference: reservaId } };
+  const r = await Promise.all([
+    processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA),
+    processarEventoAsaas(db, f.asaas, outro, AGORA),
+  ]);
+  expect(r).toEqual(["ok", "ok"]);
+  expect(await reserva(db, reservaId)).toMatchObject({ situacao: "confirmada", estorno: null });
+  expect(f.estornos).toEqual([]);
+});

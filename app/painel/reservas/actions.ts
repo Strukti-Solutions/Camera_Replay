@@ -2,8 +2,10 @@
 
 import { after } from "next/server";
 import { redirect } from "next/navigation";
+import { asaasDoAmbiente } from "@/app/lib/asaas";
 import { avisarCancelamento, urlDoApp } from "@/app/lib/avisos-email";
 import { criarEnvioEmail } from "@/app/lib/email";
+import { estornarAposCancelar } from "@/app/lib/pagamentos";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { MOTIVO_CANCELAMENTO_MAX, bloquearHorarios, cancelarPeloDono, removerBloqueio } from "@/app/lib/reservas";
 import { exigirSessao } from "@/app/painel/sessao-atual";
@@ -39,8 +41,11 @@ export async function cancelarReservaDonoAction(_e: EstadoAgenda, form: FormData
     return { erro: MSG_TENTE_DE_NOVO };
   }
   if (!ok) return { erro: MSG_DONO_NAO_CANCELOU };
-  // Aviso ao jogador, depois da resposta (não espera o Gmail).
   const reservaId = campo(form, "reservaId");
+  // Reserva paga online: estorno integral antes de responder (falha vira "pendente").
+  await estornarAposCancelar(poolCompartilhado(), asaasDoAmbiente(), reservaId)
+    .catch((e) => console.error("pagamento: estorno após cancelar:", e instanceof Error ? e.message : "erro"));
+  // Aviso ao jogador, depois da resposta (não espera o Gmail).
   after(() => avisarCancelamento(poolCompartilhado(), reservaId, "dono", criarEnvioEmail(), urlDoApp()));
   redirect(comAviso(voltaSegura(campo(form, "volta")), { ok: "cancelada" }));
 }

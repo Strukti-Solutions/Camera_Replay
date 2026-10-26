@@ -28,12 +28,16 @@ export type DadosAviso = {
   totalCentavos: number;
   situacao: string;
   canceladaPor: string | null;
+  pagamento: string | null; // "arena" ou "online"
+  estorno: string | null; // "solicitado", "concluido" ou "pendente"
+  estornoCentavos: number | null;
 };
 
 type Linha = {
   arena: string; rua: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null;
   quadra: string; esporte: string; inicio: Date; fim: Date; jogador: string | null; jogador_email: string | null;
   donos: string[] | null; motivo: string | null; total: number | null; situacao: string; cancelada_por: string | null;
+  pagamento: string | null; estorno: string | null; estorno_centavos: number | null;
 };
 
 // "Rua A, 10 · Centro · Fortaleza/CE" (bairro é opcional); sem rua, null.
@@ -50,7 +54,7 @@ export async function dadosDoAviso(db: Pick<Db, "query">, reservaId: string): Pr
     `select a.nome as arena, a.endereco_rua as rua, a.endereco_numero as numero, a.endereco_bairro as bairro,
             a.endereco_cidade as cidade, a.endereco_uf as uf, q.nome as quadra, q.esporte, r.inicio, r.fim,
             j.nome as jogador, j.email as jogador_email, r.motivo_cancelamento as motivo, r.total_centavos as total,
-            r.situacao, r.cancelada_por,
+            r.situacao, r.cancelada_por, r.pagamento, r.estorno, r.estorno_centavos,
             (select array_agg(u.email order by u.email) from usuarios u where u.arena_id = a.id) as donos
        from reservas r
        join arenas a on a.id = r.arena_id
@@ -65,6 +69,7 @@ export async function dadosDoAviso(db: Pick<Db, "query">, reservaId: string): Pr
     arena: l.arena, endereco: textoEndereco(l), quadra: l.quadra, esporte: l.esporte, inicio: l.inicio, fim: l.fim,
     jogador: l.jogador, jogadorEmail: l.jogador_email, donos: l.donos ?? [], motivo: l.motivo,
     totalCentavos: Number(l.total ?? 0), situacao: l.situacao, canceladaPor: l.cancelada_por,
+    pagamento: l.pagamento, estorno: l.estorno, estornoCentavos: l.estorno_centavos == null ? null : Number(l.estorno_centavos),
   };
 }
 
@@ -76,6 +81,19 @@ export function urlDoApp(env: Record<string, string | undefined> = process.env):
 }
 
 const rotuloQuadra = (d: DadosAviso) => (d.esporte ? `${d.quadra} (${d.esporte})` : d.quadra);
+// Linhas do estorno de uma reserva paga online (vazio para "pagar na arena").
+function textoEstorno(d: DadosAviso): string {
+  if (d.pagamento !== "online" || !d.estorno) return "";
+  if (d.estorno === "pendente" || d.estornoCentavos == null) {
+    return "O estorno ainda não foi concluído; a Strukti vai resolver e avisar você.\n";
+  }
+  const como = d.canceladaPor === "dono" ? "o valor inteiro" : "o valor pago menos a tarifa do Asaas";
+  return (
+    `Estorno: ${textoDeCentavos(d.estornoCentavos)} (${como}).\n` +
+    "No Pix o dinheiro volta em instantes; no cartão, aparece na fatura em até 10 dias úteis.\n"
+  );
+}
+
 const ASSINATURA = "\n\n—\nReplay, por Strukti. Este e-mail é automático; não precisa responder.";
 
 export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono", appUrl: string): MensagemEmail[] {
@@ -89,7 +107,9 @@ export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono",
         assunto: `Reserva cancelada pelo jogador · ${d.quadra}`,
         texto:
           `${nome} cancelou a reserva de ${periodo}, na ${rotuloQuadra(d)}.\n` +
-          `O horário voltou a ficar livre para reservas.\n\n` +
+          `O horário voltou a ficar livre para reservas.\n` +
+          (d.pagamento === "online" ? "O pagamento online foi estornado ao jogador, menos a tarifa do Asaas.\n" : "") +
+          `\n` +
           `Agenda do dia: ${appUrl}/painel/reservas?dia=${hojeLocal(d.inicio)}` + ASSINATURA,
       });
     }
@@ -99,7 +119,9 @@ export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono",
         assunto: `Reserva cancelada · ${d.arena}`,
         texto:
           `Sua reserva na ${d.arena} foi cancelada, como você pediu.\n` +
-          `${periodo} · ${rotuloQuadra(d)}\n\n` +
+          `${periodo} · ${rotuloQuadra(d)}\n` +
+          textoEstorno(d) +
+          `\n` +
           `Suas reservas: ${appUrl}/minhas-reservas` + ASSINATURA,
       });
     }
@@ -111,6 +133,7 @@ export function mensagensDoCancelamento(d: DadosAviso, quem: "jogador" | "dono",
         `A ${d.arena} cancelou a sua reserva.\n` +
         `${periodo} · ${rotuloQuadra(d)}\n` +
         (d.motivo ? `Motivo: ${d.motivo}\n` : "") +
+        textoEstorno(d) +
         `\nSe quiser, escolha outro horário: ${appUrl}/minhas-reservas` + ASSINATURA,
     });
   }
@@ -127,10 +150,11 @@ export function mensagemDoLembrete(d: DadosAviso, appUrl: string, agora: Date): 
       `Oi, ${d.jogador ?? ""}! Amanhã você joga na ${d.arena}.\n\n` +
       `${textoPeriodo(d.inicio, d.fim)}\n${rotuloQuadra(d)}\n` +
       (d.endereco ? `${d.endereco}\n` : "") +
-      // Hoje todo pagamento é na arena (fase 4a); com o Asaas (4b) este texto muda.
-      `Pagamento: ${textoDeCentavos(d.totalCentavos)}, na arena.\n\n` +
+      `Pagamento: ${textoDeCentavos(d.totalCentavos)}, ${d.pagamento === "online" ? "já pago online" : "na arena"}.\n\n` +
       (podeCancelarJogador(d.inicio, agora)
-        ? `Precisa cancelar? Até 24 h antes é grátis, em ${appUrl}/minhas-reservas`
+        ? d.pagamento === "online"
+          ? `Precisa cancelar? Até 24 h antes, em ${appUrl}/minhas-reservas (a tarifa do Asaas não é devolvida).`
+          : `Precisa cancelar? Até 24 h antes é grátis, em ${appUrl}/minhas-reservas`
         : `O prazo para cancelar pelo site já passou; se precisar, fale com a arena.\nSuas reservas: ${appUrl}/minhas-reservas`) +
       ASSINATURA,
   };

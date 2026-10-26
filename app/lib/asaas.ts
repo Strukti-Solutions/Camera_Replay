@@ -14,6 +14,12 @@ export function lerConfigAsaas(env: Ambiente = process.env): ConfigAsaas | null 
   return { chave, base };
 }
 
+// Cliente com a configuração do ambiente; null quando o Asaas não está configurado.
+export function asaasDoAmbiente(env: Ambiente = process.env): Asaas | null {
+  const config = lerConfigAsaas(env);
+  return config ? criarAsaas(config) : null;
+}
+
 export const reaisDeCentavos = (c: number) => Math.round(c) / 100;
 const centavosDeReais = (v: unknown) => Math.round(Number(v ?? 0) * 100);
 
