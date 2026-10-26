@@ -200,7 +200,7 @@ test("cobrança de assinatura ainda não gravada: aguardar se a arena dela ainda
   const { db, arenaId } = await arena();
   const nova = cobranca({ id: "pay_n", assinatura: "sub_9", referencia: arenaId, criadoEm: "2026-10-26" });
   expect(await processarCobrancaMensalidade(db, nova, AGORA)).toBe("aguardar");
-  // Criada há dias: não fica esperando para sempre.
-  expect(await processarCobrancaMensalidade(db, { ...nova, criadoEm: "2026-10-20" }, AGORA)).toBe("alheia");
+  // Criada em outro dia: não fica esperando (503 seguidos pausariam a fila do Asaas).
+  expect(await processarCobrancaMensalidade(db, { ...nova, criadoEm: "2026-10-25" }, AGORA)).toBe("alheia");
   expect(await processarCobrancaMensalidade(db, cobranca({ id: "pay_o", assinatura: "sub_o", referencia: "outra-coisa" }), AGORA)).toBe("alheia");
 });

@@ -182,9 +182,9 @@ export async function processarCobrancaMensalidade(
   const arenaId = rows[0]?.arena_id;
   if (!arenaId) {
     if (p.excluida || !p.referencia || !UUID.test(p.referencia) || !p.criadoEm) return "alheia";
-    // Só espera por cobrança criada hoje ou ontem, de arena que ainda não gravou a assinatura.
-    const ontem = hojeLocal(new Date(agora.getTime() - 86_400_000));
-    if (p.criadoEm < ontem) return "alheia";
+    // Só espera por cobrança criada hoje, de arena que ainda não gravou a assinatura:
+    // 503 por muito tempo faria o Asaas pausar a fila inteira (reservas também).
+    if (p.criadoEm !== hojeLocal(agora)) return "alheia";
     const a = await db.query("select 1 from arenas where id = $1 and asaas_assinatura_id is null", [p.referencia]);
     return a.rows.length === 1 ? "aguardar" : "alheia";
   }
