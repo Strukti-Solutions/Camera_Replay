@@ -15,6 +15,8 @@ export const MSG_LIMITE_RESERVAS = "Você atingiu o limite de reservas futuras. 
 // Sem pagamento online, o limite impede que um jogador tome todos os horários.
 export const LIMITE_RESERVAS_POR_ARENA = 2;
 export const LIMITE_RESERVAS_TOTAL = 5;
+// Quanto tempo o horário fica segurado esperando o pagamento online (o Checkout do Asaas vale o mesmo).
+export const PRAZO_PAGAMENTO_MS = 10 * 60_000;
 export const MOTIVO_CANCELAMENTO_MAX = 120;
 export const MOTIVO_BLOQUEIO_MAX = 60;
 const ANTECEDENCIA_CANCELAR_MS = 24 * 3_600_000;
@@ -79,19 +81,24 @@ export async function criarReserva(
   jogadorId: string,
   e: { quadraId: string; dia: string; inicio: number; qtd: number },
   agora: Date,
-): Promise<{ ok: true; reservaId: string } | { ok: false; erro: string }> {
+  opcoes: { online?: boolean } = {},
+): Promise<{ ok: true; reservaId: string; pagarOnline: boolean } | { ok: false; erro: string }> {
   const recusa = { ok: false as const, erro: MSG_INDISPONIVEL };
   if (!ehUuid(jogadorId) || !ehUuid(e?.quadraId)) return recusa;
   const dia = diaValido(e.dia, agora);
   if (!dia) return recusa;
 
   // Quadra de arena ativa; o motivo da recusa não é revelado.
-  const q = await db.query<{ arena_id: string }>(
-    `select q.arena_id from quadras q join arenas a on a.id = q.arena_id
+  const q = await db.query<{ arena_id: string; carteira: string | null; taxa: string | number }>(
+    `select q.arena_id, a.asaas_wallet_id as carteira, a.taxa_percentual as taxa
+       from quadras q join arenas a on a.id = q.arena_id
       where q.id = $1 and a.status_assinatura = 'ativa'`,
     [e.quadraId],
   );
   const arenaId = q.rows[0]?.arena_id;
+  // Online só com o Asaas configurado (quem chama diz) e a carteira do dono
+  // vinculada; senão, "pagar na arena", confirmada na hora (fase 4a).
+  const online = opcoes.online === true && !!q.rows[0]?.carteira;
   if (!arenaId) return recusa;
   const horarios = await listarHorarios(db, arenaId, e.quadraId);
   if (horarios.length === 0) return recusa;
@@ -100,7 +107,7 @@ export async function criarReserva(
   if (!escolha) return recusa;
 
   try {
-    const r = await emTransacao(db, async (tx): Promise<{ ok: true; reservaId: string } | { ok: false; erro: string }> => {
+    const r = await emTransacao(db, async (tx): Promise<{ ok: true; reservaId: string; pagarOnline: boolean } | { ok: false; erro: string }> => {
       // Trava a linha do jogador: apagarContaJogador (for update) espera esta
       // transação, e duas reservas do mesmo jogador passam uma de cada vez, então
       // o limite não fura. for no key update e não for share: com for share as
@@ -112,7 +119,8 @@ export async function criarReserva(
       const n = await tx.query<{ arena: number; total: number }>(
         `select count(*) filter (where arena_id = $2)::int as arena, count(*)::int as total
            from reservas
-          where jogador_id = $1 and tipo = 'reserva' and situacao = 'confirmada' and fim > $3::timestamptz`,
+          where jogador_id = $1 and tipo = 'reserva' and fim > $3::timestamptz
+            and (situacao = 'confirmada' or (situacao = 'segurada' and segura_ate > $3::timestamptz))`,
         [jogadorId, arenaId, agora],
       );
       const c = n.rows[0];
@@ -120,17 +128,22 @@ export async function criarReserva(
         return { ok: false, erro: MSG_LIMITE_RESERVAS };
       }
       await expirarSeguradas(tx, e.quadraId);
+      // Online: segurada por 10 min até o webhook do Asaas confirmar; a taxa é
+      // a estimativa sobre o bruto (o split real é sobre o líquido).
+      const taxa = online ? Math.round((escolha.totalCentavos * Number(q.rows[0].taxa)) / 100) : 0;
       const ins = await tx.query<{ id: string }>(
-        `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim,
+        `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, segura_ate, inicio, fim,
                                pagamento, total_centavos, taxa_centavos, detalhe)
-         values ($1, $2, $3, 'reserva', 'confirmada', $4, $5, 'arena', $6, 0, $7::jsonb) returning id`,
+         values ($1, $2, $3, 'reserva', $8, $9, $4, $5, $10, $6, $11, $7::jsonb) returning id`,
         [
           arenaId, e.quadraId, jogadorId,
           new Date(instanteDoMinuto(dia, escolha.inicio)), new Date(instanteDoMinuto(dia, escolha.fim)),
           escolha.totalCentavos, JSON.stringify(escolha.itens),
+          online ? "segurada" : "confirmada", online ? new Date(agora.getTime() + PRAZO_PAGAMENTO_MS) : null,
+          online ? "online" : "arena", taxa,
         ],
       );
-      return { ok: true, reservaId: ins.rows[0].id };
+      return { ok: true, reservaId: ins.rows[0].id, pagarOnline: online };
     });
     return r;
   } catch (err) {

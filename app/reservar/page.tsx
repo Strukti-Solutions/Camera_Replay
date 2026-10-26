@@ -7,6 +7,8 @@ import { exigirJogador } from "@/app/jogador/sessao-jogador";
 import { arenaPublica, periodosPublicos, slugDaQuadra } from "@/app/lib/arenas-publicas";
 import { escolhaDeHorarios } from "@/app/lib/disponibilidade";
 import { textoMinutos } from "@/app/lib/horarios";
+import { lerConfigAsaas } from "@/app/lib/asaas";
+import { quadraCobraOnline } from "@/app/lib/pagamentos";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { textoDeCentavos } from "@/app/lib/precos";
 import { MSG_INDISPONIVEL } from "@/app/lib/reservas";
@@ -73,6 +75,7 @@ export default async function PaginaReservar({ searchParams }: Props) {
     );
   }
 
+  const online = lerConfigAsaas() !== null && (await quadraCobraOnline(db, quadra.id));
   const volta = `/a/${arena.slug}?${new URLSearchParams({
     quadra: quadra.id, dia: escolha.dia, inicio: String(preco.inicio), qtd: String(preco.itens.length),
   }).toString()}#reserva`;
@@ -115,11 +118,26 @@ export default async function PaginaReservar({ searchParams }: Props) {
           </div>
           <div>
             <dt>Pagamento</dt>
-            <dd>Pagamento na arena</dd>
+            <dd>{online ? "Online, por Pix ou cartão" : "Pagamento na arena"}</dd>
           </div>
         </dl>
-        <p className="suave">Cancelamento grátis até 24 h antes.</p>
-        <FormularioReservar quadra={quadra.id} dia={escolha.dia} inicio={preco.inicio} qtd={preco.itens.length} />
+        {online ? (
+          <div className="reservar-avisos">
+            <p>
+              Ao confirmar, o horário fica guardado por <strong>10 minutos</strong> enquanto você paga na página do Asaas.
+              Sem pagamento nesse prazo, ele volta a ficar livre.
+            </p>
+            <p className="suave">
+              Cancelamento até 24 h antes. <strong>A tarifa do Asaas (Pix ou cartão) não é devolvida</strong> quando você
+              cancela; se a arena cancelar, você recebe tudo de volta.
+            </p>
+          </div>
+        ) : (
+          <p className="suave">Cancelamento grátis até 24 h antes.</p>
+        )}
+        <FormularioReservar
+          quadra={quadra.id} dia={escolha.dia} inicio={preco.inicio} qtd={preco.itens.length} online={online}
+        />
       </main>
     </>
   );

@@ -530,7 +530,7 @@ test("no pg.Pool, criar reserva trava o jogador antes de contar e inserir", asyn
   } as unknown as Db;
 
   expect(await criarReserva(db, ana, { quadraId: quadra.id, dia: DIA, inicio: 18 * 60, qtd: 1 }, AGORA))
-    .toEqual({ ok: true, reservaId: "r1" });
+    .toEqual({ ok: true, reservaId: "r1", pagarOnline: false });
   expect(log).toEqual(["begin", "trava", "conta", "expira", "insere", "commit"]);
   expect(clientes).toHaveLength(1);
   expect(await contar(pg)).toBe(0);

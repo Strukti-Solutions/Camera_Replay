@@ -2703,6 +2703,15 @@ a.ar-quadra:focus-visible {
   margin-top: 1.25rem;
 }
 
+.reservar-avisos {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reservar-avisos p {
+  margin: 0;
+}
+
 /* Celular estreito: linha 1 = marca, rótulo e tema; linha 2 = links rolando de lado. */
 /* (No fim do arquivo para vencer as regras-base de .cabecalho-links e .painel-nav.) */
 @media (max-width: 40rem) {

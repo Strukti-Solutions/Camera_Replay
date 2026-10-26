@@ -11,11 +11,13 @@ export function FormularioReservar({
   dia,
   inicio,
   qtd,
+  online,
 }: {
   quadra: string;
   dia: string;
   inicio: number;
   qtd: number;
+  online: boolean;
 }) {
   const [estado, acao, pendente] = useActionState(confirmarReservaAction, inicial);
   return (
@@ -28,7 +30,7 @@ export function FormularioReservar({
         {estado.erro}
       </p>
       <button type="submit" className="botao botao-cheio" disabled={pendente}>
-        {pendente ? "Confirmando…" : "Confirmar reserva"}
+        {pendente ? (online ? "Abrindo o pagamento…" : "Confirmando…") : online ? "Confirmar e pagar" : "Confirmar reserva"}
       </button>
     </form>
   );
