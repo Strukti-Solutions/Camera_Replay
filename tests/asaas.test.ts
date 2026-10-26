@@ -76,7 +76,8 @@ test("cancelarCheckout e pagamentosDoCheckout", async () => {
   expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/checkouts/chk-1/cancel");
   expect(f.chamadas[0].init.method).toBe("POST");
   expect(await asaas.pagamentosDoCheckout("chk-1")).toEqual([
-    { id: "pay_1", status: "CONFIRMED", valorCentavos: 20000, liquidoCentavos: 19802, checkout: null, splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }] },
+    { id: "pay_1", status: "CONFIRMED", valorCentavos: 20000, liquidoCentavos: 19802, checkout: null, splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }],
+      assinatura: null, vencimento: null, link: null },
   ]);
   expect(f.chamadas[1].url).toBe("https://api-sandbox.asaas.com/v3/payments?checkoutSession=chk-1");
 });
@@ -99,7 +100,7 @@ test("split sem totalValue: calcula pelo percentual sobre o líquido; pagamento(
     split: [{ id: "spl_2", walletId: WALLET, percentualValue: 95 }] } });
   expect(await criarAsaas(CONFIG, f.fetcher).pagamento("pay_2")).toEqual({
     id: "pay_2", status: "RECEIVED", valorCentavos: 10000, liquidoCentavos: 9901, checkout: "chk-9",
-    splits: [{ id: "spl_2", carteira: WALLET, valorCentavos: 9406 }],
+    splits: [{ id: "spl_2", carteira: WALLET, valorCentavos: 9406 }], assinatura: null, vencimento: null, link: null,
   });
   expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/payments/pay_2");
 });
@@ -113,4 +114,49 @@ test("criarCheckout: link que não é https do Asaas é recusado (o site redirec
     const f = fetcherCom({ corpo: { id: "chk-1", link } });
     await expect(criarAsaas(CONFIG, f.fetcher).criarCheckout(pedido)).rejects.toThrow();
   }
+});
+
+// ---------- Mensalidade (assinatura) ----------
+
+test("criarCliente e criarAssinatura: mensal, forma de pagamento à escolha do dono, referência = arena", async () => {
+  const f = fetcherCom({ corpo: { id: "cus_1" } }, { corpo: { id: "sub_1", status: "ACTIVE" } });
+  const asaas = criarAsaas(CONFIG, f.fetcher);
+  expect(await asaas.criarCliente({ nome: "Dono", documento: "24971563792", email: "dono@x.com", arenaId: "arena-1" })).toBe("cus_1");
+  expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/customers");
+  expect(corpo(f.chamadas[0])).toEqual({
+    name: "Dono", cpfCnpj: "24971563792", email: "dono@x.com", externalReference: "arena-1", notificationDisabled: false,
+  });
+  expect(await asaas.criarAssinatura({
+    cliente: "cus_1", valorCentavos: 14990, vencimento: "2026-11-10", descricao: "Mensalidade Replay · Arena Sol", arenaId: "arena-1",
+  })).toBe("sub_1");
+  expect(f.chamadas[1].url).toBe("https://api-sandbox.asaas.com/v3/subscriptions");
+  expect(corpo(f.chamadas[1])).toEqual({
+    customer: "cus_1", billingType: "UNDEFINED", value: 149.9, nextDueDate: "2026-11-10", cycle: "MONTHLY",
+    description: "Mensalidade Replay · Arena Sol", externalReference: "arena-1",
+  });
+});
+
+test("alterarAssinatura atualiza as cobranças em aberto; excluirAssinatura usa DELETE", async () => {
+  const f = fetcherCom({ corpo: { id: "sub_1" } }, { corpo: { deleted: true } });
+  const asaas = criarAsaas(CONFIG, f.fetcher);
+  await asaas.alterarAssinatura("sub_1", { valorCentavos: 19900, vencimento: "2026-11-15" });
+  expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/subscriptions/sub_1");
+  expect(f.chamadas[0].init.method).toBe("PUT");
+  expect(corpo(f.chamadas[0])).toEqual({ value: 199, nextDueDate: "2026-11-15", updatePendingPayments: true });
+  await asaas.excluirAssinatura("sub_1");
+  expect(f.chamadas[1].url).toBe("https://api-sandbox.asaas.com/v3/subscriptions/sub_1");
+  expect(f.chamadas[1].init.method).toBe("DELETE");
+});
+
+test("cobrança de assinatura: lê assinatura, vencimento e link (só https do Asaas)", async () => {
+  const f = fetcherCom(
+    { corpo: { id: "pay_3", status: "PENDING", value: 149.9, netValue: 148.91, subscription: "sub_1", dueDate: "2026-11-10",
+      invoiceUrl: "https://sandbox.asaas.com/i/abc" } },
+    { corpo: { id: "pay_4", status: "PENDING", value: 149.9, subscription: "sub_1", dueDate: "2026-12-10", invoiceUrl: "https://evil.com/i" } },
+  );
+  const asaas = criarAsaas(CONFIG, f.fetcher);
+  expect(await asaas.pagamento("pay_3")).toMatchObject({
+    assinatura: "sub_1", vencimento: "2026-11-10", link: "https://sandbox.asaas.com/i/abc", valorCentavos: 14990,
+  });
+  expect(await asaas.pagamento("pay_4")).toMatchObject({ link: null, vencimento: "2026-12-10" });
 });

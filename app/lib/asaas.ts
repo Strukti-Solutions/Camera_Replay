@@ -1,4 +1,5 @@
-// Cliente mínimo da API do Asaas (Checkout, cobranças do Checkout e estorno).
+// Cliente mínimo da API do Asaas (Checkout, cobranças do Checkout, estorno e
+// assinatura da mensalidade do dono).
 // A chave fica só no ambiente e nunca aparece em erro nem em log. Spec:
 // docs/superpowers/specs/2026-10-26-pagamento-asaas-design.md.
 
@@ -40,6 +41,9 @@ export type PagamentoAsaas = {
   liquidoCentavos: number;
   checkout: string | null; // checkoutSession, quando a cobrança veio de um Checkout
   splits: { id: string; carteira: string; valorCentavos: number }[];
+  assinatura: string | null; // id da assinatura, quando é cobrança de mensalidade
+  vencimento: string | null; // AAAA-MM-DD
+  link: string | null; // fatura do Asaas (só https do próprio Asaas)
 };
 
 export type Asaas = {
@@ -51,7 +55,24 @@ export type Asaas = {
   pagamentosDoCheckout(id: string): Promise<PagamentoAsaas[]>;
   pagamento(id: string): Promise<PagamentoAsaas>;
   estornar(pagamentoId: string, p: { valorCentavos: number; splits: { id: string; valorCentavos: number }[]; descricao: string }): Promise<void>;
+  // Mensalidade do dono: cliente e assinatura na conta da Strukti.
+  criarCliente(p: { nome: string; documento: string; email: string; arenaId: string }): Promise<string>;
+  criarAssinatura(p: { cliente: string; valorCentavos: number; vencimento: string; descricao: string; arenaId: string }): Promise<string>;
+  alterarAssinatura(id: string, p: { valorCentavos: number; vencimento: string }): Promise<void>;
+  excluirAssinatura(id: string): Promise<void>;
 };
+
+// Link que o site mostra ou para onde redireciona: só https do próprio Asaas.
+export function linkDoAsaas(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  try {
+    const u = new URL(v);
+    const host = u.hostname;
+    return u.protocol === "https:" && (host === "asaas.com" || host.endsWith(".asaas.com")) ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 // Cobrança como o Asaas devolve. O valor de cada split vem em totalValue; se
 // vier só o percentual, é calculado sobre o líquido (como o Asaas faz).
@@ -61,6 +82,9 @@ function lerPagamento(p: Record<string, unknown>): PagamentoAsaas {
     id: String(p.id), status: String(p.status),
     valorCentavos: centavosDeReais(p.value), liquidoCentavos: liquido,
     checkout: typeof p.checkoutSession === "string" ? p.checkoutSession : null,
+    assinatura: typeof p.subscription === "string" ? p.subscription : null,
+    vencimento: typeof p.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.dueDate) ? p.dueDate : null,
+    link: linkDoAsaas(p.invoiceUrl),
     splits: (Array.isArray(p.split) ? (p.split as Record<string, unknown>[]) : []).map((s) => {
       const percentual = Number(s.percentualValue ?? s.percentageValue ?? 0);
       return {
@@ -108,15 +132,8 @@ export function criarAsaas(config: ConfigAsaas, fetcher: Fetcher = fetch): Asaas
         splits: [{ walletId: p.carteiraDono, percentageValue: p.percentualDono }],
       });
       // O site redireciona o jogador para este link: só https do próprio Asaas.
-      const link = String(d.link ?? "");
-      let host = "";
-      try {
-        const u = new URL(link);
-        host = u.protocol === "https:" ? u.hostname : "";
-      } catch {
-        host = "";
-      }
-      if (host !== "asaas.com" && !host.endsWith(".asaas.com")) throw new ErroAsaas(502, "link_inesperado");
+      const link = linkDoAsaas(d.link);
+      if (!link) throw new ErroAsaas(502, "link_inesperado");
       return { id: String(d.id), link };
     },
     async cancelarCheckout(checkout) {
@@ -136,6 +153,28 @@ export function criarAsaas(config: ConfigAsaas, fetcher: Fetcher = fetch): Asaas
         description: p.descricao,
         splitRefunds: p.splits.map((s) => ({ id: s.id, value: reaisDeCentavos(s.valorCentavos) })),
       });
+    },
+    async criarCliente(p) {
+      const d = await chamar("POST", "customers", {
+        name: p.nome, cpfCnpj: p.documento, email: p.email, externalReference: p.arenaId, notificationDisabled: false,
+      });
+      return String(d.id);
+    },
+    async criarAssinatura(p) {
+      // UNDEFINED: o dono escolhe Pix, boleto ou cartão na fatura.
+      const d = await chamar("POST", "subscriptions", {
+        customer: p.cliente, billingType: "UNDEFINED", value: reaisDeCentavos(p.valorCentavos), nextDueDate: p.vencimento,
+        cycle: "MONTHLY", description: p.descricao, externalReference: p.arenaId,
+      });
+      return String(d.id);
+    },
+    async alterarAssinatura(assinatura, p) {
+      await chamar("PUT", `subscriptions/${id(assinatura)}`, {
+        value: reaisDeCentavos(p.valorCentavos), nextDueDate: p.vencimento, updatePendingPayments: true,
+      });
+    },
+    async excluirAssinatura(assinatura) {
+      await chamar("DELETE", `subscriptions/${id(assinatura)}`);
     },
   };
 }

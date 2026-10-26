@@ -12,7 +12,7 @@ const DIA = "2026-11-10";
 const APP = "https://replay.exemplo";
 const PAGO: PagamentoAsaas = {
   id: "pay_1", status: "CONFIRMED", valorCentavos: 20000, liquidoCentavos: 19802, checkout: "chk-1",
-  splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }],
+  splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }], assinatura: null, vencimento: null, link: null,
 };
 
 // Reserva online de 18h às 20h já paga (confirmada pelo webhook).

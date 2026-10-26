@@ -40,6 +40,13 @@ export function asaasFalso(falhar = false, pagamentos: Record<string, PagamentoA
       if (falhar) throw new Error("asaas: HTTP 400 (insufficient_balance)");
       estornos.push({ pagamento, valorCentavos: p.valorCentavos, splits: p.splits });
     }),
+    criarCliente: vi.fn(async () => {
+      if (falhar) throw new Error("asaas: HTTP 400 (invalid_cpfCnpj)");
+      return "cus_1";
+    }),
+    criarAssinatura: vi.fn(async () => "sub_1"),
+    alterarAssinatura: vi.fn(async () => {}),
+    excluirAssinatura: vi.fn(async () => {}),
   };
   return { asaas, checkouts, estornos };
 }
