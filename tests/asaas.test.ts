@@ -76,7 +76,7 @@ test("cancelarCheckout e pagamentosDoCheckout", async () => {
   expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/checkouts/chk-1/cancel");
   expect(f.chamadas[0].init.method).toBe("POST");
   expect(await asaas.pagamentosDoCheckout("chk-1")).toEqual([
-    { id: "pay_1", status: "CONFIRMED", valorCentavos: 20000, liquidoCentavos: 19802, splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }] },
+    { id: "pay_1", status: "CONFIRMED", valorCentavos: 20000, liquidoCentavos: 19802, checkout: null, splits: [{ id: "spl_1", carteira: WALLET, valorCentavos: 18812 }] },
   ]);
   expect(f.chamadas[1].url).toBe("https://api-sandbox.asaas.com/v3/payments?checkoutSession=chk-1");
 });
@@ -92,4 +92,14 @@ test("ids vão na URL codificados", async () => {
   const f = fetcherCom({ corpo: {} });
   await criarAsaas(CONFIG, f.fetcher).cancelarCheckout("a/../b?x=1");
   expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/checkouts/a%2F..%2Fb%3Fx%3D1/cancel");
+});
+
+test("split sem totalValue: calcula pelo percentual sobre o líquido; pagamento(id) busca uma cobrança", async () => {
+  const f = fetcherCom({ corpo: { id: "pay_2", status: "RECEIVED", value: 100, netValue: 99.01, checkoutSession: "chk-9",
+    split: [{ id: "spl_2", walletId: WALLET, percentualValue: 95 }] } });
+  expect(await criarAsaas(CONFIG, f.fetcher).pagamento("pay_2")).toEqual({
+    id: "pay_2", status: "RECEIVED", valorCentavos: 10000, liquidoCentavos: 9901, checkout: "chk-9",
+    splits: [{ id: "spl_2", carteira: WALLET, valorCentavos: 9406 }],
+  });
+  expect(f.chamadas[0].url).toBe("https://api-sandbox.asaas.com/v3/payments/pay_2");
 });

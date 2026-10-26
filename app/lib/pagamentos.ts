@@ -1,6 +1,7 @@
 import { textoPeriodo } from "@/app/minhas-reservas/apresentacao";
-import type { Asaas } from "./asaas";
+import { ErroAsaas, type Asaas, type PagamentoAsaas } from "./asaas";
 import type { Db } from "./db";
+import { segredoConfere } from "./limpeza";
 
 // Pagamento online das reservas pelo Asaas: abrir o Checkout, processar o
 // webhook e estornar. Spec: docs/superpowers/specs/2026-10-26-pagamento-asaas-design.md.
@@ -71,4 +72,201 @@ export async function quadraCobraOnline(db: Pick<Db, "query">, quadraId: string)
     [quadraId],
   );
   return r.rows.length === 1;
+}
+
+// ---------- Estorno ----------
+
+// "sem_tarifa": cancelamento pelo jogador ou pagamento atrasado — volta o
+// líquido; o dono devolve o split inteiro e a Strukti a parte dela.
+// "integral": cancelamento pelo dono — volta tudo; o dono devolve o split mais a
+// tarifa. Se o Asaas não aceitar tirar do dono mais que o split, a diferença
+// fica com a Strukti. Sucesso = "solicitado" (o webhook conclui); falha = "pendente".
+export async function estornarReserva(
+  db: Pick<Db, "query">, asaas: Asaas, reservaId: string, regra: "sem_tarifa" | "integral",
+): Promise<boolean> {
+  const { rows } = await db.query<{ pagamento: string | null; carteira: string | null }>(
+    `select r.asaas_pagamento_id as pagamento, a.asaas_wallet_id as carteira
+       from reservas r join arenas a on a.id = r.arena_id where r.id = $1`,
+    [reservaId],
+  );
+  const l = rows[0];
+  if (!l?.pagamento) return false;
+  const marcar = (estorno: "solicitado" | "pendente", centavos: number | null) =>
+    db.query("update reservas set estorno = $2, estorno_centavos = $3 where id = $1", [reservaId, estorno, centavos]);
+  try {
+    const p = await asaas.pagamento(l.pagamento);
+    const split = p.splits.find((s) => s.carteira === l.carteira) ?? p.splits[0];
+    const tarifa = Math.max(0, p.valorCentavos - p.liquidoCentavos);
+    const descricao = regra === "integral" ? "Reserva cancelada pela arena" : "Reserva cancelada (sem a tarifa do Asaas)";
+    if (regra === "sem_tarifa") {
+      await asaas.estornar(p.id, {
+        valorCentavos: p.liquidoCentavos,
+        splits: split ? [{ id: split.id, valorCentavos: split.valorCentavos }] : [],
+        descricao,
+      });
+      await marcar("solicitado", p.liquidoCentavos);
+      return true;
+    }
+    try {
+      await asaas.estornar(p.id, {
+        valorCentavos: p.valorCentavos,
+        splits: split ? [{ id: split.id, valorCentavos: split.valorCentavos + tarifa }] : [],
+        descricao,
+      });
+    } catch (e) {
+      if (!(e instanceof ErroAsaas && e.status === 400) || !split) throw e;
+      await asaas.estornar(p.id, { valorCentavos: p.valorCentavos, splits: [{ id: split.id, valorCentavos: split.valorCentavos }], descricao });
+    }
+    await marcar("solicitado", p.valorCentavos);
+    return true;
+  } catch (e) {
+    console.error("pagamento: estorno não feito:", mensagem(e));
+    await marcar("pendente", null);
+    return false;
+  }
+}
+
+// ---------- Webhook ----------
+
+const CONFIRMAM = new Set(["CHECKOUT_PAID", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]);
+const PAGO = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
+const texto = (v: unknown) => (typeof v === "string" && v.length > 0 && v.length <= 200 ? v : null);
+
+type Evento = {
+  id: string; tipo: string;
+  checkout: string | null; pagamento: string | null; referencia: string | null; sessao: string | null;
+};
+
+function lerEvento(e: unknown): Evento | null {
+  if (!e || typeof e !== "object") return null;
+  const o = e as Record<string, unknown>;
+  const id = texto(o.id);
+  const tipo = texto(o.event);
+  if (!id || !tipo) return null;
+  const ck = (o.checkout && typeof o.checkout === "object" ? o.checkout : {}) as Record<string, unknown>;
+  const pg = (o.payment && typeof o.payment === "object" ? o.payment : {}) as Record<string, unknown>;
+  return {
+    id, tipo, checkout: texto(ck.id), pagamento: texto(pg.id),
+    referencia: texto(pg.externalReference), sessao: texto(pg.checkoutSession),
+  };
+}
+
+async function acharReserva(db: Pick<Db, "query">, ev: { checkout: string | null; referencia: string | null }) {
+  const { rows } = await db.query<{ id: string; total: number; checkout: string | null; pagamento: string | null }>(
+    `select id, total_centavos as total, asaas_checkout_id as checkout, asaas_pagamento_id as pagamento
+       from reservas
+      where tipo = 'reserva' and pagamento = 'online'
+        and (($1::text is not null and asaas_checkout_id = $1) or ($2::uuid is not null and id = $2::uuid))
+      limit 1`,
+    [ev.checkout, ev.referencia && ehUuid(ev.referencia) ? ev.referencia : null],
+  );
+  return rows[0] ?? null;
+}
+
+class ErroEvento extends Error {}
+
+async function confirmarPagamento(db: Pick<Db, "query">, asaas: Asaas, ev: Evento, agora: Date): Promise<void> {
+  // Primeiro a reserva (evento de Checkout que não é nosso nem chama a API);
+  // depois a cobrança, sempre lida da API (o evento é só o gatilho).
+  let r = await acharReserva(db, { checkout: ev.checkout ?? ev.sessao, referencia: ev.referencia });
+  if (!r && ev.tipo === "CHECKOUT_PAID") throw new ErroEvento("reserva não encontrada");
+  let p: PagamentoAsaas | undefined;
+  if (ev.tipo === "CHECKOUT_PAID") {
+    if (ev.checkout) p = (await asaas.pagamentosDoCheckout(ev.checkout)).find((x) => PAGO.has(x.status));
+  } else if (ev.pagamento) {
+    p = await asaas.pagamento(ev.pagamento);
+  }
+  if (!p || !PAGO.has(p.status)) throw new ErroEvento("sem cobrança confirmada");
+  r ??= await acharReserva(db, { checkout: p.checkout, referencia: null });
+  if (!r) throw new ErroEvento("reserva não encontrada");
+  if (r.pagamento) {
+    if (r.pagamento !== p.id) throw new ErroEvento("outra cobrança para a mesma reserva");
+    return; // já processado por outro evento
+  }
+  if (r.checkout && p.checkout && r.checkout !== p.checkout) throw new ErroEvento("cobrança de outro Checkout");
+  if (p.valorCentavos !== Number(r.total)) throw new ErroEvento("valor pago diferente do total");
+
+  const dados = [r.id, p.id, p.valorCentavos, p.liquidoCentavos, agora];
+  try {
+    const ok = await db.query(
+      `update reservas set situacao = 'confirmada', asaas_pagamento_id = $2, pago_centavos = $3,
+              liquido_centavos = $4, pago_em = $5
+        where id = $1 and asaas_pagamento_id is null and situacao in ('segurada', 'expirada') returning id`,
+      dados,
+    );
+    if (ok.rows.length === 1) return;
+  } catch (e) {
+    if ((e as { code?: string }).code !== "23P01") throw e;
+  }
+  // Horário já ocupado (pagou depois do prazo) ou reserva já cancelada: grava o
+  // pagamento, cancela e estorna sem a tarifa.
+  await db.query(
+    `update reservas set situacao = 'cancelada', cancelada_em = coalesce(cancelada_em, $5),
+            motivo_cancelamento = coalesce(motivo_cancelamento, 'Pagamento depois do prazo; o horário já estava ocupado.'),
+            asaas_pagamento_id = $2, pago_centavos = $3, liquido_centavos = $4, pago_em = $5
+      where id = $1 and asaas_pagamento_id is null`,
+    dados,
+  );
+  await estornarReserva(db, asaas, r.id, "sem_tarifa");
+}
+
+export type ResultadoEvento = "ok" | "repetido" | "ignorado" | "invalido" | "erro";
+
+export async function processarEventoAsaas(
+  db: Pick<Db, "query">, asaas: Asaas, bruto: unknown, agora: Date,
+): Promise<ResultadoEvento> {
+  const ev = lerEvento(bruto);
+  if (!ev) return "invalido";
+  const novo = await db.query(
+    "insert into asaas_eventos (id, tipo, payload) values ($1, $2, $3::jsonb) on conflict (id) do nothing returning id",
+    [ev.id, ev.tipo, JSON.stringify(bruto)],
+  );
+  if (novo.rows.length === 0) return "repetido";
+  const fechar = (erro: string | null) =>
+    db.query("update asaas_eventos set processado_em = $2, erro = $3 where id = $1", [ev.id, agora, erro]);
+  try {
+    if (CONFIRMAM.has(ev.tipo)) {
+      await confirmarPagamento(db, asaas, ev, agora);
+    } else if (ev.tipo === "CHECKOUT_EXPIRED" || ev.tipo === "CHECKOUT_CANCELED") {
+      await db.query("update reservas set situacao = 'expirada' where asaas_checkout_id = $1 and situacao = 'segurada'", [ev.checkout]);
+    } else if (ev.tipo === "PAYMENT_REFUNDED") {
+      await db.query(
+        "update reservas set estorno = 'concluido' where asaas_pagamento_id = $1 and estorno in ('solicitado', 'pendente')",
+        [ev.pagamento],
+      );
+    } else {
+      await fechar(null);
+      return "ignorado";
+    }
+    await fechar(null);
+    return "ok";
+  } catch (e) {
+    const erro = e instanceof ErroEvento ? e.message : mensagem(e);
+    console.error(`asaas: evento ${ev.tipo} não processado: ${erro}`);
+    await fechar(erro.slice(0, 200));
+    return "erro";
+  }
+}
+
+const json = (corpo: unknown, status: number) =>
+  new Response(JSON.stringify(corpo), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+
+// POST do Asaas com o cabeçalho asaas-access-token. Erro de processamento
+// responde 200 mesmo assim: o evento fica gravado com o erro (visível no admin)
+// e a fila do Asaas não pausa.
+export function criarHandlerWebhookAsaas(
+  db: Pick<Db, "query">, asaas: Asaas | null, token: string | undefined, relogio: () => Date = () => new Date(),
+): (req: Request) => Promise<Response> {
+  return async (req) => {
+    if (!token || !asaas) return json({ erro: "webhook não configurado" }, 503);
+    if (!segredoConfere(req.headers.get("asaas-access-token") ?? "", token)) return json({ erro: "não autorizado" }, 401);
+    let corpo: unknown;
+    try {
+      corpo = JSON.parse(await req.text());
+    } catch {
+      return json({ erro: "corpo inválido" }, 400);
+    }
+    const r = await processarEventoAsaas(db, asaas, corpo, relogio());
+    return json({ resultado: r }, r === "invalido" ? 400 : 200);
+  };
 }

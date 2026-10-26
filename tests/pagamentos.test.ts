@@ -1,42 +1,15 @@
 import { expect, test, vi } from "vitest";
 import type { Db } from "../app/lib/db";
-import type { Asaas } from "../app/lib/asaas";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { abrirPagamento, quadraCobraOnline } from "../app/lib/pagamentos";
 import { criarReserva, periodosOcupados } from "../app/lib/reservas";
 import { novoBanco } from "./db";
-import { criarArena, criarHorariosDeHora, criarQuadra } from "./fixtures";
+import { arenaOnline, asaasFalso, WALLET } from "./fixtures-asaas";
 
 // Segunda, 09/11/2026, 10h em São Paulo. Reservas em 10/11 (terça).
 const AGORA = new Date("2026-11-09T10:00:00-03:00");
 const DIA = "2026-11-10";
-const WALLET = "0f0e8c2a-6c4e-4c4c-9a3c-1b2d3e4f5a6b";
 const APP = "https://replay.exemplo";
-
-export async function arenaOnline(db: Db, comCarteira = true) {
-  const arena = await criarArena(db, "Arena Sol");
-  if (comCarteira) await db.query("update arenas set asaas_wallet_id = $2, taxa_percentual = 5 where id = $1", [arena.id, WALLET]);
-  const quadra = await criarQuadra(db, arena.id);
-  await criarHorariosDeHora(db, arena.id, quadra.id, [0, 1, 2, 3, 4, 5, 6], 7, 23, 10000);
-  const c = await criarContaJogador(db, { nome: "Ana", email: "ana@x.com", senha: "senha-boa-1", aceitouTermos: true });
-  if (!c.ok) throw new Error("conta");
-  return { arena, quadra, jogadorId: c.jogadorId };
-}
-
-export function asaasFalso(falhar = false) {
-  const checkouts: Parameters<Asaas["criarCheckout"]>[0][] = [];
-  const asaas: Asaas = {
-    criarCheckout: vi.fn(async (p) => {
-      if (falhar) throw new Error("asaas: HTTP 500");
-      checkouts.push(p);
-      return { id: `chk-${checkouts.length}`, link: `https://sandbox.asaas.com/c/chk-${checkouts.length}` };
-    }),
-    cancelarCheckout: vi.fn(async () => {}),
-    pagamentosDoCheckout: vi.fn(async () => []),
-    estornar: vi.fn(async () => {}),
-  };
-  return { asaas, checkouts };
-}
 
 const reserva = (db: Db, id: string) =>
   db.query<Record<string, unknown>>("select * from reservas where id = $1", [id]).then((r) => r.rows[0]);

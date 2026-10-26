@@ -32,6 +32,7 @@ export type PagamentoAsaas = {
   status: string;
   valorCentavos: number;
   liquidoCentavos: number;
+  checkout: string | null; // checkoutSession, quando a cobrança veio de um Checkout
   splits: { id: string; carteira: string; valorCentavos: number }[];
 };
 
@@ -42,8 +43,29 @@ export type Asaas = {
   }): Promise<{ id: string; link: string }>;
   cancelarCheckout(id: string): Promise<void>;
   pagamentosDoCheckout(id: string): Promise<PagamentoAsaas[]>;
+  pagamento(id: string): Promise<PagamentoAsaas>;
   estornar(pagamentoId: string, p: { valorCentavos: number; splits: { id: string; valorCentavos: number }[]; descricao: string }): Promise<void>;
 };
+
+// Cobrança como o Asaas devolve. O valor de cada split vem em totalValue; se
+// vier só o percentual, é calculado sobre o líquido (como o Asaas faz).
+function lerPagamento(p: Record<string, unknown>): PagamentoAsaas {
+  const liquido = centavosDeReais(p.netValue);
+  return {
+    id: String(p.id), status: String(p.status),
+    valorCentavos: centavosDeReais(p.value), liquidoCentavos: liquido,
+    checkout: typeof p.checkoutSession === "string" ? p.checkoutSession : null,
+    splits: (Array.isArray(p.split) ? (p.split as Record<string, unknown>[]) : []).map((s) => {
+      const percentual = Number(s.percentualValue ?? s.percentageValue ?? 0);
+      return {
+        id: String(s.id), carteira: String(s.walletId),
+        valorCentavos: s.totalValue != null ? centavosDeReais(s.totalValue)
+          : s.fixedValue != null ? centavosDeReais(s.fixedValue)
+          : Math.round((liquido * percentual) / 100),
+      };
+    }),
+  };
+}
 
 export function criarAsaas(config: ConfigAsaas, fetcher: Fetcher = fetch): Asaas {
   async function chamar(metodo: string, caminho: string, corpo?: unknown): Promise<Record<string, unknown>> {
@@ -87,13 +109,10 @@ export function criarAsaas(config: ConfigAsaas, fetcher: Fetcher = fetch): Asaas
     async pagamentosDoCheckout(checkout) {
       const d = await chamar("GET", `payments?checkoutSession=${id(checkout)}`);
       const lista = Array.isArray(d.data) ? (d.data as Record<string, unknown>[]) : [];
-      return lista.map((p) => ({
-        id: String(p.id), status: String(p.status),
-        valorCentavos: centavosDeReais(p.value), liquidoCentavos: centavosDeReais(p.netValue),
-        splits: (Array.isArray(p.split) ? (p.split as Record<string, unknown>[]) : []).map((s) => ({
-          id: String(s.id), carteira: String(s.walletId), valorCentavos: centavosDeReais(s.totalValue),
-        })),
-      }));
+      return lista.map(lerPagamento);
+    },
+    async pagamento(pagamento) {
+      return lerPagamento(await chamar("GET", `payments/${id(pagamento)}`));
     },
     async estornar(pagamento, p) {
       await chamar("POST", `payments/${id(pagamento)}/refund`, {
