@@ -258,3 +258,14 @@ Fonte: <https://www.asaas.com/precos-e-taxas>. A página não tem data; o rodap�
    - estorno com o recebedor sem saldo;
    - limite de `splitRefunds`;
    - se o callback do Checkout exige o domínio cadastrado.
+
+---
+
+## Sandbox, 26/10/2026 (testado com a conta sandbox da Strukti, PF)
+
+- Conta PF: `POST /v3/accounts` (criar subconta) responde **403**. Cada dono precisa da própria conta.
+- Checkout com Pix exige uma chave Pix cadastrada (`POST /v3/pix/addressKeys {"type":"EVP"}`); a chave nova levou alguns minutos para valer.
+- `POST /v3/checkouts` com `PIX` + `CREDIT_CARD`, `DETACHED`, `minutesToExpire: 10` e callbacks em `camera-replay.vercel.app` funcionou **sem domínio cadastrado** na conta.
+- Com `customerData` (nome, CPF, e-mail, telefone) o Asaas exige `address`, `addressNumber`, `postalCode` e `province`. **Sem `customerData`** o Checkout é criado e a própria página pede os dados ao pagador.
+- O campo do split no Checkout é `percentageValue` (a doc antiga cita `percentualValue`).
+- Cobrança Pix de R$ 100,00 → `netValue` R$ 99,01 (tarifa promocional de R$ 0,99).
