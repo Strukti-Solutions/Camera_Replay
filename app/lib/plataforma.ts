@@ -14,15 +14,24 @@ export type StatusArena = "ativa" | "suspensa";
 export type ArenaAdmin = {
   id: string; nome: string; slug: string; status: StatusArena;
   quadras: number; donoEmail: string | null; criadoEm: Date; taxaPercentual: number;
+  mensalidadeCentavos: number | null; // null = sem mensalidade
+  situacaoMensalidade: string | null; // "atrasada" se houver alguma; senão a da cobrança mais recente
 };
+
+// Situação da mensalidade para a lista: atrasada pesa mais que a cobrança mais nova.
+const SQL_SITUACAO_MENSALIDADE = `coalesce(
+  (select 'atrasada' from mensalidades m where m.arena_id = a.id and m.situacao = 'atrasada' limit 1),
+  (select m.situacao from mensalidades m where m.arena_id = a.id and m.situacao <> 'cancelada'
+    order by m.vencimento desc, m.id limit 1))`;
 
 // Todas as arenas, para o painel do super admin. Nunca devolve senha_hash.
 export async function listarArenasAdmin(db: Db): Promise<ArenaAdmin[]> {
   const { rows } = await db.query<{
     id: string; nome: string; slug: string; status: StatusArena; quadras: number;
-    dono_email: string | null; criado_em: Date; taxa: string | number;
+    dono_email: string | null; criado_em: Date; taxa: string | number; mensalidade: number | null; situacao: string | null;
   }>(
     `select a.id, a.nome, a.slug, a.status_assinatura as status, a.criado_em, a.taxa_percentual as taxa,
+            a.mensalidade_centavos as mensalidade, ${SQL_SITUACAO_MENSALIDADE} as situacao,
             (select count(*) from quadras q where q.arena_id = a.id)::int as quadras,
             (select min(u.email) from usuarios u where u.arena_id = a.id and u.papel = 'dono') as dono_email
        from arenas a
@@ -32,6 +41,7 @@ export async function listarArenasAdmin(db: Db): Promise<ArenaAdmin[]> {
     id: r.id, nome: r.nome, slug: r.slug, status: r.status,
     quadras: Number(r.quadras), donoEmail: r.dono_email, criadoEm: r.criado_em,
     taxaPercentual: Number(r.taxa),
+    mensalidadeCentavos: r.mensalidade === null ? null : Number(r.mensalidade), situacaoMensalidade: r.situacao,
   }));
 }
 
@@ -81,6 +91,7 @@ export type DetalheArenaAdmin = {
   id: string; nome: string; slug: string; status: StatusArena;
   taxaPercentual: number; donoEmail: string | null;
   carteiraAsaas: string | null; // walletId do dono no Asaas; null = "pagar na arena"
+  mensalidade: { valorCentavos: number | null; dia: number | null; documento: string | null; nome: string | null };
 };
 
 // Uma arena para a página de configuração. Id malformado vale como inexistente
@@ -89,9 +100,11 @@ export async function detalheArenaAdmin(db: Db, arenaId: string): Promise<Detalh
   if (typeof arenaId !== "string" || !UUID.test(arenaId)) return null;
   const { rows } = await db.query<{
     id: string; nome: string; slug: string; status: StatusArena; taxa: string | number; dono_email: string | null;
-    carteira: string | null;
+    carteira: string | null; mensalidade: number | null; dia: number | null; documento: string | null; nome_cobranca: string | null;
   }>(
     `select a.id, a.nome, a.slug, a.status_assinatura as status, a.taxa_percentual as taxa, a.asaas_wallet_id as carteira,
+            a.mensalidade_centavos as mensalidade, a.mensalidade_dia as dia, a.dono_documento as documento,
+            a.dono_nome_cobranca as nome_cobranca,
             (select min(u.email) from usuarios u where u.arena_id = a.id and u.papel = 'dono') as dono_email
        from arenas a where a.id = $1`,
     [arenaId],
@@ -99,7 +112,11 @@ export async function detalheArenaAdmin(db: Db, arenaId: string): Promise<Detalh
   const r = rows[0];
   if (!r) return null;
   return { id: r.id, nome: r.nome, slug: r.slug, status: r.status, taxaPercentual: Number(r.taxa), donoEmail: r.dono_email,
-    carteiraAsaas: r.carteira };
+    carteiraAsaas: r.carteira,
+    mensalidade: {
+      valorCentavos: r.mensalidade === null ? null : Number(r.mensalidade), dia: r.dia === null ? null : Number(r.dia),
+      documento: r.documento, nome: r.nome_cobranca,
+    } };
 }
 
 // Carteira Asaas do dono (walletId, um uuid) para o split das reservas online.
@@ -138,12 +155,14 @@ export type PendenciasPagamento = {
     inicio: Date; canceladaPor: string | null;
   }[];
   eventos: { id: string; tipo: string; erro: string; recebidoEm: Date }[];
+  mensalidades: { arenaId: string; arena: string; valorCentavos: number; vencimento: string; link: string | null }[];
 };
 
 // O que a Strukti precisa resolver à mão: estornos que o Asaas recusou (ex.:
-// dono sem saldo) e eventos do webhook que não foram processados.
+// dono sem saldo), eventos do webhook que não foram processados e mensalidades
+// atrasadas (a Strukti decide se suspende a arena).
 export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento> {
-  const [e, v] = await Promise.all([
+  const [e, v, m] = await Promise.all([
     db.query<{
       id: string; arena: string; jogador: string | null; pagamento: string; pago: number; inicio: Date; por: string | null;
     }>(
@@ -162,6 +181,12 @@ export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento
         where erro is not null or (processado_em is null and recebido_em < now() - interval '5 minutes')
         order by recebido_em desc limit 50`,
     ),
+    db.query<{ arena_id: string; arena: string; valor: number; vencimento: string; link: string | null }>(
+      `select m.arena_id, a.nome as arena, m.valor_centavos as valor, to_char(m.vencimento, 'YYYY-MM-DD') as vencimento, m.link
+         from mensalidades m join arenas a on a.id = m.arena_id
+        where m.situacao = 'atrasada'
+        order by m.vencimento, m.id limit 100`,
+    ),
   ]);
   return {
     estornos: e.rows.map((r) => ({
@@ -169,6 +194,9 @@ export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento
       pagoCentavos: Number(r.pago ?? 0), inicio: new Date(r.inicio), canceladaPor: r.por,
     })),
     eventos: v.rows.map((r) => ({ id: r.id, tipo: r.tipo, erro: r.erro, recebidoEm: new Date(r.recebido_em) })),
+    mensalidades: m.rows.map((r) => ({
+      arenaId: r.arena_id, arena: r.arena, valorCentavos: Number(r.valor), vencimento: r.vencimento, link: r.link,
+    })),
   };
 }
 

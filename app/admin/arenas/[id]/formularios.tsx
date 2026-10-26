@@ -7,12 +7,14 @@ import {
   criarBotaoAction,
   criarQuadraAction,
   definirCarteiraAction,
+  definirMensalidadeAction,
   definirTaxaAction,
   renomearQuadraAction,
   type EstadoCredenciais,
   type EstadoNovoBotao,
   type EstadoRenomear,
   type EstadoCarteira,
+  type EstadoMensalidade,
   type EstadoTaxa,
 } from "./actions";
 
@@ -92,6 +94,51 @@ export function FormularioCarteira({ arenaId, carteira }: { arenaId: string; car
       </p>
       <button type="submit" className="botao botao-cheio" disabled={pendente}>
         {pendente ? "Salvando…" : "Salvar carteira"}
+      </button>
+    </form>
+  );
+}
+
+export function FormularioMensalidade({ arenaId, inicial }: { arenaId: string; inicial: Omit<EstadoMensalidade, "erro" | "ok"> }) {
+  const [estado, acao, pendente] = useActionState(definirMensalidadeAction, { erro: null, ok: false, ...inicial });
+  return (
+    <form action={acao} className="formulario" aria-labelledby="titulo-mensalidade">
+      <h2 id="titulo-mensalidade">Mensalidade (Asaas)</h2>
+      <input type="hidden" name="arenaId" value={arenaId} />
+      <p className="suave">
+        Opcional. Com valor, o Asaas cobra o dono todo mês e manda o link por e-mail (Pix, boleto ou cartão). Valor em branco tira a
+        mensalidade e cancela as cobranças em aberto. Mudar o valor também muda a cobrança em aberto; o dia novo vale a partir da
+        próxima.
+      </p>
+      <div className="campo">
+        <label htmlFor="mensalidade-valor">Valor por mês (R$)</label>
+        <input id="mensalidade-valor" name="valor" type="text" inputMode="decimal" autoComplete="off" placeholder="149,90"
+          maxLength={20} defaultValue={estado.valor} />
+      </div>
+      <div className="campo">
+        <label htmlFor="mensalidade-dia">Dia do vencimento (1 a 28)</label>
+        <input id="mensalidade-dia" name="dia" type="number" min={1} max={28} defaultValue={estado.dia} />
+      </div>
+      <div className="campo">
+        <label htmlFor="mensalidade-nome">Nome na cobrança</label>
+        <input id="mensalidade-nome" name="nome" type="text" autoComplete="off" maxLength={100} defaultValue={estado.nome} />
+      </div>
+      <div className="campo">
+        <label htmlFor="mensalidade-documento">CPF ou CNPJ do dono</label>
+        <input id="mensalidade-documento" name="documento" type="text" inputMode="numeric" autoComplete="off" maxLength={30}
+          className="mono" defaultValue={estado.documento} aria-describedby="mensalidade-documento-dica" />
+        <p id="mensalidade-documento-dica" className="suave">
+          O Asaas exige. A cobrança vai para o e-mail do dono da arena.
+        </p>
+      </div>
+      <p className="erro-form" role="alert">
+        {estado.erro}
+      </p>
+      <p className="ok-form" role="status">
+        {estado.ok ? (estado.valor.trim() ? "Mensalidade salva no Asaas." : "Mensalidade removida.") : ""}
+      </p>
+      <button type="submit" className="botao botao-cheio" disabled={pendente}>
+        {pendente ? "Salvando…" : "Salvar mensalidade"}
       </button>
     </form>
   );

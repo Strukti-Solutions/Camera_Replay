@@ -4,6 +4,7 @@ import { criarArenaComDono } from "../app/lib/donos";
 import {
   definirMensalidade, documentoValido, mensalidadesDaArena, processarCobrancaMensalidade, proximoVencimento,
 } from "../app/lib/mensalidades";
+import { detalheArenaAdmin, listarArenasAdmin, pendenciasDePagamento } from "../app/lib/plataforma";
 import { novoBanco } from "./db";
 import { asaasFalso } from "./fixtures-asaas";
 
@@ -130,4 +131,23 @@ test("cobranças da assinatura: grava, atualiza a situação e ignora assinatura
   await processarCobrancaMensalidade(db, cobranca({ status: "REFUNDED" }), AGORA);
   expect((await mensalidadesDaArena(db, arenaId))[0].situacao).toBe("estornada");
   expect(await processarCobrancaMensalidade(db, cobranca({ id: "pay_x", assinatura: "sub_outra" }), AGORA)).toBe(false);
+});
+
+test("admin: lista, detalhe e pendências mostram a mensalidade e a cobrança atrasada", async () => {
+  const { db, arenaId, f } = await arena();
+  await definirMensalidade(db, f.asaas, arenaId, { valor: "149,90", dia: "10", documento: CPF, nome: "João Dono" }, AGORA);
+  expect((await listarArenasAdmin(db))[0]).toMatchObject({ mensalidadeCentavos: 14990, situacaoMensalidade: null });
+  expect(await detalheArenaAdmin(db, arenaId)).toMatchObject({
+    mensalidade: { valorCentavos: 14990, dia: 10, documento: CPF, nome: "João Dono" },
+  });
+  await processarCobrancaMensalidade(db, cobranca({ id: "pay_out", vencimento: "2026-10-10", status: "OVERDUE" }), AGORA);
+  await processarCobrancaMensalidade(db, cobranca({ id: "pay_nov", vencimento: "2026-11-10" }), AGORA);
+  // Uma atrasada pesa mais que a pendente mais nova.
+  expect((await listarArenasAdmin(db))[0].situacaoMensalidade).toBe("atrasada");
+  expect((await pendenciasDePagamento(db)).mensalidades).toEqual([{
+    arenaId, arena: "Arena Sol", valorCentavos: 14990, vencimento: "2026-10-10", link: "https://sandbox.asaas.com/i/abc",
+  }]);
+  await processarCobrancaMensalidade(db, cobranca({ id: "pay_out", vencimento: "2026-10-10", status: "RECEIVED" }), AGORA);
+  expect((await listarArenasAdmin(db))[0].situacaoMensalidade).toBe("pendente");
+  expect((await pendenciasDePagamento(db)).mensalidades).toEqual([]);
 });

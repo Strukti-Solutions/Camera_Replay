@@ -7,7 +7,7 @@ import { reservasFuturasPorArena } from "@/app/lib/reservas";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { textoData } from "@/app/painel/apresentacao";
 import { marcarEstornoResolvidoAction, reativarArenaAction, suspenderArenaAction } from "./actions";
-import { textoReservasFuturas, textoStatusArena, textoTaxa } from "./apresentacao";
+import { textoMensalidade, textoReservasFuturas, textoStatusArena, textoTaxa, textoVencimento } from "./apresentacao";
 import { CabecalhoAdmin } from "./cabecalho";
 import { ConfirmarStatus, FormularioNovaArena, FormularioNovoSuperAdmin } from "./formularios";
 import { exigirSuperAdmin } from "./sessao-admin-atual";
@@ -50,6 +50,7 @@ export default async function PaginaAdmin() {
                   <th scope="col" className="num">
                     Taxa
                   </th>
+                  <th scope="col">Mensalidade</th>
                   <th scope="col">E-mail do dono</th>
                   <th scope="col">Criada em</th>
                   <th scope="col">
@@ -68,6 +69,9 @@ export default async function PaginaAdmin() {
                     </td>
                     <td className="num">{a.quadras}</td>
                     <td className="num">{textoTaxa(a.taxaPercentual)}</td>
+                    <td className={a.situacaoMensalidade === "atrasada" ? "texto-alerta" : "suave"}>
+                      {textoMensalidade(a.mensalidadeCentavos, a.situacaoMensalidade)}
+                    </td>
                     <td className="suave">{a.donoEmail ?? "Sem dono"}</td>
                     <td className="suave num-tab">{textoData(a.criadoEm)}</td>
                     <td>
@@ -105,7 +109,7 @@ export default async function PaginaAdmin() {
           </div>
         )}
 
-        {(pendencias.estornos.length > 0 || pendencias.eventos.length > 0) && (
+        {(pendencias.estornos.length > 0 || pendencias.eventos.length > 0 || pendencias.mensalidades.length > 0) && (
           <section className="secao" aria-labelledby="titulo-pendencias">
             <h2 id="titulo-pendencias">Pagamentos para resolver</h2>
             {pendencias.estornos.length > 0 && (
@@ -128,6 +132,29 @@ export default async function PaginaAdmin() {
                         pergunta="O estorno foi feito fora do sistema? A reserva deixa de aparecer aqui."
                         confirmar="Marcar resolvido"
                       />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {pendencias.mensalidades.length > 0 && (
+              <>
+                <p className="suave">Mensalidades atrasadas. Nada é suspenso sozinho: decida se suspende a arena.</p>
+                <ul className="lista-simples">
+                  {pendencias.mensalidades.map((m) => (
+                    <li key={`${m.arenaId}-${m.vencimento}`}>
+                      <Link href={`/admin/arenas/${m.arenaId}`}>
+                        <strong>{m.arena}</strong>
+                      </Link>{" "}
+                      · venceu {textoVencimento(m.vencimento)} · {textoDeCentavos(m.valorCentavos)}
+                      {m.link && (
+                        <>
+                          {" · "}
+                          <a href={m.link} target="_blank" rel="noopener noreferrer">
+                            Ver fatura
+                          </a>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

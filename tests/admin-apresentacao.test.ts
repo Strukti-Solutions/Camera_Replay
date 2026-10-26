@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { ERRO_SENHA_LONGA, lerTaxa, textoTaxa, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoReservasFuturas, textoStatusArena } from "../app/admin/apresentacao";
+import { ERRO_SENHA_LONGA, lerTaxa, textoTaxa, mensagemErroAdmin, nomeDaArena, senhaLongaDemais, textoReservasFuturas, textoStatusArena, textoMensalidade, textoSituacaoMensalidade, textoVencimento } from "../app/admin/apresentacao";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -74,4 +74,15 @@ test("reservas futuras na confirmação de suspender: singular, plural e nenhuma
   expect(textoReservasFuturas(0)).toBe("Nenhuma reserva futura confirmada.");
   expect(textoReservasFuturas(1)).toBe("Esta arena tem 1 reserva futura confirmada.");
   expect(textoReservasFuturas(2)).toBe("Esta arena tem 2 reservas futuras confirmadas.");
+});
+
+test("mensalidade na lista do admin e nas cobranças", () => {
+  expect(textoMensalidade(null, null)).toBe("Sem mensalidade");
+  expect(textoMensalidade(14990, null)).toBe("R$ 149,90");
+  expect(textoMensalidade(14990, "atrasada")).toBe("R$ 149,90 · atrasada");
+  expect(textoMensalidade(14990, "paga")).toBe("R$ 149,90 · em dia");
+  expect(textoMensalidade(14990, "pendente")).toBe("R$ 149,90 · em aberto");
+  expect(textoSituacaoMensalidade("estornada")).toBe("estornada");
+  expect(textoSituacaoMensalidade("cancelada")).toBe("cancelada");
+  expect(textoVencimento("2026-11-10")).toBe("10/11/2026");
 });

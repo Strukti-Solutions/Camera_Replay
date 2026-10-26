@@ -1,3 +1,4 @@
+import { textoDeCentavos } from "@/app/lib/precos";
 import { ERRO_GENERICO } from "@/app/painel/apresentacao";
 
 // Textos do painel do super admin que têm alguma regra.
@@ -64,4 +65,28 @@ export function lerTaxa(bruto: string): number | null {
 // 5 -> "5%", 7.5 -> "7,5%".
 export function textoTaxa(taxa: number): string {
   return `${String(taxa).replace(".", ",")}%`;
+}
+
+// ---------- Mensalidade ----------
+
+const SITUACOES_MENSALIDADE: Record<string, string> = {
+  pendente: "em aberto", atrasada: "atrasada", paga: "em dia", estornada: "estornada", cancelada: "cancelada",
+};
+
+// Situação de uma cobrança na tela da arena.
+export function textoSituacaoMensalidade(situacao: string): string {
+  return situacao === "paga" ? "paga" : (SITUACOES_MENSALIDADE[situacao] ?? situacao);
+}
+
+// Coluna da lista de arenas: valor e a situação que importa (em dia, em aberto, atrasada).
+export function textoMensalidade(centavos: number | null, situacao: string | null): string {
+  if (centavos === null) return "Sem mensalidade";
+  const s = situacao ? SITUACOES_MENSALIDADE[situacao] : null;
+  return s ? `${textoDeCentavos(centavos)} · ${s}` : textoDeCentavos(centavos);
+}
+
+// "2026-11-10" -> "10/11/2026".
+export function textoVencimento(dia: string): string {
+  const [a, m, d] = dia.split("-");
+  return `${d}/${m}/${a}`;
 }

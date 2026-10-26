@@ -11,6 +11,8 @@ import {
   revogarBotao,
 } from "@/app/lib/painel";
 import { definirCarteiraAsaas, definirTaxaArena, detalheArenaAdmin } from "@/app/lib/plataforma";
+import { asaasDoAmbiente } from "@/app/lib/asaas";
+import { definirMensalidade } from "@/app/lib/mensalidades";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { mensagemDoErro } from "@/app/painel/apresentacao";
 import { lerTaxa } from "../../apresentacao";
@@ -80,6 +82,30 @@ export async function definirCarteiraAction(_estado: EstadoCarteira, form: FormD
   revalidar(arenaId);
   revalidatePath("/a/[slug]", "page");
   return { erro: null, ok: true, valor: valor.trim().toLowerCase() };
+}
+
+// ---------- Mensalidade ----------
+
+export type EstadoMensalidade = {
+  erro: string | null; ok: boolean; valor: string; dia: string; documento: string; nome: string;
+};
+
+export async function definirMensalidadeAction(_estado: EstadoMensalidade, form: FormData): Promise<EstadoMensalidade> {
+  const dados = {
+    valor: campo(form, "valor").slice(0, 20), dia: campo(form, "dia").slice(0, 4),
+    documento: campo(form, "documento").slice(0, 30), nome: campo(form, "nome").slice(0, 120),
+  };
+  const arenaId = await arenaConferida(form);
+  if (!arenaId) return { erro: ARENA_NAO_ENCONTRADA, ok: false, ...dados };
+  try {
+    const r = await definirMensalidade(poolCompartilhado(), asaasDoAmbiente(), arenaId, dados, new Date());
+    if (!r.ok) return { erro: r.erro, ok: false, ...dados };
+  } catch (e) {
+    return { erro: mensagemDoErro(e, "definir mensalidade"), ok: false, ...dados };
+  }
+  revalidar(arenaId);
+  revalidatePath("/admin");
+  return { erro: null, ok: true, ...dados };
 }
 
 // ---------- Quadras ----------

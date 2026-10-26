@@ -4195,3 +4195,9 @@ a.ar-quadra:focus-visible {
   background: var(--superficie);
   overflow-wrap: anywhere;
 }
+
+/* Mensalidade atrasada na lista de arenas do admin. */
+.texto-alerta {
+  color: var(--perigo);
+  font-weight: 600;
+}

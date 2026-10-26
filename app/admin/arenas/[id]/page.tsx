@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { LinkVoltar } from "@/app/componentes/voltar";
 import { formatarHorario } from "@/app/lib/formato";
 import { FOTOS_MAX_ARENA, FOTOS_MAX_QUADRA, listarFotos } from "@/app/lib/fotos";
+import { mensalidadesDaArena } from "@/app/lib/mensalidades";
+import { textoDeCentavos } from "@/app/lib/precos";
 import { detalheQuadra, listarQuadras } from "@/app/lib/painel";
 import { detalheArenaAdmin } from "@/app/lib/plataforma";
 import { poolCompartilhado } from "@/app/lib/pool";
@@ -10,7 +12,7 @@ import { lerConfigR2 } from "@/app/lib/r2";
 import { textoCamera, textoVistoHa } from "@/app/painel/apresentacao";
 import { FotosDoDono, type AcoesFotos } from "@/app/painel/fotos/fotos";
 import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
-import { textoStatusArena, textoTaxa } from "../../apresentacao";
+import { textoMensalidade, textoSituacaoMensalidade, textoStatusArena, textoTaxa, textoVencimento } from "../../apresentacao";
 import { CabecalhoAdmin } from "../../cabecalho";
 import { exigirSuperAdmin } from "../../sessao-admin-atual";
 import { revogarBotaoAction } from "./actions";
@@ -21,6 +23,7 @@ import {
   FormularioNovaQuadra,
   FormularioRenomear,
   FormularioCarteira,
+  FormularioMensalidade,
   FormularioTaxa,
   NovoBotao,
 } from "./formularios";
@@ -50,10 +53,13 @@ export default async function PaginaArenaAdmin({ params }: Props) {
   const detalhes = (await Promise.all(resumos.map((q) => detalheQuadra(db, arena.id, q.id)))).flatMap((d) =>
     d ? [d] : [],
   );
-  const [fotosArena, fotosQuadras] = await Promise.all([
+  const [fotosArena, fotosQuadras, cobrancas] = await Promise.all([
     listarFotos(db, arena.id, null),
     Promise.all(detalhes.map((q) => listarFotos(db, arena.id, q.id))),
+    mensalidadesDaArena(db, arena.id),
   ]);
+  const atrasada = cobrancas.find((c) => c.situacao === "atrasada")?.situacao ?? null;
+  const situacaoMensalidade = atrasada ?? cobrancas.find((c) => c.situacao !== "cancelada")?.situacao ?? null;
   const armazenamento = lerConfigR2() !== null;
   const admin = { acoes: ACOES_FOTOS, arenaId: arena.id };
   const agora = new Date();
@@ -89,6 +95,10 @@ export default async function PaginaArenaAdmin({ params }: Props) {
             <dt>Pagamento</dt>
             <dd>{arena.carteiraAsaas ? "Online (Asaas)" : "Na arena"}</dd>
           </div>
+          <div>
+            <dt>Mensalidade</dt>
+            <dd>{textoMensalidade(arena.mensalidade.valorCentavos, situacaoMensalidade)}</dd>
+          </div>
         </dl>
 
         <section className="secao">
@@ -97,6 +107,39 @@ export default async function PaginaArenaAdmin({ params }: Props) {
 
         <section className="secao">
           <FormularioCarteira arenaId={arena.id} carteira={arena.carteiraAsaas ?? ""} />
+        </section>
+
+        <section className="secao">
+          <FormularioMensalidade
+            arenaId={arena.id}
+            inicial={{
+              valor: arena.mensalidade.valorCentavos === null ? "" : textoDeCentavos(arena.mensalidade.valorCentavos).replace("R$ ", ""),
+              dia: arena.mensalidade.dia === null ? "" : String(arena.mensalidade.dia),
+              documento: arena.mensalidade.documento ?? "",
+              nome: arena.mensalidade.nome ?? "",
+            }}
+          />
+          {cobrancas.length > 0 && (
+            <>
+              <h3>Últimas cobranças</h3>
+              <ul className="lista-simples">
+                {cobrancas.map((c) => (
+                  <li key={c.id}>
+                    Vence {textoVencimento(c.vencimento)} · {textoDeCentavos(c.valorCentavos)} ·{" "}
+                    <strong>{textoSituacaoMensalidade(c.situacao)}</strong>
+                    {c.link && (
+                      <>
+                        {" · "}
+                        <a href={c.link} target="_blank" rel="noopener noreferrer">
+                          Ver fatura
+                        </a>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
 
         <section className="secao" aria-labelledby="fotos-arena">
