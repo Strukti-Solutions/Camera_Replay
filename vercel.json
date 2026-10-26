@@ -1,4 +1,10 @@
 {
-  "crons": [{ "path": "/api/cron/limpeza", "schedule": "0 7 * * *" }],
-  "functions": { "app/api/cron/limpeza/route.ts": { "maxDuration": 60 } }
+  "crons": [
+    { "path": "/api/cron/limpeza", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/lembretes", "schedule": "0 21 * * *" }
+  ],
+  "functions": {
+    "app/api/cron/limpeza/route.ts": { "maxDuration": 60 },
+    "app/api/cron/lembretes/route.ts": { "maxDuration": 60 }
+  }
 }

@@ -62,12 +62,12 @@ export async function limparExpirados(
 
 // Compara hashes SHA-256 dos dois lados: tamanho fixo, então timingSafeEqual
 // não lança e o tempo não revela o comprimento do segredo.
-function segredoConfere(recebido: string, esperado: string): boolean {
+export function segredoConfere(recebido: string, esperado: string): boolean {
   const h = (s: string) => createHash("sha256").update(s).digest();
   return timingSafeEqual(h(recebido), h(esperado));
 }
 
-function lerBearer(req: Request): string {
+export function lerBearer(req: Request): string {
   const m = /^Bearer\s+(.*)$/i.exec(req.headers.get("authorization")?.trim() ?? "");
   return m?.[1].trim() ?? "";
 }

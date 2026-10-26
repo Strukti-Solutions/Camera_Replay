@@ -1,6 +1,9 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
+import { avisarCancelamento } from "@/app/lib/avisos-email";
+import { criarEnvioEmail } from "@/app/lib/email";
 import { poolCompartilhado } from "@/app/lib/pool";
 import { MOTIVO_CANCELAMENTO_MAX, bloquearHorarios, cancelarPeloDono, removerBloqueio } from "@/app/lib/reservas";
 import { exigirSessao } from "@/app/painel/sessao-atual";
@@ -36,6 +39,9 @@ export async function cancelarReservaDonoAction(_e: EstadoAgenda, form: FormData
     return { erro: MSG_TENTE_DE_NOVO };
   }
   if (!ok) return { erro: MSG_DONO_NAO_CANCELOU };
+  // Aviso ao jogador, depois da resposta (não espera o Gmail).
+  const reservaId = campo(form, "reservaId");
+  after(() => avisarCancelamento(poolCompartilhado(), reservaId, "dono", criarEnvioEmail(), process.env.APP_URL?.trim() ?? ""));
   redirect(comAviso(voltaSegura(campo(form, "volta")), { ok: "cancelada" }));
 }
 
