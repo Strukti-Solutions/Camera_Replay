@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import type { PagamentoAsaas } from "../app/lib/asaas";
+import { ErroAsaas, type PagamentoAsaas } from "../app/lib/asaas";
 import type { Db } from "../app/lib/db";
 import { criarContaJogador } from "../app/lib/jogadores";
 import { abrirPagamento, criarHandlerWebhookAsaas, processarEventoAsaas } from "../app/lib/pagamentos";
@@ -220,4 +220,11 @@ test("dono cancelou a segurada e o jogador pagou depois: estorno integral", asyn
   expect(await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("ok");
   expect(await reserva(db, reservaId)).toMatchObject({ situacao: "cancelada", estorno: "solicitado", estorno_centavos: 20000 });
   expect(f.estornos[0].valorCentavos).toBe(20000);
+});
+
+test("429 do Asaas (limite de requisições) é passageiro: evento apagado para reenvio", async () => {
+  const { db, f } = await cenario();
+  vi.mocked(f.asaas.pagamentosDoCheckout).mockRejectedValueOnce(new ErroAsaas(429, "too_many_requests"));
+  expect(await processarEventoAsaas(db, f.asaas, evtCheckout("evt_1", "CHECKOUT_PAID"), AGORA)).toBe("falhou");
+  expect((await db.query("select 1 from asaas_eventos")).rows).toEqual([]);
 });

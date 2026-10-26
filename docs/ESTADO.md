@@ -68,6 +68,8 @@ Reserva pelo site **sem pagamento online** (emenda no spec de 23/10, decisão do
 
 ## Em andamento: fase 4b (pagamento com Asaas)
 Spec `docs/superpowers/specs/2026-10-26-pagamento-asaas-design.md`, plano `docs/superpowers/plans/2026-10-26-fase4b-asaas.md`. Feito na branch (26/10): migração 0022, cliente do Asaas, carteira da arena no admin, reserva online segurada + Checkout, webhook (`/api/asaas/webhook`), estorno ao cancelar, telas e e-mails. Falta o teste de ponta a ponta no sandbox (precisa de uma segunda conta sandbox fazendo o papel do dono) e a configuração de produção (chave, `ASAAS_AMBIENTE=producao`, token e webhook no Asaas, carteira de cada arena, migração 0022).
+Revisão aprovada (4531f52). Adiado, para depois: retenção do payload de `asaas_eventos` (LGPD); chargeback (`PAYMENT_CHARGEBACK_*`); botão de reprocessar evento no admin; percentual do split pela taxa gravada na reserva; teste de `abrirPagamento` concorrente; estorno automático de segunda cobrança paga (hoje aparece como evento com erro no admin); reenvio do Asaas durante o processamento pode virar "repetido" e se perder se a primeira tentativa falhar de forma passageira (raro).
+A confirmar no sandbox: `splitRefunds` acima do split; eventos `PAYMENT_*` da cobrança do Checkout; `PAYMENT_PARTIALLY_REFUNDED` no estorno sem a tarifa.
 ---
 
 ## Histórico (17/10) — ainda válido onde não foi resolvido

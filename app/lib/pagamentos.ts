@@ -294,7 +294,7 @@ export async function processarEventoAsaas(
   } catch (e) {
     const erro = e instanceof ErroEvento ? e.message : mensagem(e);
     console.error(`asaas: evento ${ev.tipo} não processado: ${erro}`);
-    const definitivo = e instanceof ErroEvento || (e instanceof ErroAsaas && e.status < 500);
+    const definitivo = e instanceof ErroEvento || (e instanceof ErroAsaas && e.status < 500 && e.status !== 429);
     if (!definitivo) {
       await db.query("delete from asaas_eventos where id = $1", [ev.id]).catch(() => undefined);
       return "falhou";
