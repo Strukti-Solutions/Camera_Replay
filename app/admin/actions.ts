@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { poolCompartilhado } from "@/app/lib/pool";
-import { criarArenaAdmin, criarSuperAdmin, definirStatusArena, type StatusArena } from "@/app/lib/plataforma";
+import {
+  criarArenaAdmin, criarSuperAdmin, definirStatusArena, marcarEstornoResolvido, type StatusArena,
+} from "@/app/lib/plataforma";
 import { ERRO_NOME_ARENA, ERRO_SENHA_LONGA, mensagemErroAdmin, nomeDaArena, senhaLongaDemais } from "./apresentacao";
 import { exigirSuperAdmin } from "./sessao-admin-atual";
 
@@ -61,6 +63,16 @@ export async function suspenderArenaAction(_estado: EstadoStatusArena, form: For
 
 export async function reativarArenaAction(_estado: EstadoStatusArena, form: FormData): Promise<EstadoStatusArena> {
   return mudarStatus(form, "ativa", "reativar arena");
+}
+
+// A Strukti resolveu à mão (painel do Asaas ou com o dono) um estorno pendente.
+export async function marcarEstornoResolvidoAction(_estado: EstadoStatusArena, form: FormData): Promise<EstadoStatusArena> {
+  await exigirSuperAdmin();
+  const id = form.get("reservaId");
+  const ok = typeof id === "string" && (await marcarEstornoResolvido(poolCompartilhado(), id));
+  if (!ok) return { erro: "Esse estorno já não está pendente." };
+  revalidatePath("/admin");
+  return { erro: null };
 }
 
 export type EstadoNovoSuperAdmin = { erro: string | null; ok: boolean; email: string };

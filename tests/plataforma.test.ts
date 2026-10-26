@@ -4,6 +4,7 @@ import { criarArena, criarQuadra } from "./fixtures";
 import { hashSenha } from "../app/lib/senha";
 import {
   criarArenaAdmin, criarSuperAdmin, definirCarteiraAsaas, definirStatusArena, definirTaxaArena, detalheArenaAdmin, listarArenasAdmin,
+  marcarEstornoResolvido, pendenciasDePagamento,
 } from "../app/lib/plataforma";
 import { listarArenasPublicas } from "../app/lib/arenas-publicas";
 import { entrarUnico } from "../app/lib/entrar-unico";
@@ -158,4 +159,30 @@ test("definirCarteiraAsaas: aceita walletId (uuid), em branco desvincula; lixo e
   expect(await definirCarteiraAsaas(db, a.id, "")).toBe(true);
   expect((await detalheArenaAdmin(db, a.id))?.carteiraAsaas).toBeNull();
   expect(await definirCarteiraAsaas(db, "00000000-0000-4000-8000-000000000000", w)).toBe(false);
+});
+
+test("pendências de pagamento: estornos pendentes e eventos do webhook com erro; marcar resolvido", async () => {
+  const db = await novoBanco();
+  const a = await criarArena(db, "Arena Sol");
+  const q = await criarQuadra(db, a.id);
+  const j = await db.query<{ id: string }>("insert into jogadores (nome, email, senha_hash, termos_versao) values ('Ana', 'ana@x.com', 'h', 'v1') returning id");
+  const r = await db.query<{ id: string }>(
+    `insert into reservas (arena_id, quadra_id, jogador_id, tipo, situacao, inicio, fim, pagamento, total_centavos, taxa_centavos, detalhe,
+                           asaas_pagamento_id, pago_centavos, estorno, cancelada_por)
+     values ($1, $2, $3, 'reserva', 'cancelada', '2026-11-10T21:00:00Z', '2026-11-10T22:00:00Z', 'online', 10000, 500, '[]',
+             'pay_1', 10000, 'pendente', 'dono') returning id`,
+    [a.id, q.id, j.rows[0].id],
+  );
+  await db.query("insert into asaas_eventos (id, tipo, payload, erro) values ('evt_1', 'CHECKOUT_PAID', '{}', 'reserva não encontrada')");
+  await db.query("insert into asaas_eventos (id, tipo, payload) values ('evt_2', 'CHECKOUT_PAID', '{}')");
+  const p = await pendenciasDePagamento(db);
+  expect(p.estornos).toEqual([{
+    reservaId: r.rows[0].id, arena: "Arena Sol", jogador: "Ana", pagamentoId: "pay_1", pagoCentavos: 10000,
+    inicio: new Date("2026-11-10T21:00:00Z"), canceladaPor: "dono",
+  }]);
+  expect(p.eventos.map((e) => [e.id, e.tipo, e.erro])).toEqual([["evt_1", "CHECKOUT_PAID", "reserva não encontrada"]]);
+  expect(await marcarEstornoResolvido(db, r.rows[0].id)).toBe(true);
+  expect(await marcarEstornoResolvido(db, r.rows[0].id)).toBe(false);
+  expect((await pendenciasDePagamento(db)).estornos).toEqual([]);
+  expect(await marcarEstornoResolvido(db, "lixo")).toBe(false);
 });

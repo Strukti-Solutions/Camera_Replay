@@ -14,7 +14,9 @@ function Fechar({ caixa }: { caixa: RefObject<HTMLDetailsElement | null> }) {
 
 // Cancelar em dois cliques (o <details> abre a confirmação), com motivo
 // opcional. Funciona sem JavaScript.
-export function CancelarReservaDono({ reservaId, descricao, volta }: { reservaId: string; descricao: string; volta: string }) {
+export function CancelarReservaDono({
+  reservaId, descricao, pergunta, volta,
+}: { reservaId: string; descricao: string; pergunta: string; volta: string }) {
   const [estado, acao, pendente] = useActionState(cancelarReservaDonoAction, { erro: null });
   const caixa = useRef<HTMLDetailsElement>(null);
   const idMotivo = `motivo-${reservaId}`;
@@ -27,7 +29,7 @@ export function CancelarReservaDono({ reservaId, descricao, volta }: { reservaId
         <form action={acao} className="confirmar-caixa">
           <input type="hidden" name="reservaId" value={reservaId} />
           <input type="hidden" name="volta" value={volta} />
-          <p>Cancelar a reserva {descricao}? O horário volta a ficar livre.</p>
+          <p>{pergunta}</p>
           <div className="campo">
             <label htmlFor={idMotivo}>Motivo (opcional)</label>
             <input id={idMotivo} name="motivo" type="text" maxLength={120} placeholder="Ex.: Quadra em manutenção" />

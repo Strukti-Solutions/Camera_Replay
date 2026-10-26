@@ -4179,3 +4179,19 @@ a.ar-quadra:focus-visible {
   outline: 3px solid var(--foco);
   outline-offset: -3px;
 }
+
+/* Lista de pendências do admin: um item por linha, com a ação no fim. */
+.lista-simples {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.lista-simples li {
+  padding: 0.75rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--superficie);
+  overflow-wrap: anywhere;
+}

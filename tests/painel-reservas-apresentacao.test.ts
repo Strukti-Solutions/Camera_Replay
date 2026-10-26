@@ -2,6 +2,8 @@ import { expect, test } from "vitest";
 import type { ItemAgenda } from "../app/lib/reservas";
 import {
   MSG_DONO_NAO_CANCELOU,
+  perguntaCancelarDono,
+  textoPagamentoDono,
   MSG_MOTIVO_LONGO,
   dividirAgenda,
   intervaloAgenda,
@@ -31,6 +33,7 @@ function item(p: Partial<ItemAgenda>): ItemAgenda {
     id: "1", tipo: "reserva", quadraId: "q1", quadra: "Quadra 1", esporte: "Padel",
     inicio: new Date("2026-10-26T19:00:00Z"), fim: new Date("2026-10-26T21:00:00Z"),
     situacao: "confirmada", jogador: "Ana", totalCentavos: 20000, motivo: null, canceladaPor: null, motivoCancelamento: null, futura: true,
+    pagamento: "arena",
     ...p,
   };
 }
@@ -262,4 +265,12 @@ test("voltaSegura: busca com espaço (+) e asterisco volta inteira", () => {
   expect(volta).toBe("/painel/reservas?dia=2026-10-26&busca=Ana+Maria*&pagina=2");
   expect(voltaSegura(volta)).toBe(volta);
   expect(voltaSegura("/painel/reservas?busca=a+b&x=//mal.com")).toBe("/painel/reservas");
+});
+
+test("pagamento na agenda do dono e pergunta do cancelamento de reserva paga online", () => {
+  expect(textoPagamentoDono("online")).toBe("pago online");
+  expect(textoPagamentoDono("arena")).toBe("pagar na arena");
+  expect(perguntaCancelarDono("18h · Ana", "arena")).toBe("Cancelar a reserva 18h · Ana? O horário volta a ficar livre.");
+  expect(perguntaCancelarDono("18h · Ana", "online")).toBe(
+    "Cancelar a reserva 18h · Ana? O horário volta a ficar livre. O jogador recebe o valor inteiro de volta; a tarifa do Asaas sai da parte da arena.");
 });

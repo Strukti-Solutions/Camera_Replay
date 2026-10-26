@@ -129,3 +129,47 @@ export async function definirTaxaArena(db: Db, arenaId: string, percentual: numb
   ]);
   return r.rows.length === 1;
 }
+
+// ---------- Pagamentos (Asaas) ----------
+
+export type PendenciasPagamento = {
+  estornos: {
+    reservaId: string; arena: string; jogador: string; pagamentoId: string; pagoCentavos: number;
+    inicio: Date; canceladaPor: string | null;
+  }[];
+  eventos: { id: string; tipo: string; erro: string; recebidoEm: Date }[];
+};
+
+// O que a Strukti precisa resolver à mão: estornos que o Asaas recusou (ex.:
+// dono sem saldo) e eventos do webhook que não foram processados.
+export async function pendenciasDePagamento(db: Db): Promise<PendenciasPagamento> {
+  const [e, v] = await Promise.all([
+    db.query<{
+      id: string; arena: string; jogador: string | null; pagamento: string; pago: number; inicio: Date; por: string | null;
+    }>(
+      `select r.id, a.nome as arena, j.nome as jogador, r.asaas_pagamento_id as pagamento, r.pago_centavos as pago,
+              r.inicio, r.cancelada_por as por
+         from reservas r join arenas a on a.id = r.arena_id left join jogadores j on j.id = r.jogador_id
+        where r.estorno = 'pendente'
+        order by r.cancelada_em, r.id
+        limit 100`,
+    ),
+    db.query<{ id: string; tipo: string; erro: string; recebido_em: Date }>(
+      "select id, tipo, erro, recebido_em from asaas_eventos where erro is not null order by recebido_em desc limit 50",
+    ),
+  ]);
+  return {
+    estornos: e.rows.map((r) => ({
+      reservaId: r.id, arena: r.arena, jogador: r.jogador ?? "Conta apagada", pagamentoId: r.pagamento,
+      pagoCentavos: Number(r.pago ?? 0), inicio: new Date(r.inicio), canceladaPor: r.por,
+    })),
+    eventos: v.rows.map((r) => ({ id: r.id, tipo: r.tipo, erro: r.erro, recebidoEm: new Date(r.recebido_em) })),
+  };
+}
+
+// A Strukti resolveu o estorno fora do sistema (no painel do Asaas ou com o dono).
+export async function marcarEstornoResolvido(db: Db, reservaId: string): Promise<boolean> {
+  if (typeof reservaId !== "string" || !UUID.test(reservaId)) return false;
+  const r = await db.query("update reservas set estorno = 'concluido' where id = $1 and estorno = 'pendente' returning id", [reservaId]);
+  return r.rows.length === 1;
+}

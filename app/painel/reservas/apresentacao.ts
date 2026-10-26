@@ -77,6 +77,20 @@ function situacaoDono(i: ItemAgenda): string {
 
 // "16h–18h · Quadra 1 — Padel · Ana · R$ 200,00 · Confirmada" ou
 // "16h–18h · Quadra 1 — Padel · Bloqueado · Aula" (horas cheias saem sem minutos; meia-noite no fim = 24h).
+// Forma de pagamento na agenda do dono.
+export function textoPagamentoDono(pagamento: string | null): string {
+  return pagamento === "online" ? "pago online" : "pagar na arena";
+}
+
+// Pergunta do cancelamento pelo dono: na reserva paga online, avisa que o
+// jogador recebe tudo de volta e que a tarifa do Asaas sai da parte da arena.
+export function perguntaCancelarDono(descricao: string, pagamento: string | null): string {
+  const base = `Cancelar a reserva ${descricao}? O horário volta a ficar livre.`;
+  return pagamento === "online"
+    ? `${base} O jogador recebe o valor inteiro de volta; a tarifa do Asaas sai da parte da arena.`
+    : base;
+}
+
 export function linhaItem(i: ItemAgenda): string {
   const horario = `${textoMinutos(partesDoInstante(i.inicio).minuto)}–${textoMinutos(minutoDoFim(i.fim))}`;
   const quadra = rotuloQuadra(i.quadra, i.esporte);

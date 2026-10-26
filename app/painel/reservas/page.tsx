@@ -12,7 +12,8 @@ import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { removerBloqueioAction } from "./actions";
 import {
   calendarioDoDono, caixinhasDoDia, hrefAgenda, lerDiaDono, lerMesDono, lerPagina, linhaItem, mensagemDoBloqueio,
-  mensagemOkAgenda, mesesDoDono, paginarCaixinhas, podeAgir, quadraDoFiltro, rotuloQuadra, semanaDoDia, type Caixinha,
+  mensagemOkAgenda, mesesDoDono, paginarCaixinhas, perguntaCancelarDono, podeAgir, quadraDoFiltro, rotuloQuadra, semanaDoDia,
+  textoPagamentoDono, type Caixinha,
 } from "./apresentacao";
 import { Bloquear, CancelarReservaDono } from "./formularios";
 
@@ -63,13 +64,17 @@ function CaixinhaDoDia({
       {c.tipo === "reserva" ? (
         <>
           <span className="ag-cx-nome">{i.jogador ?? "Conta apagada"}</span>
-          <span className="suave">{textoDeCentavos(i.totalCentavos ?? 0)} · pagar na arena</span>
+          <span className="suave">{textoDeCentavos(i.totalCentavos ?? 0)} · {textoPagamentoDono(i.pagamento)}</span>
         </>
       ) : (
         <span className="ag-cx-nome">{i.motivo || "Bloqueado"}</span>
       )}
       <span className={cancelada ? "ag-selo ag-selo-off" : "ag-selo"}>{situacao(i)}</span>
-      {podeAgir(i) && c.tipo === "reserva" && <CancelarReservaDono reservaId={i.id} descricao={linhaItem(i)} volta={volta} />}
+      {podeAgir(i) && c.tipo === "reserva" && (
+        <CancelarReservaDono
+          reservaId={i.id} descricao={linhaItem(i)} pergunta={perguntaCancelarDono(linhaItem(i), i.pagamento)} volta={volta}
+        />
+      )}
       {podeAgir(i) && c.tipo === "bloqueio" && (
         <Confirmar
           acao={removerBloqueioAction}
@@ -202,7 +207,11 @@ export default async function PaginaReservas({ searchParams }: Props) {
                 <span className="ag-cx-nome">{i.jogador ?? "Conta apagada"}</span>
                 <span className="suave">{textoDeCentavos(i.totalCentavos ?? 0)}</span>
                 <span className={i.situacao === "cancelada" ? "ag-selo ag-selo-off" : "ag-selo"}>{situacao(i)}</span>
-                {podeAgir(i) && <CancelarReservaDono reservaId={i.id} descricao={linhaItem(i)} volta={volta} />}
+                {podeAgir(i) && (
+                  <CancelarReservaDono
+                    reservaId={i.id} descricao={linhaItem(i)} pergunta={perguntaCancelarDono(linhaItem(i), i.pagamento)} volta={volta}
+                  />
+                )}
               </li>
             ))}
           </ul>

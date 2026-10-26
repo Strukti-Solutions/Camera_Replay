@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { listarArenasAdmin } from "@/app/lib/plataforma";
+import { listarArenasAdmin, pendenciasDePagamento } from "@/app/lib/plataforma";
 import { poolCompartilhado } from "@/app/lib/pool";
+import { textoDeCentavos } from "@/app/lib/precos";
 import { reservasFuturasPorArena } from "@/app/lib/reservas";
+import { Confirmar } from "@/app/painel/quadras/[id]/formularios";
 import { textoData } from "@/app/painel/apresentacao";
-import { reativarArenaAction, suspenderArenaAction } from "./actions";
+import { marcarEstornoResolvidoAction, reativarArenaAction, suspenderArenaAction } from "./actions";
 import { textoReservasFuturas, textoStatusArena, textoTaxa } from "./apresentacao";
 import { CabecalhoAdmin } from "./cabecalho";
 import { ConfirmarStatus, FormularioNovaArena, FormularioNovoSuperAdmin } from "./formularios";
@@ -21,7 +23,9 @@ export default async function PaginaAdmin() {
   // Sessão de super admin antes de qualquer consulta que cruza arenas.
   await exigirSuperAdmin();
   const db = poolCompartilhado();
-  const [arenas, futuras] = await Promise.all([listarArenasAdmin(db), reservasFuturasPorArena(db, new Date())]);
+  const [arenas, futuras, pendencias] = await Promise.all([
+    listarArenasAdmin(db), reservasFuturasPorArena(db, new Date()), pendenciasDePagamento(db),
+  ]);
 
   return (
     <>
@@ -99,6 +103,49 @@ export default async function PaginaAdmin() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {(pendencias.estornos.length > 0 || pendencias.eventos.length > 0) && (
+          <section className="secao" aria-labelledby="titulo-pendencias">
+            <h2 id="titulo-pendencias">Pagamentos para resolver</h2>
+            {pendencias.estornos.length > 0 && (
+              <>
+                <p className="suave">
+                  Estornos que o Asaas recusou (por exemplo, dono sem saldo). Resolva no painel do Asaas ou com o dono e marque
+                  como resolvido.
+                </p>
+                <ul className="lista-simples">
+                  {pendencias.estornos.map((e) => (
+                    <li key={e.reservaId}>
+                      <strong>{e.arena}</strong> · {e.jogador} · reserva de {textoData(e.inicio)} ·{" "}
+                      {textoDeCentavos(e.pagoCentavos)} pago · cancelada {e.canceladaPor === "dono" ? "pela arena" : "pelo jogador"} ·{" "}
+                      <span className="mono">{e.pagamentoId}</span>
+                      <Confirmar
+                        acao={marcarEstornoResolvidoAction}
+                        campo="reservaId"
+                        valor={e.reservaId}
+                        rotulo="Marcar resolvido"
+                        pergunta="O estorno foi feito fora do sistema? A reserva deixa de aparecer aqui."
+                        confirmar="Marcar resolvido"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {pendencias.eventos.length > 0 && (
+              <>
+                <p className="suave">Avisos do Asaas que não foram processados (os 50 mais recentes).</p>
+                <ul className="lista-simples">
+                  {pendencias.eventos.map((v) => (
+                    <li key={v.id}>
+                      {textoData(v.recebidoEm)} · {v.tipo} · {v.erro} · <span className="mono">{v.id}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
         )}
 
         <section className="secao">

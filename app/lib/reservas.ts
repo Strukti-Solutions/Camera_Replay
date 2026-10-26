@@ -369,6 +369,7 @@ export type ItemAgenda = {
   canceladaPor: string | null;
   motivoCancelamento: string | null;
   futura: boolean; // ainda não começou: o dono pode cancelar
+  pagamento: string | null; // "arena", "online" ou null (bloqueio)
 };
 
 // Agenda do dono entre os dias locais `de` e `ate` (inclusive). Do jogador, só o nome.
@@ -390,13 +391,13 @@ export async function agendaDaArena(
 type LinhaAgenda = {
   id: string; tipo: "reserva" | "bloqueio"; quadra_id: string; quadra: string; esporte: string; inicio: Date; fim: Date; situacao: string;
   jogador: string | null; total_centavos: number | null; motivo: string | null; cancelada_por: string | null;
-  motivo_cancelamento: string | null;
+  motivo_cancelamento: string | null; pagamento: string | null;
 };
 
 // Colunas da agenda do dono (alias r = reservas, q = quadras, j = jogadores).
 const SELECT_AGENDA = `select r.id, r.tipo, r.quadra_id, q.nome as quadra, q.esporte, r.inicio, r.fim, r.situacao,
             case when r.tipo = 'reserva' then coalesce(j.nome, 'Conta apagada') end as jogador,
-            r.total_centavos, r.motivo, r.cancelada_por, r.motivo_cancelamento
+            r.total_centavos, r.motivo, r.cancelada_por, r.motivo_cancelamento, r.pagamento
        from reservas r
        join quadras q on q.id = r.quadra_id and q.arena_id = r.arena_id
        left join jogadores j on j.id = r.jogador_id`;
@@ -417,6 +418,7 @@ function itemDaAgenda(r: LinhaAgenda, agora: Date): ItemAgenda {
     canceladaPor: r.cancelada_por,
     motivoCancelamento: r.motivo_cancelamento,
     futura: new Date(r.inicio).getTime() > agora.getTime(),
+    pagamento: r.pagamento,
   };
 }
 
