@@ -23,7 +23,7 @@ Sucesso: abrir no computador e no celular e as duas versões parecerem pensadas 
 ## Não metas
 
 - Pagamento online (fase 4b, Asaas) e o worker de captura: ficam para depois.
-- Mudar regras já decididas: cancelamento grátis até 24 h antes, limite de 2 reservas futuras por arena e 5 no total, "pagar na arena", lances por até 3 dias.
+- Mudar regras já decididas: cancelamento grátis até 24 h antes, limite de 2 reservas futuras por arena e 5 no total, "pagar na arena", lances por até 3 dias (7 dias desde a migração 0024, 26/10).
 - Novo layout da página do replay (QR/botão) e do painel do super admin: só recebem o visual novo (cores, tipografia, topo), sem redesenho.
 
 ## Anti-metas (seria fracasso mesmo funcionando)
@@ -91,7 +91,7 @@ Sucesso: abrir no computador e no celular e as duas versões parecerem pensadas 
 - Abas "Próximas" e "Histórico" (histórico em páginas). Cada reserva é uma caixinha com a foto da quadra e a data em destaque (dia da semana + número).
 - Próximas: horário, valor, "Confirmada", até quando cancela grátis; botões "Como chegar" e "Cancelar".
 - Histórico: contagem de lances, "Ver lances", "Reservar de novo"; cancelada pela arena mostra o motivo.
-- **Detalhe:** dados da reserva de um lado; lances (vídeos) do outro, com "Baixar" e "Compartilhar"; "disponíveis por até 3 dias".
+- **Detalhe:** dados da reserva de um lado; lances (vídeos) do outro, com "Baixar" e "Compartilhar"; "disponíveis por até 7 dias" (eram 3 até a migração 0024, 26/10).
 
 ### Entrar, criar conta, minha conta
 - Só o formulário centralizado (sem imagem ao lado), no padrão do topo novo. Criar conta e Minha conta seguem o mesmo estilo.

@@ -5,7 +5,9 @@ import { hashToken, novoToken } from "./segredos";
 // Conta do jogador: vale na plataforma inteira, não pertence a uma arena.
 // O e-mail é único entre jogadores, donos e admins (tabela contas_email).
 
-export const TERMOS_VERSAO = "provisorio-2026-10-22";
+// Gravada no aceite (jogadores.termos_versao). Sobe junto com qualquer mudança
+// no texto de /termos; tests/termos-versao.test.ts liga cada versão ao texto.
+export const TERMOS_VERSAO = "provisorio-2026-10-26";
 export const DURACAO_SESSAO_JOGADOR_S = 30 * 24 * 3600;
 export const SENHA_JOGADOR_MIN = 8;
 

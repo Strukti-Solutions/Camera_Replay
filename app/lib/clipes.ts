@@ -9,6 +9,7 @@ export type ClipePublico = {
   url: string;
   capa: string; // URL assinada da .jpg; pode não existir no R2 (a página cai num fundo neutro)
   download: string; // URL assinada do .mp4 com Content-Disposition: attachment
+  arquivo: string; // nome do .mp4 (lance-AAAA-MM-DD-HHhMM.mp4): o do download e o do "Compartilhar"
 };
 
 export type LeitorR2 = {
@@ -39,6 +40,7 @@ export type LinhaClipe = {
 
 // Monta o clipe público com as três URLs assinadas (vídeo, capa e download).
 export async function paraClipePublico(r2: LeitorR2, arenaId: string, c: LinhaClipe): Promise<ClipePublico> {
+  const arquivo = nomeDoDownload(c.recebido_em);
   return {
     id: c.id,
     recebidoEm: c.recebido_em,
@@ -46,7 +48,8 @@ export async function paraClipePublico(r2: LeitorR2, arenaId: string, c: LinhaCl
     parcial: c.status === "parcial",
     url: await r2.urlLeitura(c.chave_r2),
     capa: await r2.urlLeitura(chaveDaCapa(arenaId, c.id)),
-    download: await r2.urlLeitura(c.chave_r2, { baixarComo: nomeDoDownload(c.recebido_em) }),
+    download: await r2.urlLeitura(c.chave_r2, { baixarComo: arquivo }),
+    arquivo,
   };
 }
 

@@ -79,7 +79,7 @@ export default async function LancesDaReserva({ params }: Props) {
           </section>
           <section className="rv-caixa rv-lances" aria-labelledby="rv-lances-titulo">
             <h2 id="rv-lances-titulo">
-              Seus lances ({clipes.length}) <small>· ficam disponíveis por até 3 dias</small>
+              Seus lances ({clipes.length}) <small>· ficam disponíveis por até 7 dias</small>
             </h2>
             <Galeria clipes={clipes} videosDisponiveis={videosDisponiveis} vazio="Nenhum lance gravado nesta reserva." />
           </section>

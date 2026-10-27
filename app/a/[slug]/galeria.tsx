@@ -52,6 +52,7 @@ export function Galeria({
     url: clipe.url,
     capa: clipe.capa,
     download: clipe.download,
+    arquivo: clipe.arquivo,
   }));
 
   return (
