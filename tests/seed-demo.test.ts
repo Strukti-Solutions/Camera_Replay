@@ -4,7 +4,9 @@ import { SLUG_VALIDO } from "../app/lib/clipes";
 import { arenaPublica, arenasNoMapa } from "../app/lib/arenas-publicas";
 import { entrarUnico } from "../app/lib/entrar-unico";
 import { criarArenaComDono } from "../app/lib/donos";
-import { comSegredosNoEnv, semearDemo, urlLocal, type SegredosDemo } from "../db/seed-demo";
+import {
+  arenasForaDaDemo, comSegredosNoEnv, podeSemear, semearDemo, urlLocal, type SegredosDemo,
+} from "../db/seed-demo";
 import { novoBanco } from "./db";
 
 // Segunda, 09/11/2026, 10h em São Paulo.
@@ -30,6 +32,25 @@ test("urlLocal aceita só banco em localhost, 127.0.0.1 ou ::1", () => {
   expect(urlLocal("/var/run/postgresql x")).toBe(false);
   expect(urlLocal("http://localhost/x")).toBe(false);
   expect(urlLocal("isso não é url")).toBe(false);
+});
+
+test("arenasForaDaDemo conta só as arenas que não são a de demonstração", async () => {
+  const db = await novoBanco();
+  expect(await arenasForaDaDemo(db)).toBe(0);
+  await semearDemo(db, { agora: AGORA });
+  expect(await arenasForaDaDemo(db)).toBe(0);
+  await criarArenaComDono(db, { arena: "Arena de Verdade", email: "dono@verdade.com", senha: "senha-bem-longa" });
+  expect(await arenasForaDaDemo(db)).toBe(1);
+});
+
+test("banco com outras arenas (túnel para um banco remoto?) só recebe a demonstração com SEED_DEMO_FORCAR=1", () => {
+  expect(podeSemear(0, undefined)).toBe(true);
+  expect(podeSemear(0, "0")).toBe(true);
+  expect(podeSemear(1, undefined)).toBe(false);
+  expect(podeSemear(3, "")).toBe(false);
+  expect(podeSemear(3, "0")).toBe(false);
+  expect(podeSemear(3, "true")).toBe(false);
+  expect(podeSemear(3, "1")).toBe(true);
 });
 
 test("semearDemo monta a Arena Exemplo com quadras, horários, câmera, botão, dono e jogador com reserva", async () => {

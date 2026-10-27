@@ -164,6 +164,22 @@ export function urlLocal(url: string): boolean {
   return [u.hostname, ...u.searchParams.getAll("host")].every(hostLocal);
 }
 
+// Segunda guarda, já conectado: um túnel (ssh -L) ou proxy do provedor em
+// localhost leva a um banco remoto e passa pela urlLocal. O banco da
+// demonstração não tem arenas de verdade, então qualquer arena além da Arena
+// Exemplo faz o CLI recusar, salvo com SEED_DEMO_FORCAR=1.
+export async function arenasForaDaDemo(db: Db): Promise<number> {
+  const r = await db.query<{ n: number }>(
+    "select count(*)::int as n from arenas where slug is distinct from $1",
+    [SLUG],
+  );
+  return Number(r.rows[0].n);
+}
+
+export function podeSemear(arenasForaDaDemo: number, forcar: string | undefined): boolean {
+  return arenasForaDaDemo === 0 || forcar === "1";
+}
+
 const COMENTARIO = "# Arena de demonstração (npm run seed-demo): só no banco local.";
 
 // Conteúdo novo do .env.local: tira as linhas antigas das chaves dadas (e o

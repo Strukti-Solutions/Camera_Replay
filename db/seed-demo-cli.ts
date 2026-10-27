@@ -3,10 +3,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { criarPool } from "../app/lib/db";
 import { lerChave } from "../app/lib/cripto";
-import { comSegredosNoEnv, semearDemo, urlLocal, type SegredosDemo } from "./seed-demo";
+import {
+  arenasForaDaDemo, comSegredosNoEnv, podeSemear, semearDemo, urlLocal, type SegredosDemo,
+} from "./seed-demo";
 
 // npm run seed-demo: monta a Arena Exemplo no banco LOCAL (o mesmo do next dev).
-// Recusa qualquer DATABASE_URL que não seja localhost, 127.0.0.1 ou ::1.
+// Recusa qualquer DATABASE_URL que não seja localhost, 127.0.0.1 ou ::1 e,
+// já conectado, um banco com arenas além da de demonstração (pode ser um
+// túnel para um banco remoto), salvo com SEED_DEMO_FORCAR=1.
 // As senhas e o token do botão criados vão só para o .env.local; nunca para a
 // tela. Nunca imprime a URL do banco.
 
@@ -47,6 +51,15 @@ async function principal(): Promise<void> {
   const db = criarPool(url);
   const segredos: SegredosDemo = {};
   try {
+    const outras = await arenasForaDaDemo(db);
+    if (!podeSemear(outras, process.env.SEED_DEMO_FORCAR)) {
+      console.error(
+        `seed-demo: recusado: o banco já tem ${outras} arena(s) além da de demonstração; pode ser um túnel ou proxy ` +
+          "para um banco remoto. Se ele é mesmo local, rode de novo com SEED_DEMO_FORCAR=1.",
+      );
+      process.exitCode = 2;
+      return;
+    }
     const r = await semearDemo(db, { chave, segredos });
     console.log(`Arena Exemplo pronta: /a/${r.arenaSlug}`);
   } finally {
