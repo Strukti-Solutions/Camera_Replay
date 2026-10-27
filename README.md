@@ -45,6 +45,8 @@ npm run dev                                      # http://localhost:3000
 
 Para automatizar, a senha pode vir pelo stdin (uma linha). Nem `migrar` nem `criar-dono` imprimem a `DATABASE_URL` ou a senha.
 
+Arena de demonstração (para prints, só em banco local): `npm run seed-demo` lê o `.env.local` (sem sobrescrever o ambiente), recusa `DATABASE_URL` fora de `localhost`/`127.0.0.1`/`::1` e monta a "Arena Exemplo" em `/a/arena-exemplo-demonstracao`: 2 quadras com horários das 17h às 23h, câmera e botão na Quadra 1, dono `dono@exemplo.invalid` e jogador `jogador@exemplo.invalid` com uma reserva hoje às 20h. As senhas e o token do botão criados vão só para o `.env.local` (`DEMO_DONO_SENHA`, `DEMO_JOGADOR_SENHA`, `DEMO_BOTAO_TOKEN`), nunca para a tela. Rodar de novo não duplica nada. A câmera nasce com SN e credenciais de mentira (`DEMO-0001`): para gravar um lance de verdade, troque as credenciais em `/admin` e o SN direto no banco local (o `/admin` não edita o SN).
+
 Jogadores: criam conta em `/criar-conta` e entram em `/entrar` (o mesmo login serve para dono e super admin). Reservas públicas virão nas próximas fases; veja `docs/superpowers/specs/2026-10-22-reservas-publicas-design.md`.
 
 A limpeza de clipes expirados roda por cron da Vercel (`vercel.json`, diário às 07:00 UTC, 4h em Brasília), chamando `/api/cron/limpeza` com `Authorization: Bearer <CRON_SECRET>`.
