@@ -11,6 +11,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
+import { BotaoCompartilhar } from "@/app/componentes/botao-compartilhar";
 import {
   PERSPECTIVA,
   VAO,
@@ -423,9 +424,12 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
               </button>
             </div>
             <VideoClipe key={aberto.id} url={aberto.url} rotulo={`Lance de ${aberto.horario}`} autoPlay />
-            <a className="botao botao-cheio" href={aberto.download}>
-              Baixar vídeo
-            </a>
+            <div className="lance-acoes">
+              <a className="botao botao-cheio" href={aberto.download}>
+                Baixar vídeo
+              </a>
+              <BotaoCompartilhar key={aberto.id} download={aberto.download} horario={aberto.horario} />
+            </div>
           </div>
         )}
       </dialog>
