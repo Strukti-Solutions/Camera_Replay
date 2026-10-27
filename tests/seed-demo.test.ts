@@ -7,7 +7,7 @@ import { entrarUnico } from "../app/lib/entrar-unico";
 import { criarArenaComDono } from "../app/lib/donos";
 import { listarHorarios } from "../app/lib/horarios-quadra";
 import {
-  LIMITE_RESERVAS_POR_ARENA, agendaDaArena, periodosOcupados, reservasDoJogador, resumoDoMes,
+  LIMITE_RESERVAS_POR_ARENA, agendaDaArena, criarReserva, periodosOcupados, reservasDoJogador, resumoDoMes,
 } from "../app/lib/reservas";
 import {
   arenasForaDaDemo, comSegredosNoEnv, podeSemear, semearDemo, urlLocal, type SegredosDemo,
@@ -160,14 +160,16 @@ test("duas arenas de demonstração a mais, sem câmera, para a busca mostrar ma
   const r = await semearDemo(db, { agora: AGORA });
   expect(r.outrasArenas).toHaveLength(2);
 
-  const arenas = (await db.query<{ nome: string; slug: string; cidade: string; uf: string }>(
-    "select nome, slug, endereco_cidade as cidade, endereco_uf as uf from arenas order by nome")).rows;
+  const arenas = (await db.query<{ nome: string; slug: string; cidade: string; uf: string; cep: string }>(
+    "select nome, slug, endereco_cidade as cidade, endereco_uf as uf, endereco_cep as cep from arenas order by nome")).rows;
   expect(arenas.map((a) => a.slug).sort()).toEqual([r.arenaSlug, ...r.outrasArenas].sort());
   for (const a of arenas) {
     expect(a.nome).toMatch(/^Arena Exemplo/);
     expect(SLUG_VALIDO.test(a.slug)).toBe(true);
     expect(a.slug).toMatch(/-demonstracao$/);
     expect([a.cidade, a.uf]).toEqual(["São Paulo", "SP"]);
+    // CEP obviamente falso: um CEP de verdade da região poderia cair numa rua real.
+    expect(a.cep).toMatch(/^00000\d{3}$/);
   }
 
   // Cada uma tem quadras com esporte, horários e preço, e nenhuma câmera.
@@ -220,6 +222,13 @@ test("a agenda da Arena Exemplo tem hoje quase cheio, os próximos 14 dias, 30 d
   expect(futuras.length).toBeGreaterThanOrEqual(20);
   expect(futuras.every((i) => i.pagamento === "arena" && i.jogador?.endsWith(" Exemplo"))).toBe(true);
 
+  // Os próximos dias também têm canceladas dos fictícios, pelo jogador e pela
+  // arena: rodando o seed todo dia, cada dia que passa leva as suas para o histórico.
+  const canceladasFuturas = proximos.filter(
+    (i) => i.tipo === "reserva" && i.situacao === "cancelada" && i.jogador !== "Jogador Exemplo");
+  expect(canceladasFuturas.some((i) => i.canceladaPor === "jogador")).toBe(true);
+  expect(canceladasFuturas.some((i) => i.canceladaPor === "dono" && !!i.motivoCancelamento)).toBe(true);
+
   // Bloqueios com motivo, pela função do painel, em dias próximos.
   const bloqueios = proximos.filter((i) => i.tipo === "bloqueio" && i.situacao === "confirmada");
   expect(new Set(bloqueios.map((b) => b.motivo))).toEqual(new Set(["Aula de beach tennis", "Manutenção do piso"]));
@@ -261,19 +270,32 @@ test("jogadores fictícios sem senha guardada, dentro do limite do app, e o prin
   )).rows.map((x) => Number(x.n));
   expect(Math.max(...porJogador)).toBeLessThanOrEqual(LIMITE_RESERVAS_POR_ARENA);
 
-  // Jogador principal: hoje às 20h e uma futura; no histórico, uma ou duas jogadas e uma cancelada.
+  // Jogador principal: hoje às 20h na Arena Exemplo e uma futura na Arena
+  // Exemplo Padel; no histórico (Arena Exemplo), uma ou duas jogadas e uma
+  // cancelada por ele, no passado (o Histórico começa pelo mais recente).
   const principal = jogadores.find((j) => j.email === EMAIL_JOGADOR)!;
   const { proximas, historico } = await reservasDoJogador(db, principal.id, AGORA);
   expect(proximas).toHaveLength(2);
   expect(proximas[0].inicio).toEqual(new Date("2026-11-09T20:00:00-03:00"));
+  expect(proximas[0].arena.slug).toBe(r.arenaSlug);
   expect(proximas[1].inicio.getTime()).toBeGreaterThanOrEqual(new Date("2026-11-10T00:00:00-03:00").getTime());
+  expect(proximas[1].arena.slug).toBe("arena-exemplo-padel-demonstracao");
   expect(proximas[1].podeCancelar).toBe(true);
   const jogadas = historico.filter((h) => h.situacao === "confirmada");
   expect(jogadas.length).toBeGreaterThanOrEqual(1);
   expect(jogadas.length).toBeLessThanOrEqual(2);
   expect(jogadas.every((h) => h.fim.getTime() <= AGORA.getTime())).toBe(true);
-  expect(historico.filter((h) => h.situacao === "cancelada")).toHaveLength(1);
-  expect([...proximas, ...historico].every((h) => h.arena.slug === r.arenaSlug)).toBe(true);
+  const cancelada = historico.filter((h) => h.situacao === "cancelada");
+  expect(cancelada).toHaveLength(1);
+  expect(cancelada[0].canceladaPor).toBe("jogador");
+  expect(cancelada[0].fim.getTime()).toBeLessThanOrEqual(AGORA.getTime());
+  expect(historico.every((h) => h.arena.slug === r.arenaSlug)).toBe(true);
+
+  // Sobra uma vaga do limite na Arena Exemplo: a conta serve para testar uma reserva nova nela.
+  const arenaId = await idDaArena(db, r.arenaSlug);
+  const [q1] = await quadrasDa(db, arenaId);
+  const nova = await criarReserva(db, principal.id, { quadraId: q1.id, dia: "2026-11-10", inicio: 17 * 60, qtd: 1 }, AGORA);
+  expect(nova).toEqual({ ok: true, reservaId: expect.any(String), pagarOnline: false });
 });
 
 test("depois das 20h a reserva de hoje às 20:00 ainda é criada", async () => {
@@ -295,6 +317,10 @@ test("rodar duas vezes não duplica nada e não gera segredos novos", async () =
   expect(segunda.arenaSlug).toBe(primeira.arenaSlug);
   expect(segunda.outrasArenas).toEqual(primeira.outrasArenas);
   expect(segunda.segredos).toEqual({});
+  expect(await contagens(db)).toEqual(antes);
+  // Mais tarde no mesmo dia (bloqueio e reserva de hoje já começados): também não cria nada.
+  const terceira = await semearDemo(db, { agora: new Date("2026-11-09T22:30:00-03:00") });
+  expect(terceira.segredos).toEqual({});
   expect(await contagens(db)).toEqual(antes);
   // 3 arenas (2 + 2 + 2 quadras; 84 + 66 + 50 horários), 3 donos, 17 jogadores,
   // 87 reservas (82 dos fictícios e 5 do principal) e 6 bloqueios.
@@ -339,6 +365,63 @@ test("em outro dia, ou com a de hoje cancelada, o seed cria a reserva de hoje à
   }
   const dia24 = await agendaDaArena(db, arenaId, amanha, { de: "2026-11-24", ate: "2026-11-24" });
   expect(dia24.some((i) => i.tipo === "reserva" && i.situacao === "confirmada")).toBe(true);
+});
+
+// Banco local semeado de novo dias depois: os dias que eram futuros viram
+// histórico e levam as canceladas junto (antes só a primeira rodada as criava).
+test("dias depois, o histórico continua com canceladas nos dias que eram futuros, sem duplicar nada", async () => {
+  const db = await novoBanco();
+  await semearDemo(db, { agora: AGORA });
+  const depois = new Date("2026-11-24T10:00:00-03:00");
+  const r = await semearDemo(db, { agora: depois });
+  const arenaId = await idDaArena(db, r.arenaSlug);
+
+  const eramFuturos = (await agendaDaArena(db, arenaId, depois, { de: "2026-11-10", ate: "2026-11-23" }))
+    .filter((i) => i.tipo === "reserva" && i.jogador !== "Jogador Exemplo");
+  const canceladas = eramFuturos.filter((i) => i.situacao === "cancelada");
+  expect(canceladas.some((i) => i.canceladaPor === "jogador")).toBe(true);
+  expect(canceladas.some((i) => i.canceladaPor === "dono" && !!i.motivoCancelamento)).toBe(true);
+  // Todo dia continua com reserva confirmada (só cancela em dia com mais de uma).
+  const confirmadas = eramFuturos.filter((i) => i.situacao === "confirmada");
+  expect(new Set(confirmadas.map((i) => hojeLocal(i.inicio))).size).toBe(14);
+
+  const repetidos = await db.query("select 1 from reservas group by quadra_id, inicio having count(*) > 1");
+  expect(repetidos.rows).toHaveLength(0);
+});
+
+// O principal ganha a reserva de hoje às 20h a cada dia, e a futura da Padel
+// chega ao "hoje" alguns dias depois: nunca dois jogos ao mesmo tempo, e no
+// máximo uma reserva por vir na Padel (sobra vaga do limite nas duas arenas).
+test("no dia da reserva da Padel, ninguém fica com dois jogos ao mesmo tempo e o principal tem uma por vir em cada arena", async () => {
+  const db = await novoBanco();
+  await semearDemo(db, { agora: AGORA });
+  const diaDaPadel = new Date("2026-11-12T10:00:00-03:00");
+  await semearDemo(db, { agora: diaDaPadel });
+
+  const sobrepostas = await db.query(
+    `select a.id from reservas a
+       join reservas b on b.jogador_id = a.jogador_id and b.id > a.id and a.inicio < b.fim and b.inicio < a.fim
+      where a.tipo = 'reserva' and b.tipo = 'reserva' and a.situacao = 'confirmada' and b.situacao = 'confirmada'`);
+  expect(sobrepostas.rows).toEqual([]);
+
+  const principal = (await db.query<{ id: string }>("select id from jogadores where email = $1", [EMAIL_JOGADOR])).rows[0];
+  const { proximas } = await reservasDoJogador(db, principal.id, diaDaPadel);
+  expect(proximas.map((p) => p.arena.slug).sort()).toEqual(["arena-exemplo-demonstracao", "arena-exemplo-padel-demonstracao"]);
+});
+
+// Mudar o endereço (por exemplo, o CEP) apaga as coordenadas e só geocodifica
+// de novo depois de um minuto: o seed avisa em vez de deixar a arena fora do mapa.
+test("endereço trocado dentro do minuto da última geocodificação: o seed recusa e pede para rodar de novo", async () => {
+  const db = await novoBanco();
+  const a = await criarArenaComDono(db, { arena: "Arena Exemplo", email: "dono@exemplo.invalid", senha: "senha-bem-longa" });
+  await db.query(
+    `update arenas set slug = 'arena-exemplo-demonstracao', endereco_rua = 'Rua do Exemplo', endereco_numero = '100',
+       endereco_bairro = 'Ibirapuera', endereco_cidade = 'São Paulo', endereco_uf = 'SP', endereco_cep = '04094000',
+       latitude = -23.5874, longitude = -46.6576, geocodificacao_tentada_em = now()
+     where id = $1`,
+    [a.arenaId],
+  );
+  await expect(semearDemo(db, { agora: AGORA })).rejects.toThrow("rode de novo");
 });
 
 test("se um passo falhar, os segredos do que já foi criado ficam com o chamador", async () => {

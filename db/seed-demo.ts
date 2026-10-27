@@ -31,6 +31,7 @@ const MINUTO = 60_000;
 const DIA_MS = 86_400_000;
 
 type QuadraDemo = { nome: string; esporte: string; horarios: Horario[] };
+type ArenaSemeada = { arenaId: string; quadras: string[] };
 type ArenaDemo = {
   slug: string;
   nome: string;
@@ -48,13 +49,14 @@ const FIM_DE_SEMANA = [0, 6];
 const fixos = (dias: number[], das: number, ate: number, duracao: number, precoCentavos: number): Horario[] =>
   dias.flatMap((diaSemana) => gerarFixos({ diaSemana, das, ate, duracao, precoCentavos }));
 
-// Endereços fictícios ("Rua do Exemplo"); as coordenadas são de parques públicos
-// de São Paulo e entram sem consultar o Nominatim.
+// Endereços fictícios ("Rua do Exemplo", CEP 00000-xxx, que não é de rua
+// nenhuma); as coordenadas são de parques públicos de São Paulo e entram sem
+// consultar o Nominatim.
 const ARENA_EXEMPLO: ArenaDemo = {
   slug: SLUG,
   nome: "Arena Exemplo",
   emailDono: "dono@exemplo.invalid",
-  endereco: { rua: "Rua do Exemplo", numero: "100", bairro: "Ibirapuera", cidade: "São Paulo", uf: "SP", cep: "04094000" },
+  endereco: { rua: "Rua do Exemplo", numero: "100", bairro: "Ibirapuera", cidade: "São Paulo", uf: "SP", cep: "00000100" },
   coordenadas: { latitude: -23.5874, longitude: -46.6576 }, // Parque Ibirapuera
   quadras: [
     { nome: "Quadra 1 — Society", esporte: "", horarios: fixos(TODOS, 17 * H, 23 * H, H, 12_000) },
@@ -62,17 +64,19 @@ const ARENA_EXEMPLO: ArenaDemo = {
   ],
 };
 
-// Mais duas, sem câmera, só para a busca, o filtro de esporte e o mapa da home
-// mostrarem mais de uma arena (sem reservas). Os donos têm senha aleatória e
-// descartada: ninguém entra com essas contas.
+// Mais duas, sem câmera, para a busca, o filtro de esporte e o mapa da home
+// mostrarem mais de uma arena. Sem agenda própria: a Padel só recebe a reserva
+// futura do jogador principal. Os donos têm senha aleatória e descartada:
+// ninguém entra com essas contas.
 const BEACH = [...fixos(DIAS_UTEIS, 17 * H, 22 * H, H, 8_000), ...fixos(FIM_DE_SEMANA, 8 * H, 12 * H, H, 10_000)];
 const PADEL = [...fixos(TODOS, 18 * H, 22 * H + 30, 90, 15_000), ...fixos(FIM_DE_SEMANA, 9 * H, 12 * H, 90, 13_000)];
+const SLUG_PADEL = "arena-exemplo-padel-demonstracao";
 const OUTRAS_ARENAS: ArenaDemo[] = [
   {
     slug: "arena-exemplo-beach-demonstracao",
     nome: "Arena Exemplo Beach",
     emailDono: "dono.beach@exemplo.invalid",
-    endereco: { rua: "Rua do Exemplo", numero: "300", bairro: "Aclimação", cidade: "São Paulo", uf: "SP", cep: "01531000" },
+    endereco: { rua: "Rua do Exemplo", numero: "300", bairro: "Aclimação", cidade: "São Paulo", uf: "SP", cep: "00000300" },
     coordenadas: { latitude: -23.5728, longitude: -46.6297 }, // Parque da Aclimação
     quadras: [
       { nome: "Quadra A", esporte: "Beach tennis", horarios: BEACH },
@@ -80,11 +84,11 @@ const OUTRAS_ARENAS: ArenaDemo[] = [
     ],
   },
   {
-    slug: "arena-exemplo-padel-demonstracao",
+    slug: SLUG_PADEL,
     nome: "Arena Exemplo Padel",
     emailDono: "dono.padel@exemplo.invalid",
     endereco: {
-      rua: "Avenida do Exemplo", numero: "1500", bairro: "Alto de Pinheiros", cidade: "São Paulo", uf: "SP", cep: "05459000",
+      rua: "Avenida do Exemplo", numero: "1500", bairro: "Alto de Pinheiros", cidade: "São Paulo", uf: "SP", cep: "00000500",
     },
     coordenadas: { latitude: -23.5466, longitude: -46.7226 }, // Parque Villa-Lobos
     quadras: [
@@ -127,11 +131,15 @@ const JOGADORES: [nome: string, email: string][] = [
 
 // ---------- Agenda da Arena Exemplo ----------
 
-const DIAS_HISTORICO = 30; // o painel mostra 30 dias para trás
+const DIAS_HISTORICO = 30; // 30 dias de histórico (o calendário do painel volta até 3 meses)
 const DIAS_A_FRENTE = 14;
 const DAS = 17; // horários da Arena Exemplo: das 17h às 23h
 const ATE = 23;
 const HORA_RESERVA = 20; // jogador principal, Quadra 1
+// A futura do jogador principal, na Quadra 1 da Arena Exemplo Padel: das 18h
+// às 19h30, antes do horário dele na Arena Exemplo (20h), para o dia em que as
+// duas caem juntas não ter dois jogos ao mesmo tempo.
+const MINUTO_PADEL = 18 * 60;
 
 type Item = { quadra: number; hora: number; qtd: number };
 const item = (quadra: number, hora: number, qtd = 1): Item => ({ quadra, hora, qtd });
@@ -161,10 +169,15 @@ const EXTRAS_DE_HOJE: Item[][] = [
   [item(1, 17, 2), item(1, 21), item(1, 19), item(1, 20), item(1, 22), item(1, 17), item(1, 18)],
 ];
 
-// Histórico: a primeira reserva de alguns dias (pelo dia do mês, então rodar
-// de novo dá o mesmo) foi cancelada, pelo jogador ou pela arena, com motivo.
-const MOTIVO_DA_ARENA = ["Manutenção da iluminação", "Chuva forte"];
-function cancelamento(dia: string): "jogador" | "dono" | null {
+// A primeira reserva de alguns dias (pelo dia do mês, então rodar de novo dá o
+// mesmo) é cancelada, pelo jogador ou pela arena, com motivo. Vale para o
+// histórico, para hoje e para os próximos dias: rodando o seed todo dia, cada
+// dia que passa leva as suas canceladas para o histórico. Só em dia com mais
+// de uma reserva, para todo dia continuar com alguma confirmada. Os motivos
+// servem também para um cancelamento feito com dias de antecedência.
+const MOTIVO_DA_ARENA = ["Manutenção da iluminação", "Torneio da arena"];
+function cancelamento(dia: string, i: number, doDia: Item[]): "jogador" | "dono" | null {
+  if (i !== 0 || doDia.length < 2) return null;
   const n = Number(dia.slice(8)) % 9;
   return n === 2 ? "jogador" : n === 6 ? "dono" : null;
 }
@@ -197,7 +210,7 @@ const chave = (quadraId: string, inicio: number) => `${quadraId}|${inicio}`;
 // `aoCriarDono` recebe a senha do dono só se ele foi criado agora.
 async function semearArena(
   db: Db, a: ArenaDemo, aoCriarDono?: (senha: string) => void,
-): Promise<{ arenaId: string; quadras: string[] }> {
+): Promise<ArenaSemeada> {
   let arenaId = (await arenaDoSlug(db, a.slug))?.arenaId;
   if (!arenaId) {
     const senha = senhaNova();
@@ -211,6 +224,12 @@ async function semearArena(
 
   const end = await atualizarArenaDono(db, arenaId, { nome: a.nome, endereco: a.endereco }, async () => a.coordenadas);
   if (!end.ok) throw new Error(`endereço da demonstração recusado: ${end.erro}`);
+  // Endereço trocado (o CEP, por exemplo) menos de um minuto depois da última
+  // geocodificação: as coordenadas foram apagadas e não voltaram, e a arena
+  // sairia do mapa. Na rodada seguinte o endereço já está igual e elas voltam.
+  if (!end.localizada) {
+    throw new Error("coordenadas da demonstração não gravadas (uma geocodificação por minuto): rode de novo daqui a um minuto");
+  }
 
   // Quadras e horários (os que já existem chocam e são pulados).
   const existentes = await listarQuadras(db, arenaId);
@@ -242,38 +261,49 @@ async function contaDeJogador(
 
 type Agenda = { arenaId: string; quadras: string[]; agora: Date; dia: string };
 
-// Jogador principal, em horários que a agenda dos fictícios não usa: duas
-// jogadas no histórico, a de hoje e uma futura na Quadra 1 às 20h, e uma
-// cancelada por ele na Quadra 2 às 21h (num horário próprio, para o dia dela
-// não ganhar outra reserva dele no mesmo lugar). Cada uma só se ainda não tem;
+// Jogador principal, em horários que a agenda dos fictícios não usa. Na Arena
+// Exemplo: uma cancelada por ele na Quadra 2 às 21h, uma semana atrás (no
+// passado, para o Histórico, que vem do mais recente, não começar por uma data
+// futura), duas jogadas no histórico e a de hoje na Quadra 1 às 20h. A futura
+// fica na Arena Exemplo Padel: Minhas reservas mostra duas arenas, e na Arena
+// Exemplo sobra uma vaga do limite de reservas futuras por arena (2), então a
+// conta serve para testar uma reserva nova nela. Cada uma só se ainda não tem;
 // a ordem respeita o limite de reservas futuras do app.
-async function agendaDoPrincipal(db: Db, a: Agenda, jogadorId: string): Promise<void> {
+async function agendaDoPrincipal(db: Db, a: Agenda, padel: ArenaSemeada, jogadorId: string): Promise<void> {
   const { arenaId, agora, dia } = a;
   const inicio = HORA_RESERVA * 60;
   const reservar = (d: string, feitaEm: Date, quadraId = a.quadras[0], minuto = inicio) =>
     criarReserva(db, jogadorId, { quadraId, dia: d, inicio: minuto, qtd: 1 }, feitaEm);
-  const tem = async (condicao: string, params: unknown[] = []) =>
+  const tem = async (arena: string, condicao: string, params: unknown[] = []) =>
     (await db.query(
       `select 1 from reservas
         where jogador_id = $1 and arena_id = $2 and tipo = 'reserva' and ${condicao}
         limit 1`,
-      [jogadorId, arenaId, ...params],
+      [jogadorId, arena, ...params],
     )).rows.length > 0;
 
-  // Histórico: duas jogadas, feitas um minuto antes, da mais antiga para a mais nova.
-  if (!(await tem("situacao = 'confirmada' and inicio < $3", [new Date(instanteDoMinuto(dia, 0))]))) {
-    for (const n of [-11, -4]) {
-      const d = somaDias(dia, n);
-      await reservar(d, new Date(instanteDoMinuto(d, inicio) - MINUTO));
+  // A cancelada: feita três dias antes do jogo e cancelada dois dias antes
+  // (dentro do prazo de 24 h do app). Vem antes das jogadas, que contariam no
+  // limite dele naquela época. Horário tomado: tenta o dia anterior.
+  if (!(await tem(arenaId, "situacao = 'cancelada'"))) {
+    const minuto = (HORA_RESERVA + 1) * 60;
+    for (let n = 7; n <= 13; n++) {
+      const d = somaDias(dia, -n);
+      const jogo = instanteDoMinuto(d, minuto);
+      const r = await reservar(d, new Date(jogo - 3 * DIA_MS), a.quadras[1], minuto);
+      if (!r.ok) continue;
+      if (!(await cancelarPeloJogador(db, jogadorId, r.reservaId, new Date(jogo - 2 * DIA_MS)))) {
+        throw new Error("cancelamento da demonstração recusado");
+      }
+      break;
     }
   }
 
-  // Uma cancelada por ele, daqui a uns dias (mais de 24 h antes do jogo).
-  if (!(await tem("situacao = 'cancelada'"))) {
-    for (let n = 5; n <= 9; n++) {
-      const r = await reservar(somaDias(dia, n), agora, a.quadras[1], (HORA_RESERVA + 1) * 60);
-      if (r.ok) await cancelarPeloJogador(db, jogadorId, r.reservaId, agora);
-      if (r.ok || r.erro === MSG_LIMITE_RESERVAS) break;
+  // Histórico: duas jogadas, feitas um minuto antes, da mais antiga para a mais nova.
+  if (!(await tem(arenaId, "situacao = 'confirmada' and inicio < $3", [new Date(instanteDoMinuto(dia, 0))]))) {
+    for (const n of [-11, -4]) {
+      const d = somaDias(dia, n);
+      await reservar(d, new Date(instanteDoMinuto(d, inicio) - MINUTO));
     }
   }
 
@@ -282,16 +312,17 @@ async function agendaDoPrincipal(db: Db, a: Agenda, jogadorId: string): Promise<
   // rodando depois das 20h, a reserva conta como feita às 19:59. Só a
   // confirmada de hoje conta: a de outro dia ou a cancelada não impede a
   // reserva do dia dos prints.
-  if (!(await tem("situacao = 'confirmada' and inicio = $3", [new Date(instanteDoMinuto(dia, inicio))]))) {
+  if (!(await tem(arenaId, "situacao = 'confirmada' and inicio = $3", [new Date(instanteDoMinuto(dia, inicio))]))) {
     const feitaEm = new Date(Math.min(agora.getTime(), instanteDoMinuto(dia, inicio) - MINUTO));
     const r = await reservar(dia, feitaEm);
     if (!r.ok) throw new Error(`reserva da demonstração recusada: ${r.erro}`);
   }
 
-  // Uma futura, se ainda não tem nenhuma depois de hoje.
-  if (!(await tem("situacao = 'confirmada' and inicio >= $3", [new Date(instanteDoMinuto(somaDias(dia, 1), 0))]))) {
+  // A futura, na Quadra 1 da Padel às 18h, se ainda não tem nenhuma por vir
+  // lá (a que chegou ao dia de hoje conta: no máximo uma, sobra vaga do limite).
+  if (!(await tem(padel.arenaId, "situacao = 'confirmada' and fim > $3", [agora]))) {
     for (let n = 3; n <= 9; n++) {
-      const r = await reservar(somaDias(dia, n), agora);
+      const r = await reservar(somaDias(dia, n), agora, padel.quadras[0], MINUTO_PADEL);
       if (r.ok || r.erro === MSG_LIMITE_RESERVAS) break;
     }
   }
@@ -327,40 +358,59 @@ async function agendaDosOutros(db: Db, a: Agenda, jogadores: string[]): Promise<
   );
 
   // Cada reserva vai para o próximo jogador da roda que ainda cabe no limite
-  // de reservas futuras do app. Passada (ou de hoje que já começou): feita um
-  // minuto antes; a que vai ser cancelada, três dias antes; futura, agora.
+  // de reservas futuras do app. Feita um minuto antes do jogo (passada, ou de
+  // hoje que já começou) ou agora (futura). A que vai ser cancelada foi feita
+  // três dias antes do jogo e cancelada dois dias antes (pelo jogador, dentro
+  // do prazo de 24 h) ou na véspera (pela arena); o que ainda não chegou
+  // acontece agora (com mais de 24 h de antecedência, nos dois casos).
+  // Quem já joga naquele horário (na outra quadra, por exemplo) também fica de
+  // fora: o app não impede, mas ninguém joga em dois lugares ao mesmo tempo.
   let vez = 0;
+  const jogaNoHorario = async (jogadorId: string, de: number, ate: number) =>
+    (await db.query(
+      `select 1 from reservas
+        where jogador_id = $1 and tipo = 'reserva' and situacao in ('confirmada', 'segurada')
+          and inicio < $3 and fim > $2
+        limit 1`,
+      [jogadorId, new Date(de), new Date(ate)],
+    )).rows.length > 0;
   const reservar = async (d: string, it: Item, cancelar: "jogador" | "dono" | null = null): Promise<boolean> => {
     const quadraId = quadras[it.quadra];
     const inicio = instanteDoMinuto(d, it.hora * 60);
     if (existentes.has(chave(quadraId, inicio))) return false;
-    const feitaEm = new Date(cancelar ? inicio - 3 * DIA_MS : Math.min(agora.getTime(), inicio - MINUTO));
+    const fim = instanteDoMinuto(d, (it.hora + it.qtd) * 60);
+    const antes = (ms: number) => new Date(Math.min(agora.getTime(), inicio - ms));
+    const feitaEm = antes(cancelar ? 3 * DIA_MS : MINUTO);
     const primeiro = vez++;
     for (let i = 0; i < jogadores.length; i++) {
       const jogadorId = jogadores[(primeiro + i) % jogadores.length];
+      if (await jogaNoHorario(jogadorId, inicio, fim)) continue;
       const r = await criarReserva(db, jogadorId, { quadraId, dia: d, inicio: it.hora * 60, qtd: it.qtd }, feitaEm);
       if (!r.ok && r.erro === MSG_LIMITE_RESERVAS) continue;
       // Horário tomado (por exemplo, por uma reserva feita no app): pula.
       if (!r.ok) return false;
       existentes.add(chave(quadraId, inicio));
-      if (cancelar === "jogador") await cancelarPeloJogador(db, jogadorId, r.reservaId, new Date(inicio - 2 * DIA_MS));
-      if (cancelar === "dono") {
-        await cancelarPeloDono(db, arenaId, r.reservaId, MOTIVO_DA_ARENA[it.quadra], new Date(inicio - DIA_MS));
-      }
+      const cancelou =
+        cancelar === "jogador" ? await cancelarPeloJogador(db, jogadorId, r.reservaId, antes(2 * DIA_MS))
+        : cancelar === "dono" ? await cancelarPeloDono(db, arenaId, r.reservaId, MOTIVO_DA_ARENA[it.quadra], antes(DIA_MS))
+        : true;
+      if (!cancelou) throw new Error("cancelamento da demonstração recusado");
       return true;
     }
     return false;
   };
+  // A agenda fixa de um dia, com a cancelada dele, se tiver.
+  const agendaDoDia = async (d: string) => {
+    const doDia = SEMANA[diaDaSemana(d)];
+    for (const [i, it] of doDia.entries()) await reservar(d, it, cancelamento(d, i, doDia));
+  };
 
   // 1. Histórico, do dia mais antigo para o mais novo (antes das futuras, que
   //    contariam no limite de quem reservou no passado).
-  for (let n = DIAS_HISTORICO; n >= 1; n--) {
-    const d = somaDias(dia, -n);
-    for (const [i, it] of SEMANA[diaDaSemana(d)].entries()) await reservar(d, it, i === 0 ? cancelamento(d) : null);
-  }
+  for (let n = DIAS_HISTORICO; n >= 1; n--) await agendaDoDia(somaDias(dia, -n));
 
   // 2. A agenda de hoje.
-  for (const it of SEMANA[diaDaSemana(dia)]) await reservar(dia, it);
+  await agendaDoDia(dia);
 
   // 3. Bloqueios (aula e manutenção), de hoje até o 14º dia. Horário que já
   //    começou ou está ocupado, a função do painel pula.
@@ -389,11 +439,9 @@ async function agendaDosOutros(db: Db, a: Agenda, jogadores: string[]): Promise<
     }
   }
 
-  // 5. Os próximos 14 dias.
-  for (let n = 1; n <= DIAS_A_FRENTE; n++) {
-    const d = somaDias(dia, n);
-    for (const it of SEMANA[diaDaSemana(d)]) await reservar(d, it);
-  }
+  // 5. Os próximos 14 dias, também com as canceladas: quando passarem para o
+  //    histórico, já vão com elas.
+  for (let n = 1; n <= DIAS_A_FRENTE; n++) await agendaDoDia(somaDias(dia, n));
 }
 
 // Idempotente: cada passo procura o que já existe (a arena pelo slug, a conta
@@ -434,10 +482,11 @@ export async function semearDemo(
   const outros: string[] = [];
   for (const [nome, email] of JOGADORES) outros.push(await contaDeJogador(db, nome, email));
 
-  for (const a of OUTRAS_ARENAS) await semearArena(db, a);
+  const outras = new Map<string, ArenaSemeada>();
+  for (const a of OUTRAS_ARENAS) outras.set(a.slug, await semearArena(db, a));
 
   const agenda: Agenda = { arenaId, quadras, agora, dia: hojeLocal(agora) };
-  await agendaDoPrincipal(db, agenda, jogadorId);
+  await agendaDoPrincipal(db, agenda, outras.get(SLUG_PADEL)!, jogadorId);
   await agendaDosOutros(db, agenda, outros);
 
   return { arenaSlug: SLUG, outrasArenas: OUTRAS_ARENAS.map((a) => a.slug), segredos };
