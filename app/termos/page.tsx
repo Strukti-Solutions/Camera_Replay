@@ -26,7 +26,7 @@ export default async function Termos() {
         <h2>O que guardamos</h2>
         <ul>
           <li>Seu nome e seu e-mail, para a sua conta.</li>
-          <li>Os vídeos dos lances (replays) da quadra, por até 3 dias. Depois disso eles são apagados.</li>
+          <li>Os vídeos dos lances (replays) da quadra, por até 7 dias. Depois disso eles são apagados.</li>
         </ul>
 
         <h2>Para que usamos</h2>

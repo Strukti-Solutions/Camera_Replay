@@ -1,7 +1,7 @@
 # Reservas públicas, login único e pagamento (design)
 
 **Data:** 22/10/2026. **Estado:** para aprovação do dono do projeto (com as respostas da revisão de quem constrói).
-**Relação com o spec principal:** este documento muda partes de `2026-10-16-replay-saas-design.md`: contas de aluno presas a uma arena, cadastro de aluno pelo dono, vários alunos por reserva, atribuição de lance a aluno, logins separados, e quadras e câmeras criadas pelo dono. Quando os dois divergem, vale este. O resto do spec principal continua valendo: botão, fila, worker, R2, retenção de 3 dias, isolamento por `arena_id` e suspensão de arena.
+**Relação com o spec principal:** este documento muda partes de `2026-10-16-replay-saas-design.md`: contas de aluno presas a uma arena, cadastro de aluno pelo dono, vários alunos por reserva, atribuição de lance a aluno, logins separados, e quadras e câmeras criadas pelo dono. Quando os dois divergem, vale este. O resto do spec principal continua valendo: botão, fila, worker, R2, retenção (7 dias desde a migração 0024), isolamento por `arena_id` e suspensão de arena.
 
 Marcações: **(decisão do dono)** foi dito por ele; **(decisão nossa)** foi escolha do time, e ele pode mudar.
 

@@ -18,10 +18,10 @@ test("token válido cria aperto e clipe pendente da câmera do botão", async ()
   const r = await registrarAperto(db, botao.token);
   expect(r?.duplicado).toBe(false);
   const c = await db.query(
-    `select status, camera_id, arena_id, (expira_em - recebido_em = interval '3 days') as tres_dias_padrao
+    `select status, camera_id, arena_id, (expira_em - recebido_em = interval '7 days') as sete_dias_padrao
      from clipes where id = $1`, [r!.clipeId]);
   expect(c.rows[0]).toMatchObject({
-    status: "pendente", camera_id: camera.id, arena_id: arena.id, tres_dias_padrao: true,
+    status: "pendente", camera_id: camera.id, arena_id: arena.id, sete_dias_padrao: true,
   });
 });
 
