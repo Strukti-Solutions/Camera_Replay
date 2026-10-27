@@ -37,6 +37,7 @@ export type LanceDoCarrossel = {
   url: string;
   capa: string;
   download: string;
+  arquivo: string; // nome do .mp4 com a data absoluta (o mesmo do download)
 };
 
 function prefereMenosMovimento() {
@@ -428,7 +429,12 @@ export function CarrosselLances({ lances }: { lances: LanceDoCarrossel[] }) {
               <a className="botao botao-cheio" href={aberto.download}>
                 Baixar vídeo
               </a>
-              <BotaoCompartilhar key={aberto.id} download={aberto.download} horario={aberto.horario} />
+              <BotaoCompartilhar
+                key={aberto.id}
+                download={aberto.download}
+                horario={aberto.horario}
+                nomeDoArquivo={aberto.arquivo}
+              />
             </div>
           </div>
         )}

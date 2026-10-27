@@ -4,6 +4,7 @@ import {
   MENSAGEM_TOCAR_DE_NOVO,
   baixarArquivoDoLance,
   mensagemDaFalha,
+  nomeDoArquivoCompartilhado,
   nomeDoArquivoDoLance,
   podeCompartilharArquivos,
 } from "../app/componentes/compartilhar-lance";
@@ -50,7 +51,21 @@ test("nome do arquivo só tem [a-z0-9-] e termina em .mp4", () => {
   expect(nomeDoArquivoDoLance("Sábado, 20:37")).toBe("lance-sabado-20h37.mp4");
 });
 
-test("baixa o vídeo e devolve um .mp4 com o nome do lance", async () => {
+test("arquivo compartilhado leva o nome do Baixar, com a data absoluta", () => {
+  // Quem recebe dias depois não pode ler um "hoje" que já passou.
+  expect(nomeDoArquivoCompartilhado("lance-2026-10-26-20h37.mp4", "hoje, 20:37")).toBe("lance-2026-10-26-20h37.mp4");
+  expect(nomeDoArquivoCompartilhado("lance-2026-10-25-09h05.mp4", "ontem, 09:05")).toBe("lance-2026-10-25-09h05.mp4");
+});
+
+test("sem o nome do Baixar, ou fora do formato seguro, cai no nome tirado do horário", () => {
+  expect(nomeDoArquivoCompartilhado(undefined, "hoje, 20:37")).toBe("lance-hoje-20h37.mp4");
+  expect(nomeDoArquivoCompartilhado("", "20:37")).toBe("lance-20h37.mp4");
+  for (const ruim of ["../lance.mp4", "lance 2026.mp4", "lance-2026.MP4", "video.mp4", "lance-.mp4.exe", "Lance-2026-10-26-20h37.mp4"]) {
+    expect(nomeDoArquivoCompartilhado(ruim, "20:37")).toBe("lance-20h37.mp4");
+  }
+});
+
+test("baixa o vídeo e devolve um .mp4 com o nome dado", async () => {
   const pedidos: { url: string; sinal?: AbortSignal | null }[] = [];
   const buscar = (async (url: string, init?: RequestInit) => {
     pedidos.push({ url, sinal: init?.signal });
@@ -58,17 +73,19 @@ test("baixa o vídeo e devolve um .mp4 com o nome do lance", async () => {
   }) as typeof fetch;
   const controle = new AbortController();
 
-  const f = await baixarArquivoDoLance("https://r2.exemplo/lance.mp4?assinatura=x", "hoje, 20:37", buscar, controle.signal);
+  const f = await baixarArquivoDoLance(
+    "https://r2.exemplo/lance.mp4?assinatura=x", "lance-2026-10-26-20h37.mp4", buscar, controle.signal,
+  );
 
   expect(pedidos).toEqual([{ url: "https://r2.exemplo/lance.mp4?assinatura=x", sinal: controle.signal }]);
-  expect(f.name).toBe("lance-hoje-20h37.mp4");
+  expect(f.name).toBe("lance-2026-10-26-20h37.mp4");
   expect(f.type).toBe("video/mp4");
   expect(f.size).toBe(3);
 });
 
 test("resposta de erro do R2 (link vencido) vira falha, não arquivo vazio", async () => {
   const buscar = (async () => new Response("negado", { status: 403 })) as typeof fetch;
-  await expect(baixarArquivoDoLance("https://r2.exemplo/x.mp4", "20:37", buscar)).rejects.toThrow();
+  await expect(baixarArquivoDoLance("https://r2.exemplo/x.mp4", "lance-20h37.mp4", buscar)).rejects.toThrow();
 });
 
 test("fechar a folha de compartilhar não mostra mensagem", () => {

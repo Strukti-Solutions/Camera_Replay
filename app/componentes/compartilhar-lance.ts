@@ -16,7 +16,8 @@ export function podeCompartilharArquivos(nav: Pick<Navigator, "canShare"> | unde
 }
 
 // "20:37" → "lance-20h37.mp4"; "hoje, 20:37" → "lance-hoje-20h37.mp4".
-// Só [a-z0-9-]: nome seguro em qualquer app que receba o arquivo.
+// Só [a-z0-9-]: nome seguro em qualquer app que receba o arquivo. É só o
+// plano B de nomeDoArquivoCompartilhado: "hoje" e "ontem" envelhecem.
 export function nomeDoArquivoDoLance(horario: string): string {
   const miolo = horario
     .normalize("NFD")
@@ -28,18 +29,29 @@ export function nomeDoArquivoDoLance(horario: string): string {
   return miolo ? `lance-${miolo}.mp4` : "lance.mp4";
 }
 
-// Baixa o .mp4 pela URL assinada de download e devolve o arquivo pronto para a
-// folha de compartilhar. Resposta de erro (link vencido, CORS) lança.
+const NOME_SEGURO = /^lance-[a-z0-9]+(?:-[a-z0-9]+)*\.mp4$/;
+
+// Nome do arquivo compartilhado: o mesmo do "Baixar vídeo"
+// (lance-AAAA-MM-DD-HHhMM.mp4, montado no servidor em app/lib/clipes.ts), com
+// a data absoluta: quem recebe dias depois pelo WhatsApp não lê um "hoje" que
+// já passou. Sem ele, ou fora do formato seguro, usa o nome tirado do horário.
+export function nomeDoArquivoCompartilhado(arquivo: string | undefined, horario: string): string {
+  return arquivo !== undefined && NOME_SEGURO.test(arquivo) ? arquivo : nomeDoArquivoDoLance(horario);
+}
+
+// Baixa o .mp4 pela URL assinada de download e devolve o arquivo, com o nome
+// dado, pronto para a folha de compartilhar. Resposta de erro (link vencido)
+// lança; sem o CORS do bucket, o próprio fetch lança.
 export async function baixarArquivoDoLance(
   download: string,
-  horario: string,
+  nome: string,
   buscar: typeof fetch = fetch,
   sinal?: AbortSignal,
 ): Promise<File> {
   const resposta = await buscar(download, { signal: sinal });
   if (!resposta.ok) throw new Error(`download do lance respondeu ${resposta.status}`);
   const blob = await resposta.blob();
-  return new File([blob], nomeDoArquivoDoLance(horario), { type: "video/mp4" });
+  return new File([blob], nome, { type: "video/mp4" });
 }
 
 function nomeDoErro(erro: unknown): string | undefined {

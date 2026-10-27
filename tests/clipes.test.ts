@@ -102,6 +102,8 @@ test("capa é a URL assinada da .jpg e download leva o nome lance-AAAA-MM-DD-HHh
   expect(r2.urlLeitura).toHaveBeenCalledWith(`clipes/${a.arena.id}/${id}.mp4`, {
     baixarComo: "lance-2026-10-17-14h32.mp4",
   });
+  // O "Compartilhar" usa o mesmo nome do download (data absoluta).
+  expect(c.arquivo).toBe("lance-2026-10-17-14h32.mp4");
 });
 
 test("quadra sem clipes devolve lista vazia; slug inexistente devolve null", async () => {
@@ -126,7 +128,7 @@ test("nada de dado interno: o resultado só tem os campos públicos", async () =
   await clipe(db, a);
   const r = (await clipesDaQuadra(db, r2Falso(), a.quadra.slug))!;
   expect(Object.keys(r).sort()).toEqual(["clipes", "quadra"]);
-  expect(Object.keys(r.clipes[0]).sort()).toEqual(["capa", "download", "duracao", "id", "parcial", "recebidoEm", "url"]);
+  expect(Object.keys(r.clipes[0]).sort()).toEqual(["arquivo", "capa", "download", "duracao", "id", "parcial", "recebidoEm", "url"]);
   const publico = { ...r, clipes: r.clipes.map(({ url: _url, capa: _capa, download: _download, ...resto }) => resto) };
   const texto = JSON.stringify(publico);
   for (const proibido of ["chave_r2", "motivo", "camera_id", "arena_id", a.arena.id, a.camera.id, a.quadra.id]) {

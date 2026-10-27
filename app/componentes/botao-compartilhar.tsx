@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   baixarArquivoDoLance,
   mensagemDaFalha,
-  nomeDoArquivoDoLance,
+  nomeDoArquivoCompartilhado,
   podeCompartilharArquivos,
 } from "./compartilhar-lance";
 
@@ -15,7 +15,18 @@ import {
 // O download é um fetch() da URL assinada do R2, de outra origem: depende da
 // regra de CORS do bucket (README, "CORS do bucket do R2"). Sem ela, todo
 // toque termina em MENSAGEM_FALHA. Não contornar aqui (proxy pelo app).
-export function BotaoCompartilhar({ download, horario }: { download: string; horario: string }) {
+// O arquivo leva nomeDoArquivo (o do "Baixar vídeo", com a data absoluta);
+// o horário relativo ("hoje, 20:37") fica só no título da folha.
+export function BotaoCompartilhar({
+  download,
+  horario,
+  nomeDoArquivo,
+}: {
+  download: string;
+  horario: string;
+  nomeDoArquivo: string;
+}) {
+  const nome = nomeDoArquivoCompartilhado(nomeDoArquivo, horario);
   const [disponivel, setDisponivel] = useState(false);
   const [preparando, setPreparando] = useState(false);
   const [mensagem, setMensagem] = useState("");
@@ -27,9 +38,9 @@ export function BotaoCompartilhar({ download, horario }: { download: string; hor
   const controleRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const exemplo = new File([], nomeDoArquivoDoLance(horario), { type: "video/mp4" });
+    const exemplo = new File([], nome, { type: "video/mp4" });
     setDisponivel(podeCompartilharArquivos(navigator, exemplo));
-  }, [horario]);
+  }, [nome]);
 
   // Fechou o lance no meio do download: cancela o download.
   useEffect(() => () => controleRef.current?.abort(), []);
@@ -46,7 +57,7 @@ export function BotaoCompartilhar({ download, horario }: { download: string; hor
         const controle = new AbortController();
         controleRef.current = controle;
         try {
-          arquivo = await baixarArquivoDoLance(download, horario, fetch, controle.signal);
+          arquivo = await baixarArquivoDoLance(download, nome, fetch, controle.signal);
         } finally {
           setPreparando(false);
         }
