@@ -28,6 +28,13 @@ test("urlLocal aceita só banco em localhost, 127.0.0.1 ou ::1", () => {
   expect(urlLocal("postgres://u@localhost.exemplo.com/x")).toBe(false);
   // O pg troca o host da URL pelo ?host=.
   expect(urlLocal("postgres://u@localhost/x?host=db.xyz.supabase.co")).toBe(false);
+  expect(urlLocal("postgres://u@localhost/x?host=localhost&host=evil.com")).toBe(false);
+  expect(urlLocal("postgres://u@localhost/x?host=")).toBe(false);
+  // "localhost" no usuário ou na senha não conta; o host é o que vem depois do @.
+  expect(urlLocal("postgres://localhost:p@evil.com/x")).toBe(false);
+  expect(urlLocal("postgres://u@127.0.0.1.nip.io/x")).toBe(false);
+  expect(urlLocal("postgres://u@localhost%2Eevil.com/x")).toBe(false);
+  expect(urlLocal("postgres://u@[0:0:0:0:0:0:0:1]:5432/x")).toBe(true);
   expect(urlLocal("postgres:///x")).toBe(false);
   expect(urlLocal("/var/run/postgresql x")).toBe(false);
   expect(urlLocal("http://localhost/x")).toBe(false);
@@ -123,15 +130,33 @@ test("depois das 20h a reserva de hoje às 20:00 ainda é criada", async () => {
 
 test("rodar duas vezes não duplica nada e não gera segredos novos", async () => {
   const db = await novoBanco();
-  const primeira = await semearDemo(db);
+  const primeira = await semearDemo(db, { agora: AGORA });
   const antes = await contagens(db);
-  const segunda = await semearDemo(db);
+  const segunda = await semearDemo(db, { agora: AGORA });
   expect(segunda.arenaSlug).toBe(primeira.arenaSlug);
   expect(segunda.segredos).toEqual({});
   expect(await contagens(db)).toEqual(antes);
   expect(antes).toEqual({
     arenas: 1, quadras: 2, horarios_quadra: 84, cameras: 1, botoes: 1, usuarios: 1, jogadores: 1, reservas: 1,
   });
+});
+
+// Os prints pedem uma reserva no dia em que são tirados: a de outro dia, ou a
+// cancelada, não serve e não impede o seed de criar a de hoje.
+test("em outro dia, ou com a de hoje cancelada, o seed cria a reserva de hoje às 20:00", async () => {
+  const db = await novoBanco();
+  await semearDemo(db, { agora: AGORA });
+  const amanha = new Date("2026-11-10T10:00:00-03:00");
+  await semearDemo(db, { agora: amanha });
+  await db.query("update reservas set situacao = 'cancelada' where inicio = $1", [new Date("2026-11-10T20:00:00-03:00")]);
+  await semearDemo(db, { agora: amanha });
+  const r = (await db.query<{ inicio: Date; situacao: string }>(
+    "select inicio, situacao from reservas order by inicio, situacao")).rows;
+  expect(r).toEqual([
+    { inicio: new Date("2026-11-09T20:00:00-03:00"), situacao: "confirmada" },
+    { inicio: new Date("2026-11-10T20:00:00-03:00"), situacao: "cancelada" },
+    { inicio: new Date("2026-11-10T20:00:00-03:00"), situacao: "confirmada" },
+  ]);
 });
 
 test("se um passo falhar, os segredos do que já foi criado ficam com o chamador", async () => {

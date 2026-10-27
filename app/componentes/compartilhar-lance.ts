@@ -21,7 +21,7 @@ export function podeCompartilharArquivos(nav: Pick<Navigator, "canShare"> | unde
 export function nomeDoArquivoDoLance(horario: string): string {
   const miolo = horario
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/(\d{1,2}):(\d{2})/g, "$1h$2")
     .replace(/[^a-z0-9]+/g, "-")

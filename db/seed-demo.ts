@@ -125,13 +125,17 @@ export async function semearDemo(
   // Uma reserva de hoje às 20:00 na Quadra 1, pelo caminho do site ("pagar na
   // arena", confirmada na hora). criarReserva só aceita horário que ainda não
   // começou: rodando depois das 20h, a reserva conta como feita às 19:59.
+  // Só a confirmada de hoje conta: a de outro dia ou a cancelada não impede
+  // a reserva do dia dos prints.
+  const dia = hojeLocal(agora);
+  const inicio = HORA_RESERVA * 60;
   const temReserva = await db.query(
-    "select 1 from reservas where jogador_id = $1 and arena_id = $2 and tipo = 'reserva' limit 1",
-    [jogadorId, arenaId],
+    `select 1 from reservas
+      where jogador_id = $1 and arena_id = $2 and tipo = 'reserva' and situacao = 'confirmada' and inicio = $3
+      limit 1`,
+    [jogadorId, arenaId, new Date(instanteDoMinuto(dia, inicio))],
   );
   if (temReserva.rows.length === 0) {
-    const dia = hojeLocal(agora);
-    const inicio = HORA_RESERVA * 60;
     const feitaEm = new Date(Math.min(agora.getTime(), instanteDoMinuto(dia, inicio) - 60_000));
     const r = await criarReserva(db, jogadorId, { quadraId: quadra1, dia, inicio, qtd: 1 }, feitaEm);
     if (!r.ok) throw new Error(`reserva da demonstração recusada: ${r.erro}`);

@@ -68,7 +68,7 @@ Reserva pelo site **sem pagamento online** (emenda no spec de 23/10, decisão do
 
 ## Para produção (lance de 7 dias e "Compartilhar", branch `feat/lance-7-dias-compartilhar`, nesta ordem)
 1. CORS do bucket do R2 (condição para mesclar): regra de `GET` para a origem do `APP_URL` e a de desenvolvimento, como no README. Conferir com `curl` e o cabeçalho `Origin` numa URL do "Baixar vídeo": a resposta tem de trazer `Access-Control-Allow-Origin`. Sem a regra, o "Compartilhar" sempre termina em "Não deu para compartilhar".
-2. Antes de aplicar a 0024: `select count(*) from clipes where expira_em > now();`. Se der 0, segue. Se houver lances de jogadores, eles foram gravados sob o texto "por até 3 dias": decidir se a 0024 estende também esses ou só os novos (o `update clipes` da migração).
+2. Antes de aplicar a 0024: `select count(*) from clipes where expira_em > now();`. Se der 0, segue. Se houver lances de jogadores, eles foram gravados sob o texto "por até 3 dias": decidir se a 0024 estende também esses ou só os novos (o `update clipes` da migração). Contar também `select count(*) from jogadores where termos_versao = 'provisorio-2026-10-22';`: essas contas aceitaram o texto de 3 dias e não veem o novo (não há fluxo para aceitar os termos de novo). Se houver pessoas reais, e não só contas de teste, decidir se avisa por e-mail.
 3. Aplicar a 0024 e mesclar na `main`.
 4. No celular: "Compartilhar" abre a folha com o arquivo `lance-AAAA-MM-DD-HHhMM.mp4`.
 
