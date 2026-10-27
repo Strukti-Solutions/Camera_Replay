@@ -12,6 +12,9 @@ import {
 // (WhatsApp, Instagram etc.). No servidor não se sabe se o navegador
 // compartilha arquivos, então o botão só aparece depois de montar e se ele
 // disser que sim; sem suporte fica só o "Baixar vídeo".
+// O download é um fetch() da URL assinada do R2, de outra origem: depende da
+// regra de CORS do bucket (README, "CORS do bucket do R2"). Sem ela, todo
+// toque termina em MENSAGEM_FALHA. Não contornar aqui (proxy pelo app).
 export function BotaoCompartilhar({ download, horario }: { download: string; horario: string }) {
   const [disponivel, setDisponivel] = useState(false);
   const [preparando, setPreparando] = useState(false);

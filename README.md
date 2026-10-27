@@ -36,6 +36,20 @@ Site do jogador, painel do dono e API do botão (Next.js). Requer Node 24.
 
 Variáveis de ambiente: `DATABASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `CAMERA_CRED_KEY`, `CRON_SECRET` e `APP_URL` (URL pública do site, sem barra no fim; usada no QR).
 
+**CORS do bucket do R2 (obrigatório para o "Compartilhar").** O botão "Compartilhar" do lance baixa o `.mp4` com `fetch()` no navegador, pela URL assinada, que é de outra origem (`https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`). Sem uma regra de CORS no bucket, o navegador bloqueia a leitura e o botão sempre termina em "Não deu para compartilhar". O "Baixar vídeo", o player e a capa não dependem disso. A correção é no bucket, não no código. No painel da Cloudflare (R2 → o bucket → Settings → CORS Policy):
+
+```json
+[
+  {
+    "AllowedOrigins": ["<APP_URL>", "http://localhost:3000"],
+    "AllowedMethods": ["GET"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Para conferir: copie o link do "Baixar vídeo" de um lance (vale 15 minutos) e rode `curl -s -o /dev/null -D - -H "Origin: <APP_URL>" "<link>"`. A resposta tem de trazer `Access-Control-Allow-Origin` com essa origem. No celular pela rede local (`next dev -H 0.0.0.0`), `http://<ip>:3000` não é contexto seguro e o navegador esconde o "Compartilhar": use HTTPS ou, no Chrome do Android, `chrome://flags/#unsafely-treat-insecure-origin-as-secure` com essa origem, e ponha a mesma origem em `AllowedOrigins`.
+
 ```bash
 npm install
 npm run migrar                                   # aplica db/migrations em DATABASE_URL
