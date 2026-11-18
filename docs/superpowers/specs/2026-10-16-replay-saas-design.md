@@ -15,7 +15,7 @@ O jogador aperta um botão na beira da quadra. O sistema salva os **últimos 30 
 | Onde roda o buffer de 30 s | **Na nuvem**, num worker 24 h que puxa o vídeo de cada câmera pelo relay do fabricante. |
 | Estrutura do buffer | **Anel de H.264 em memória** por câmera (~40 s), cortado com `ffmpeg -c copy`. |
 | Botão | **ESP32 no Wi-Fi da arena**, com HTTPS POST e token por dispositivo. |
-| Acesso do jogador | **Um QR por arena** (`/a/<slug-da-arena>`). A página do QR não lista nada em público: sem login é só a tela de entrar; o **aluno** entra com o e-mail e a senha que o dono cadastrou e vê só as reservas e os lances dele, em todas as quadras da arena. Os lances ficam disponíveis no máximo 3 dias (padrão e teto) e depois podem ser apagados. Ver "Reservas e alunos". |
+| Acesso do jogador | **Um QR por arena** (`/a/<slug-da-arena>`). A página do QR não lista nada em público: sem login é só a tela de entrar; o **aluno** entra com o e-mail e a senha que o dono cadastrou e vê só as reservas e os lances dele, em todas as quadras da arena. Os lances ficam disponíveis no máximo 7 dias (padrão e teto) e depois podem ser apagados. Ver "Reservas e alunos". |
 | Cliente pagante | Dono da arena. Multi-arena desde o início, com painel e cobrança. |
 | Cobrança | Provedor **a decidir** (Asaas ou Stripe). Fica atrás de uma interface. Último subprojeto. |
 | Repositório | **Repo novo e separado** (nome sugerido: `strukti-replay`). O site da Strukti só linka para ele. |
@@ -57,7 +57,7 @@ O aperto grava o **instante do servidor** (`recebido_em`), não o do ESP32.
 
 | Tabela | Campos principais |
 |---|---|
-| `arenas` | id, nome, plano, status da assinatura (`ativa` ou `suspensa`), `dias_retencao` (int, padrão 3, entre 1 e 3) |
+| `arenas` | id, nome, plano, status da assinatura (`ativa` ou `suspensa`), `dias_retencao` (int, padrão 7, entre 1 e 7) |
 | `usuarios` | id, arena_id, e-mail, hash da senha, papel |
 | `quadras` | id, arena_id, nome, `slug` público aleatório |
 | `cameras` | id, quadra_id, nome, SN, credenciais cifradas, status, última vez visto |
@@ -154,7 +154,7 @@ Várias arenas no mesmo sistema; o aluno escolhe a arena e a equipe Strukti cria
 - **Limite por IP por tipo de login:** a contagem por IP considera só as chaves do mesmo tipo (`dono:`, `aluno:` ou `admin:`). Alunos errando a senha no Wi-Fi da arena não travam o login do dono nem o do admin; o limite por e-mail segue por conta.
 - **Lista pública** (`app/lib/arenas-publicas.ts`, fora da guarda): `listarArenasPublicas` devolve só nome e slug das arenas ativas, até 50, com busca por trecho do nome.
 - **Funções de administração** (`app/lib/plataforma.ts`) cruzam arenas: `listarArenasAdmin`, `criarArenaAdmin` (arena e dono num comando só; e-mail de dono já usado falha sem criar nada), `definirStatusArena`, `criarSuperAdmin`. Só `app/admin/**` (e os CLIs de `db/`) importam o módulo, e as páginas e actions de `/admin` chamam depois de `exigirSuperAdmin()`; `tests/isolamento-plataforma.test.ts` garante.
-- **Arena suspensa** (`arenas.status_assinatura` com check `ativa`/`suspensa`; valores antigos viraram `ativa`): some da lista pública; o login do dono e do aluno responde `suspensa` (só a quem acertou a senha); as sessões abertas de dono e aluno deixam de valer na próxima validação, porque a sessão é conferida contra o estado da arena; `registrar_aperto` não grava nada e responde como token inválido. Suspender apaga as sessões de dono e de aluno da arena; o resto só deixa de valer e nada é apagado além do que já expiraria pela retenção de 3 dias. Reativar devolve tudo, exceto as sessões: dono e alunos entram de novo. `/a/<slug>` de arena suspensa mostra o aviso de suspensão publicamente (o nome da arena já é público).
+- **Arena suspensa** (`arenas.status_assinatura` com check `ativa`/`suspensa`; valores antigos viraram `ativa`): some da lista pública; o login do dono e do aluno responde `suspensa` (só a quem acertou a senha); as sessões abertas de dono e aluno deixam de valer na próxima validação, porque a sessão é conferida contra o estado da arena; `registrar_aperto` não grava nada e responde como token inválido. Suspender apaga as sessões de dono e de aluno da arena; o resto só deixa de valer e nada é apagado além do que já expiraria pela retenção de 7 dias. Reativar devolve tudo, exceto as sessões: dono e alunos entram de novo. `/a/<slug>` de arena suspensa mostra o aviso de suspensão publicamente (o nome da arena já é público).
 
 ## Interface do buffer
 
@@ -174,7 +174,7 @@ Várias arenas no mesmo sistema; o aluno escolhe a arena e a equipe Strukti cria
 - Credenciais das câmeras cifradas no banco. A chave fica só no ambiente do app e do worker. O `config.py` com segredos continua fora do git.
 - Token do botão por dispositivo, revogável (`botoes.revogado_em`), guardado como hash. Token revogado não registra aperto.
 - Credenciais no formato `v1:<iv>:<tag>:<cifra>` (AES-256-GCM). O prefixo `v1` permite trocar o formato depois.
-- Retenção por arena em `arenas.dias_retencao` (padrão e teto de 3 dias, migração `0007_retencao_3_dias.sql`; arenas e clipes que já tinham prazo maior foram reduzidos para 3). A chave do clipe no R2 inclui o `arena_id`.
+- Retenção por arena em `arenas.dias_retencao` (padrão e teto de 7 dias, migração `0024_retencao_7_dias.sql`, decisão do Thiago em 26/10: o lance fica 7 dias, como diz o vídeo do replay; todas as arenas passaram a 7 e os lances ainda guardados ganharam o prazo de 7 dias desde o aperto. Antes, a `0007_retencao_3_dias.sql` tinha travado em 3). A chave do clipe no R2 inclui o `arena_id`.
 - Login do dono com hash forte de senha e limite de tentativas.
 - Bucket privado, URLs assinadas e curtas.
 - Não há dados de jogador. O vídeo mostra pessoas: a quadra precisa de aviso de gravação, que entra como requisito de implantação e nos termos de uso.

@@ -86,7 +86,7 @@ export default async function PaginaAdmin() {
                           acao={suspenderArenaAction}
                           arenaId={a.id}
                           rotulo="Suspender"
-                          pergunta={`${textoReservasFuturas(futuras.get(a.id) ?? 0)} O dono perde o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 3 dias.`}
+                          pergunta={`${textoReservasFuturas(futuras.get(a.id) ?? 0)} O dono perde o acesso e o botão para de gravar. Nada é apagado além do que já expiraria pela retenção de 7 dias.`}
                           confirmar="Confirmar: suspender arena"
                           perigo
                         />

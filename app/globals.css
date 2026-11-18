@@ -658,8 +658,29 @@ video {
   margin: 0;
 }
 
-.lance-dialogo .botao-cheio {
-  justify-self: start;
+/* Baixar vídeo e Compartilhar lado a lado; o aviso do Compartilhar ocupa a
+   linha de baixo. */
+.lance-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lance-acoes-aviso {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Vazio, o aviso sai do fluxo (sem linha nem gap a mais) mas continua na
+   árvore de acessibilidade, para a região viva ser anunciada. */
+.lance-acoes-aviso:empty {
+  position: absolute;
+}
+
+.botao[aria-busy="true"] {
+  opacity: 0.7;
+  cursor: progress;
 }
 
 /* ---------- Entrar e painel ---------- */
