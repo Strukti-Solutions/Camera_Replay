@@ -218,6 +218,9 @@ def test_kwargs_de_conexao_tem_timeouts_e_keepalive():
     assert kw["keepalives"] == 1 and kw["keepalives_idle"] == 30
     assert kw["keepalives_interval"] == 10 and kw["keepalives_count"] == 3
     assert kw["options"] == "-c statement_timeout=15000"
+    # pooler do Supabase em modo transaction (6543): prepared statement no servidor quebra
+    # (DuplicatePreparedStatement / InvalidSqlStatementName); None desliga
+    assert "prepare_threshold" in kw and kw["prepare_threshold"] is None
 
 
 def test_erro_da_fila_numa_camera_nao_impede_a_outra(sup_factory):
@@ -256,3 +259,11 @@ def test_main_sem_database_url_sai_com_erro_sem_vazar_valores(monkeypatch, capsy
     texto = saida.out + saida.err
     assert "DATABASE_URL" in texto
     assert "SEGREDO" not in texto
+
+
+def test_aceitar_limita_as_cameras_capturadas(sup_factory):
+    # worker na rede da arena: só as câmeras locais, nunca as do relay das outras arenas
+    fila = FilaFalsa([cam(1), cam(2), cam(3)])
+    sup = sup_factory(fila, aceitar=lambda c: c.sn == "SN2")
+    sup.refresh()
+    assert set(sup._ativas) == {"cam2"}

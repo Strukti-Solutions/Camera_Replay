@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Collection
 
 import psycopg
 
@@ -67,11 +67,13 @@ class PgJobQueue:
     """
 
     def __init__(self, connect: Callable[[], Any], clock_sync: ClockSync,
-                 chave: bytes, limite: int = 5):
+                 chave: bytes, limite: int = 5, sem_credencial: Collection[str] = ()):
         self._connect = connect
         self._clock_sync = clock_sync
         self._chave = chave
         self._limite = limite
+        # SNs lidos por RTSP local: a credencial XM do banco não é usada, não precisa decifrar
+        self._sem_credencial = frozenset(sem_credencial)
         self._conn: Any = None
         self._cameras_avisadas: set[str] = set()  # credencial inválida: avisa 1 vez por câmera
 
@@ -120,6 +122,9 @@ class PgJobQueue:
             try:
                 creds = decifrar_credenciais(texto, self._chave, sn)
             except ValueError:
+                if sn in self._sem_credencial:
+                    cameras.append(Camera(str(cam), str(arena), sn, CameraCreds(sn, "", "", "")))
+                    continue
                 if str(cam) not in self._cameras_avisadas:
                     self._cameras_avisadas.add(str(cam))
                     log.warning("câmera %s: credencial inválida", cam)

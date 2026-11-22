@@ -1,6 +1,7 @@
 """Supervisor 24 h: liga a fila do Postgres, o R2 e uma captura por câmera.
 
-Uso: ``py -m replay_worker.main``. Nada aqui imprime valor de variável de
+Uso: ``py -m replay_worker.main``. Com ``CAMERAS_RTSP=<arquivo>`` o worker só
+captura as câmeras desse arquivo, lidas por RTSP local (ver ``rtsp_local.py``). Nada aqui imprime valor de variável de
 ambiente, DATABASE_URL nem mensagem de exceção do psycopg (pode conter a URL):
 os logs citam câmera e clipe pelo id e a exceção só pelo tipo.
 """
@@ -43,8 +44,11 @@ class Supervisor:
 
     def __init__(self, queue, uploader, make_source: Callable[[Any], Any],
                  clock: Callable[[], float] = time.time, relay_lag: float = 0.0,
-                 mux=h264_to_mp4, sleep: Callable[[float], Any] | None = None):
+                 mux=h264_to_mp4, sleep: Callable[[float], Any] | None = None,
+                 aceitar: Callable[[Any], bool] | None = None):
         self._queue = queue
+        # filtro de câmeras: worker na rede de uma arena só pega as câmeras locais
+        self._aceitar = aceitar or (lambda camera: True)
         self._uploader = uploader
         self._make_source = make_source
         self._clock = clock
@@ -76,7 +80,7 @@ class Supervisor:
 
     def refresh(self) -> None:
         """Sincroniza as capturas com a lista de câmeras do banco."""
-        cameras = {c.camera_id: c for c in self._queue.listar_cameras()}
+        cameras = {c.camera_id: c for c in self._queue.listar_cameras() if self._aceitar(c)}
         for camera_id in list(self._ativas):
             # câmera removida ou com credencial trocada: derruba a captura antiga
             if camera_id not in cameras or self._ativas[camera_id].camera != cameras[camera_id]:
@@ -130,7 +134,9 @@ def _kwargs_conexao() -> dict[str, Any]:
     """Opções do psycopg.connect: timeouts e keepalive evitam travar numa conexão morta."""
     return dict(autocommit=True, connect_timeout=10, keepalives=1, keepalives_idle=30,
                 keepalives_interval=10, keepalives_count=3,
-                options="-c statement_timeout=15000")
+                options="-c statement_timeout=15000",
+                # sem prepared statement no servidor: compatível com pooler em modo transaction
+                prepare_threshold=None)
 
 
 def _ler_float(nome: str, padrao: float) -> float:
@@ -157,12 +163,18 @@ def main() -> int:
     from replay_worker.creds import ler_chave
     from replay_worker.pg import ClockSync, PgJobQueue
     from replay_worker.r2 import R2Uploader
+    from replay_worker.rtsp_local import carregar_rtsp, fonte_para
     from replay_worker.source import RelaySource
 
     try:
         chave = ler_chave(os.environ["CAMERA_CRED_KEY"])
         lag = _ler_float("RELAY_LAG_S", 0.0)
         poll_s = _ler_float("WORKER_POLL_S", 1.0)
+        caminho_rtsp = os.environ.get("CAMERAS_RTSP", "").strip()
+        mapa_rtsp = carregar_rtsp(caminho_rtsp, os.environ) if caminho_rtsp else None
+    except OSError:
+        print("configuração inválida: não consegui ler CAMERAS_RTSP", file=sys.stderr)
+        return 2
     except ValueError as exc:
         print("configuração inválida: %s" % exc, file=sys.stderr)
         return 2
@@ -191,10 +203,16 @@ def main() -> int:
             raise
 
     sync = ClockSync(query_epoch)
-    queue = PgJobQueue(connect, sync, chave)
+    queue = PgJobQueue(connect, sync, chave, sem_credencial=set(mapa_rtsp or ()))
     uploader = R2Uploader(os.environ["R2_ACCOUNT_ID"], os.environ["R2_ACCESS_KEY_ID"],
                           os.environ["R2_SECRET_ACCESS_KEY"], os.environ["R2_BUCKET"])
-    sup = Supervisor(queue, uploader, lambda camera: RelaySource(camera.creds), relay_lag=lag)
+    if mapa_rtsp is None:
+        sup = Supervisor(queue, uploader, lambda camera: RelaySource(camera.creds), relay_lag=lag)
+    else:
+        log.info("modo RTSP local: %d câmera(s)", len(mapa_rtsp))
+        sup = Supervisor(queue, uploader,
+                         lambda camera: fonte_para(camera, mapa_rtsp, lambda c: RelaySource(c.creds)),
+                         relay_lag=lag, aceitar=lambda camera: camera.sn in mapa_rtsp)
 
     parar = threading.Event()
 

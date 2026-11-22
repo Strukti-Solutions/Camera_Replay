@@ -266,3 +266,18 @@ def test_integracao_fluxo_da_fila():
                 fx.execute("delete from arenas where id = %s", (a,))
         finally:
             fx.close()
+
+
+def test_camera_rtsp_local_nao_precisa_decifrar_a_credencial(caplog):
+    # no modo RTSP local a credencial XM não é usada: chave diferente não pode tirar a câmera
+    ruim = "v1:" + ":".join(base64.b64encode(os.urandom(n)).decode() for n in (12, 16, 20))
+    cam_rtsp, cam_xm = uuid.UUID(int=12), uuid.UUID(int=13)
+    arena = uuid.UUID(int=20)
+    conn = Conn(respostas=[[(cam_rtsp, arena, "JORTAN-1", ruim), (cam_xm, arena, "SN-XM", ruim)]])
+    q = PgJobQueue(lambda: conn, _sync_nulo(), CHAVE, sem_credencial={"JORTAN-1"})
+    with caplog.at_level(logging.DEBUG):
+        cams = q.listar_cameras()
+    assert [c.sn for c in cams] == ["JORTAN-1"]
+    assert cams[0].creds.authcode == "" and cams[0].creds.local_pwd == ""
+    assert f"câmera {cam_xm}: credencial inválida" in caplog.text
+    assert f"câmera {cam_rtsp}" not in caplog.text

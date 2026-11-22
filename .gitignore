@@ -13,3 +13,5 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 .vercel
+worker/cameras-rtsp.json
+worker/.env

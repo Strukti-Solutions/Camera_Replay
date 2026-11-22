@@ -1,0 +1,10 @@
+{
+  "cameras": [
+    {
+      "sn": "JORTAN-JT8178",
+      "url_env": "REPLAY_RTSP_URL",
+      "udp": true,
+      "recodificar": true
+    }
+  ]
+}
